@@ -1,53 +1,58 @@
-import { memo, useState, useEffect, useRef } from 'react';
+import { memo, useState, useEffect, useRef, useMemo } from 'react';
 import PropTypes from 'prop-types';
-import { FaServer, FaInfoCircle, FaExpand, FaCompress, FaVolumeUp, FaClosedCaptioning, FaCheck } from 'react-icons/fa';
+import { FaServer, FaInfoCircle, FaExpand, FaCompress, FaVolumeUp, FaClosedCaptioning, FaRedoAlt } from 'react-icons/fa';
 import { useLanguage } from '../../../context/LanguageContext';
 
 const SOURCES = [
-  { id: 'dub_br_1', type: 'dub', lang: 'pt', name: '🇧🇷 Servidor 1 (Dublado BR)', url: (id, s, e) => `https://superflixapi.bond/serie/${id}/${s}/${e}` },
-  { id: 'dub_br_2', type: 'dub', lang: 'pt', name: '🇧🇷 Servidor 2 (Dublado Alt)', url: (id, s, e) => `https://superflixapi.online/serie/${id}/${s}/${e}` },
-  { id: 'vidlink', type: 'sub', lang: 'multi', name: '🌐 Servidor 3 (VidLink - Legendas Multi)', url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?primaryColor=e50914&secondaryColor=ffffff&iconColor=e50914&poster=true&title=true&nextbutton=false` },
-  { id: 'embedsu', type: 'sub', lang: 'en', name: '⚡ Servidor 4 (EmbedSU - Multi Legendas)', url: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}` },
-  { id: 'multiembed', type: 'sub', lang: 'es', name: '🎬 Servidor 5 (MultiEmbed - Español/Multi)', url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}` },
-  { id: 'autoembed', type: 'sub', lang: 'en', name: '🚀 Servidor 6 (AutoEmbed)', url: (id, s, e) => `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}` },
-];
+  // Servidores Dublados (Áudio em Português)
+  { id: 'dub_1', mode: 'dublado', name: '🇧🇷 Servidor 1 (Dublado BR)', url: (id, s, e) => `https://superflixapi.bond/serie/${id}/${s}/${e}` },
+  { id: 'dub_2', mode: 'dublado', name: '🇧🇷 Servidor 2 (Dublado Alt)', url: (id, s, e) => `https://superflixapi.online/serie/${id}/${s}/${e}` },
 
-const AUDIO_OPTIONS = [
-  { id: 'pt', label: '🇧🇷 Dublado (PT)', targetIdx: 0 },
-  { id: 'en', label: '🇺🇸 Áudio Original (EN)', targetIdx: 2 },
-  { id: 'es', label: '🇪🇸 Español', targetIdx: 4 },
-];
-
-const SUBTITLE_OPTIONS = [
-  { id: 'pt', label: '🇧🇷 Legenda PT-BR', targetIdx: 2, desc: 'Português (Brasil)' },
-  { id: 'en', label: '🇺🇸 Legenda EN', targetIdx: 2, desc: 'English' },
-  { id: 'es', label: '🇪🇸 Legenda ES', targetIdx: 4, desc: 'Español' },
-  { id: 'multi', label: '🌐 Mais Idiomas (CC)', targetIdx: 2, desc: 'Outros idiomas no menu CC' },
+  // Servidores Legendados (Áudio Original com Legendas CC em Português, Inglês, Espanhol, etc.)
+  { id: 'sub_1', mode: 'legendado', name: '💬 Servidor 3 (VidLink - Legendas PT/EN/ES)', url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?primaryColor=e50914&secondaryColor=ffffff&iconColor=e50914&poster=true&title=true&nextbutton=false` },
+  { id: 'sub_2', mode: 'legendado', name: '💬 Servidor 4 (SmashyStream - Multi)', url: (id, s, e) => `https://embed.smashystream.com/playere.php?tmdb=${id}&season=${s}&episode=${e}` },
+  { id: 'sub_3', mode: 'legendado', name: '💬 Servidor 5 (MultiEmbed - Legendado)', url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}` },
 ];
 
 const VideoPlayer = ({ tvId, season = 1, episode = 1 }) => {
     const { language, t } = useLanguage();
     const [shouldRender, setShouldRender] = useState(false);
     const [sourceIdx, setSourceIdx] = useState(0);
-    const [selectedSubtitle, setSelectedSubtitle] = useState(() => localStorage.getItem('cinespartan_sub_pref') || 'pt');
-    const [showSubNotice, setShowSubNotice] = useState(false);
+    const [streamMode, setStreamMode] = useState(() => localStorage.getItem('cinespartan_stream_mode') || 'dublado');
     const [isFullscreen, setIsFullscreen] = useState(false);
     const playerContainerRef = useRef(null);
 
-    // Auto-select preferred server when language, tvId, season, or episode changes
+    // Filtered sources according to the selected mode
+    const visibleSources = useMemo(() => {
+        if (streamMode === 'all') return SOURCES;
+        return SOURCES.filter(s => s.mode === streamMode);
+    }, [streamMode]);
+
+    // When mode changes, make sure sourceIdx points to an active valid source in that mode
+    const handleModeChange = (mode) => {
+        setStreamMode(mode);
+        localStorage.setItem('cinespartan_stream_mode', mode);
+        if (mode === 'dublado') {
+            setSourceIdx(0); // Servidor 1 Dublado
+        } else if (mode === 'legendado') {
+            setSourceIdx(2); // Servidor 3 VidLink Legendado
+        }
+    };
+
+    // Auto-select preferred format when language changes
     useEffect(() => {
-        if (language.startsWith('en')) {
+        if (language.startsWith('en') || language.startsWith('es') || language.startsWith('fr')) {
+            setStreamMode('legendado');
             setSourceIdx(2);
-        } else if (language.startsWith('es')) {
-            setSourceIdx(4);
         } else {
+            setStreamMode('dublado');
             setSourceIdx(0);
         }
     }, [language, tvId, season, episode]);
 
     useEffect(() => {
         setShouldRender(false);
-        const timer = setTimeout(() => setShouldRender(true), 150);
+        const timer = setTimeout(() => setShouldRender(true), 120);
         return () => clearTimeout(timer);
     }, [tvId, season, episode, sourceIdx]);
 
@@ -89,133 +94,139 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1 }) => {
         }
     };
 
-    const handleSelectAudio = (opt) => {
-        setSourceIdx(opt.targetIdx);
-        setShowSubNotice(false);
-    };
-
-    const handleSelectSubtitle = (opt) => {
-        setSelectedSubtitle(opt.id);
-        localStorage.setItem('cinespartan_sub_pref', opt.id);
-        setSourceIdx(opt.targetIdx);
-        setShowSubNotice(true);
+    const handleNextServer = () => {
+        const nextIdx = (sourceIdx + 1) % SOURCES.length;
+        setSourceIdx(nextIdx);
+        setStreamMode(SOURCES[nextIdx].mode);
     };
 
     if (!tvId) return null;
 
-    const iframeSrc = SOURCES[sourceIdx].url(tvId, season, episode);
+    const currentSource = SOURCES[sourceIdx] || SOURCES[0];
+    const iframeSrc = currentSource.url(tvId, season, episode);
 
     return (
         <div className="w-full flex flex-col gap-3">
-            {/* Quick Audio & Subtitles Toolbar */}
-            <div className="flex flex-col gap-2.5 p-3 rounded-2xl bg-[#0f141f]/90 border border-white/10 shadow-xl backdrop-blur-md">
+            {/* Stream Mode & Controls Toolbar */}
+            <div className="flex flex-col gap-2.5 p-3 rounded-2xl bg-[#0f141f]/95 border border-white/10 shadow-xl backdrop-blur-md">
                 
-                {/* Audio Controls */}
-                <div className="flex flex-wrap items-center justify-between gap-2">
+                {/* Format Tabs (Dublado vs Legendado) */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5 shrink-0">
-                            <FaVolumeUp className="text-red-500 text-sm" /> Áudio:
+                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider shrink-0">
+                            Formato:
                         </span>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                            {AUDIO_OPTIONS.map((opt) => {
-                                const isCurrent = (opt.id === 'pt' && (sourceIdx === 0 || sourceIdx === 1)) ||
-                                                  (opt.id === 'en' && (sourceIdx === 2 || sourceIdx === 3 || sourceIdx === 5)) ||
-                                                  (opt.id === 'es' && sourceIdx === 4);
-                                return (
-                                    <button
-                                        key={opt.id}
-                                        type="button"
-                                        onClick={() => handleSelectAudio(opt)}
-                                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                                            isCurrent
-                                                ? 'bg-red-600 text-white shadow-md shadow-red-950/40 ring-1 ring-red-400'
-                                                : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white border border-white/5'
-                                        }`}
-                                    >
-                                        {opt.label}
-                                    </button>
-                                );
-                            })}
+                        
+                        <div className="flex items-center p-1 rounded-xl bg-black/40 border border-white/10 gap-1">
+                            <button
+                                type="button"
+                                onClick={() => handleModeChange('dublado')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    streamMode === 'dublado'
+                                        ? 'bg-red-600 text-white shadow-md shadow-red-950/50 ring-1 ring-red-400'
+                                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                                }`}
+                            >
+                                <FaVolumeUp className="text-xs" />
+                                <span>🇧🇷 Dublado</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => handleModeChange('legendado')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    streamMode === 'legendado'
+                                        ? 'bg-amber-500 text-black shadow-md shadow-amber-950/50 ring-1 ring-amber-300'
+                                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                                }`}
+                            >
+                                <FaClosedCaptioning className="text-xs" />
+                                <span>💬 Legendado (Multi CC)</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => handleModeChange('all')}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                    streamMode === 'all'
+                                        ? 'bg-white/20 text-white ring-1 ring-white/30'
+                                        : 'text-gray-500 hover:text-gray-300'
+                                }`}
+                                title="Exibir todos os servidores disponíveis"
+                            >
+                                Todos
+                            </button>
                         </div>
                     </div>
 
-                    {/* Fullscreen Button */}
-                    <button
-                        onClick={toggleFullscreen}
-                        title={isFullscreen ? 'Sair da Tela Cheia' : 'Abrir em Tela Cheia'}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-all shadow border border-white/10 shrink-0"
-                    >
-                        {isFullscreen ? <FaCompress className="text-xs" /> : <FaExpand className="text-xs" />}
-                        <span>{isFullscreen ? 'Sair' : 'Tela Cheia'}</span>
-                    </button>
+                    <div className="flex items-center gap-2 ml-auto">
+                        {/* Fallback Next Server Button */}
+                        <button
+                            type="button"
+                            onClick={handleNextServer}
+                            title="Se o vídeo travar ou der erro, clique para testar o próximo servidor"
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 transition-all"
+                        >
+                            <FaRedoAlt className="text-[10px]" />
+                            <span className="hidden sm:inline">Trocar Servidor</span>
+                        </button>
+
+                        {/* Fullscreen Button */}
+                        <button
+                            onClick={toggleFullscreen}
+                            title={isFullscreen ? 'Sair da Tela Cheia' : 'Abrir em Tela Cheia'}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-all shadow border border-white/10"
+                        >
+                            {isFullscreen ? <FaCompress className="text-xs" /> : <FaExpand className="text-xs" />}
+                            <span>{isFullscreen ? 'Sair' : 'Tela Cheia'}</span>
+                        </button>
+                    </div>
                 </div>
 
-                {/* Subtitle Controls */}
+                {/* Server Selector for the Active Mode */}
                 <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
-                    <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5 shrink-0">
-                        <FaClosedCaptioning className="text-amber-400 text-sm" /> Legendas:
-                    </span>
+                    <FaServer className="text-gray-400 text-xs shrink-0" />
+                    <span className="text-xs text-gray-400 font-medium shrink-0">Opções do Player:</span>
                     <div className="flex flex-wrap items-center gap-1.5">
-                        {SUBTITLE_OPTIONS.map((opt) => {
-                            const isCurrent = (sourceIdx === 2 || sourceIdx === 3 || sourceIdx === 4) && selectedSubtitle === opt.id;
+                        {visibleSources.map((src) => {
+                            const realIdx = SOURCES.findIndex(s => s.id === src.id);
+                            const isActive = sourceIdx === realIdx;
                             return (
                                 <button
-                                    key={opt.id}
+                                    key={src.id}
                                     type="button"
-                                    onClick={() => handleSelectSubtitle(opt)}
-                                    className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1 ${
-                                        isCurrent
-                                            ? 'bg-amber-500/20 text-amber-300 shadow-md border border-amber-500/40 ring-1 ring-amber-400/40'
+                                    onClick={() => setSourceIdx(realIdx)}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                                        isActive
+                                            ? streamMode === 'legendado'
+                                                ? 'bg-amber-500 text-black shadow-md ring-1 ring-amber-300 font-bold'
+                                                : 'bg-red-600 text-white shadow-md ring-1 ring-red-400 font-bold'
                                             : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white border border-white/5'
                                     }`}
                                 >
-                                    {opt.label}
-                                    {isCurrent && <FaCheck className="text-[10px] ml-1 text-amber-400" />}
+                                    {src.name}
                                 </button>
                             );
                         })}
                     </div>
                 </div>
 
-                {/* Subtitle Helper Notice */}
-                {showSubNotice && (
-                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs animate-in fade-in duration-200">
-                        <div className="flex items-center gap-2">
-                            <FaClosedCaptioning className="text-amber-400 text-base shrink-0" />
-                            <span>
-                                <strong>Legendas ativadas:</strong> Caso a legenda não apareça automaticamente, clique no ícone <strong>&quot;CC&quot;</strong> ou na engrenagem ⚙️ no rodapé do player e selecione o idioma desejado.
-                            </span>
-                        </div>
-                        <button
-                            onClick={() => setShowSubNotice(false)}
-                            className="text-amber-400 hover:text-amber-100 font-bold ml-2 text-xs uppercase"
-                        >
-                            Entendi
-                        </button>
+                {/* Context-aware Explanation Banner */}
+                {streamMode === 'legendado' ? (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-xs">
+                        <FaClosedCaptioning className="text-amber-400 text-sm shrink-0" />
+                        <span>
+                            <strong>Áudio Original com Legendas:</strong> Para ativar ou mudar a legenda (Português, Inglês, Espanhol, etc.), clique no ícone <strong>&quot;CC&quot;</strong> ou na engrenagem ⚙️ no rodapé do próprio player.
+                        </span>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-600/10 border border-red-500/20 text-red-200 text-xs">
+                        <FaVolumeUp className="text-red-400 text-sm shrink-0" />
+                        <span>
+                            <strong>Áudio Dublado:</strong> Transmissão com áudio em Português do Brasil. Se o vídeo demorar a carregar, use o <strong>Servidor 2</strong>.
+                        </span>
                     </div>
                 )}
-            </div>
-
-            {/* Server Toolbar */}
-            <div className="flex flex-wrap items-center gap-2 px-1">
-                <FaServer className="text-gray-400 text-xs mr-1" />
-                <span className="text-xs text-gray-400 font-medium mr-1">{t('server')}:</span>
-                {SOURCES.map((src, idx) => (
-                    <button
-                        key={idx}
-                        onClick={() => {
-                            setSourceIdx(idx);
-                            setShowSubNotice(false);
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                            sourceIdx === idx 
-                                ? 'bg-red-600 text-white shadow-md' 
-                                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
-                        }`}
-                    >
-                        {src.name}
-                    </button>
-                ))}
             </div>
 
             {/* Player Container */}
@@ -254,14 +265,14 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1 }) => {
                 )}
             </div>
 
-            {/* Language & Help Tip */}
-            <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-xs leading-relaxed">
+            {/* Help Tip */}
+            <div className="flex items-start gap-2.5 p-3 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-xs leading-relaxed">
                 <FaInfoCircle className="text-red-500 mt-0.5 flex-shrink-0 text-sm" />
                 <div className="flex flex-col gap-1">
-                    <p className="font-semibold text-white">Opções de Áudio e Legenda:</p>
-                    <p>• <strong>🇧🇷 Áudio Dublado (Português):</strong> Utilize o <strong>Servidor 1</strong> ou <strong>Servidor 2</strong>.</p>
-                    <p>• <strong>💬 Legendas em Português ou Outros Idiomas:</strong> Utilize o <strong>Servidor 3 (VidLink)</strong> ou <strong>Servidor 4 (EmbedSU)</strong> e clique no ícone &quot;CC&quot; na barra de controle do vídeo.</p>
-                    <p>• <strong>🇪🇸 Español:</strong> Utilize o <strong>Servidor 5 (MultiEmbed)</strong> ou selecione áudio/legenda em espanhol no player.</p>
+                    <p className="font-semibold text-white">Dica de Transmissão:</p>
+                    <p>• <strong>Dublado:</strong> Escolha <strong>🇧🇷 Dublado</strong> para assistir com áudio em português.</p>
+                    <p>• <strong>Legendado:</strong> Escolha <strong>💬 Legendado</strong> para áudio original e selecione o idioma da legenda desejada (Português, Inglês, Espanhol) no ícone &quot;CC&quot; do player.</p>
+                    <p>• Caso algum servidor falhe ou apresente instabilidade, use o botão <strong>&quot;Trocar Servidor&quot;</strong> acima.</p>
                 </div>
             </div>
         </div>
