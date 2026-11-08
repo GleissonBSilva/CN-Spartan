@@ -220,9 +220,9 @@ export default function AuthModal({ isOpen, onClose }) {
                 <div className="flex justify-between items-center mb-8">
                   <div className="flex items-center gap-2.5">
                     <img
-                      src="/logo-cinespartan.jpg"
+                      src="/logo-icon.png"
                       alt="CineSpartan"
-                      className="w-10 h-10 rounded-xl object-cover shadow-md ring-1 ring-white/15 shrink-0"
+                      className="w-11 h-11 rounded-xl object-contain shadow-md ring-1 ring-red-500/30 bg-black/40 shrink-0"
                     />
                     <span className="text-xl font-black text-white tracking-tight">
                       Cine<span className="text-red-500">Spartan</span>

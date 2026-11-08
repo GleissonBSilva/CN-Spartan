@@ -68,9 +68,9 @@ export default function EmailVerificationPage() {
       <div className="w-full max-w-[400px] bg-[#0b0f19]/95 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl shadow-black p-8 text-center">
         <div className="flex justify-center items-center gap-2.5 mb-8">
           <img
-            src="/logo-cinespartan.jpg"
+            src="/logo-icon.png"
             alt="CineSpartan"
-            className="w-10 h-10 rounded-xl object-cover shadow ring-1 ring-white/10 shrink-0"
+            className="w-12 h-12 rounded-xl object-contain shadow ring-1 ring-red-500/30 bg-black/40 shrink-0"
           />
           <span className="text-2xl font-black text-white tracking-tight">
             Cine<span className="text-red-500">Spartan</span>

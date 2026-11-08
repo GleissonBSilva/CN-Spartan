@@ -169,9 +169,9 @@ function ParentComponent() {
           <div className="max-w-5xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-gray-600">
             <div className="flex items-center gap-2.5">
               <img
-                src="/logo-cinespartan.jpg"
+                src="/logo-icon.png"
                 alt="CineSpartan"
-                className="w-6 h-6 rounded-md object-cover ring-1 ring-white/10"
+                className="w-7 h-7 rounded-md object-contain ring-1 ring-red-500/20 bg-black/40"
               />
               <span className="text-white font-black text-sm">Cine<span className="text-red-500">Spartan</span></span>
               <span>·</span>
