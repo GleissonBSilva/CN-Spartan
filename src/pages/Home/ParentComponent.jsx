@@ -167,7 +167,12 @@ function ParentComponent() {
         {location.pathname === '/' && <footer className="bg-[#0a0c12]">
           <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
           <div className="max-w-5xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-gray-600">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
+              <img
+                src="/logo-cinespartan.jpg"
+                alt="CineSpartan"
+                className="w-6 h-6 rounded-md object-cover ring-1 ring-white/10"
+              />
               <span className="text-white font-black text-sm">Cine<span className="text-red-500">Spartan</span></span>
               <span>·</span>
               <span>Developed by <span className="text-gray-400 font-semibold">Phyo Min Thein</span></span>

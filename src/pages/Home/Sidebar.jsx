@@ -86,15 +86,18 @@ function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpe
       <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-red-500/10 to-transparent pointer-events-none" />
 
       {/* Logo */}
-      <button onClick={() => onNavigate('home')} className="relative flex items-center gap-4 px-[18px] pt-8 pb-8 shrink-0 text-left hover:opacity-90 transition-opacity">
+      <button 
+        onClick={() => onNavigate('home')} 
+        className="relative flex items-center gap-3.5 px-[13px] pt-7 pb-7 shrink-0 text-left hover:opacity-95 transition-opacity"
+      >
         <img
           src="/logo-cinespartan.jpg"
           alt="CineSpartan"
-          className="w-[48px] h-[48px] rounded-2xl object-cover shadow-lg shadow-red-900/40 ring-1 ring-white/10 shrink-0"
+          className="w-[58px] h-[58px] rounded-2xl object-cover shadow-xl shadow-red-950/60 ring-2 ring-white/15 shrink-0 transition-transform duration-200 group-hover:scale-105"
         />
         <div className="flex flex-col leading-tight whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-100">
-          <span className="text-white font-black text-[20px] tracking-tight">CineSpartan</span>
-          <span className="text-red-400/70 text-[10px] font-semibold tracking-[0.22em] uppercase mt-0.5">Streaming</span>
+          <span className="text-white font-black text-[22px] tracking-tight">CineSpartan</span>
+          <span className="text-red-400/80 text-[11px] font-semibold tracking-[0.22em] uppercase mt-0.5">Streaming</span>
         </div>
       </button>
 

@@ -222,7 +222,7 @@ export default function AuthModal({ isOpen, onClose }) {
                     <img
                       src="/logo-cinespartan.jpg"
                       alt="CineSpartan"
-                      className="w-8 h-8 rounded-lg object-cover shadow ring-1 ring-white/10 shrink-0"
+                      className="w-10 h-10 rounded-xl object-cover shadow-md ring-1 ring-white/15 shrink-0"
                     />
                     <span className="text-xl font-black text-white tracking-tight">
                       Cine<span className="text-red-500">Spartan</span>
