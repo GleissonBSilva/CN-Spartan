@@ -87,9 +87,11 @@ function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpe
 
       {/* Logo */}
       <button onClick={() => onNavigate('home')} className="relative flex items-center gap-4 px-[18px] pt-8 pb-8 shrink-0 text-left hover:opacity-90 transition-opacity">
-        <div className="flex items-center justify-center w-[48px] h-[48px] rounded-2xl bg-gradient-to-br from-red-500 to-red-700 shadow-lg shadow-red-900/40 ring-1 ring-white/10 shrink-0">
-          <FaPlay className="text-white text-[15px] ml-0.5" />
-        </div>
+        <img
+          src="/logo-cinespartan.jpg"
+          alt="CineSpartan"
+          className="w-[48px] h-[48px] rounded-2xl object-cover shadow-lg shadow-red-900/40 ring-1 ring-white/10 shrink-0"
+        />
         <div className="flex flex-col leading-tight whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-100">
           <span className="text-white font-black text-[20px] tracking-tight">CineSpartan</span>
           <span className="text-red-400/70 text-[10px] font-semibold tracking-[0.22em] uppercase mt-0.5">Streaming</span>

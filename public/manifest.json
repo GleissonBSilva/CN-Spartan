@@ -8,9 +8,9 @@
   "theme_color": "#000000",
   "icons": [
     {
-      "src": "/weflix.svg",
+      "src": "/logo-cinespartan.jpg",
       "sizes": "any",
-      "type": "image/svg+xml",
+      "type": "image/jpeg",
       "purpose": "any maskable"
     }
   ]

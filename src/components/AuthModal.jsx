@@ -218,10 +218,12 @@ export default function AuthModal({ isOpen, onClose }) {
               <div className="p-8">
                 {/* Header */}
                 <div className="flex justify-between items-center mb-8">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-red-600/20 flex items-center justify-center">
-                      <BiMoviePlay className="text-red-500 text-xl" />
-                    </div>
+                  <div className="flex items-center gap-2.5">
+                    <img
+                      src="/logo-cinespartan.jpg"
+                      alt="CineSpartan"
+                      className="w-8 h-8 rounded-lg object-cover shadow ring-1 ring-white/10 shrink-0"
+                    />
                     <span className="text-xl font-black text-white tracking-tight">
                       Cine<span className="text-red-500">Spartan</span>
                     </span>

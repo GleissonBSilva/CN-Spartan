@@ -71,10 +71,12 @@ export default function ResetPasswordPage() {
       <SEO title="Reset Password — CineSpartan" noSuffix />
       
       <div className="w-full max-w-[400px] bg-[#0b0f19]/95 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl shadow-black p-8">
-        <div className="flex justify-center items-center gap-2 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-red-600/20 flex items-center justify-center">
-            <BiMoviePlay className="text-red-500 text-2xl" />
-          </div>
+        <div className="flex justify-center items-center gap-2.5 mb-8">
+          <img
+            src="/logo-cinespartan.jpg"
+            alt="CineSpartan"
+            className="w-10 h-10 rounded-xl object-cover shadow ring-1 ring-white/10 shrink-0"
+          />
           <span className="text-2xl font-black text-white tracking-tight">
             Cine<span className="text-red-500">Spartan</span>
           </span>
