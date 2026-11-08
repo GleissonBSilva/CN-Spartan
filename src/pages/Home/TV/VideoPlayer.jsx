@@ -1,23 +1,41 @@
 import { memo, useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { FaServer, FaInfoCircle, FaExpand, FaCompress } from 'react-icons/fa';
+import { BiGlobe } from 'react-icons/bi';
 import { useLanguage } from '../../../context/LanguageContext';
 
 const SOURCES = [
-  { name: '🇧🇷 Servidor 1 (Dublado BR)', url: (id, s, e) => `https://superflixapi.bond/serie/${id}/${s}/${e}` },
-  { name: '🇧🇷 Servidor 2 (Dublado Alt)', url: (id, s, e) => `https://superflixapi.online/serie/${id}/${s}/${e}` },
-  { name: '🌐 Servidor 3 (VidLink - Legendas PT-BR)', url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?primaryColor=e50914&secondaryColor=ffffff&iconColor=e50914&poster=true&title=true&nextbutton=false` },
-  { name: '⚡ Servidor 4 (EmbedSU)', url: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}` },
-  { name: '🎬 Servidor 5 (MultiEmbed)', url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}` },
-  { name: '🚀 Servidor 6 (AutoEmbed)', url: (id, s, e) => `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}` },
+  { id: 'dub_br_1', lang: 'pt', name: '🇧🇷 Servidor 1 (Dublado BR)', url: (id, s, e) => `https://superflixapi.bond/serie/${id}/${s}/${e}` },
+  { id: 'dub_br_2', lang: 'pt', name: '🇧🇷 Servidor 2 (Dublado Alt)', url: (id, s, e) => `https://superflixapi.online/serie/${id}/${s}/${e}` },
+  { id: 'vidlink', lang: 'en', name: '🌐 Servidor 3 (VidLink - Legendas PT/EN/ES)', url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?primaryColor=e50914&secondaryColor=ffffff&iconColor=e50914&poster=true&title=true&nextbutton=false` },
+  { id: 'embedsu', lang: 'en', name: '⚡ Servidor 4 (EmbedSU)', url: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}` },
+  { id: 'multiembed', lang: 'es', name: '🎬 Servidor 5 (MultiEmbed - Español/Multi)', url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}` },
+  { id: 'autoembed', lang: 'en', name: '🚀 Servidor 6 (AutoEmbed)', url: (id, s, e) => `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}` },
+];
+
+const LANGUAGE_PRESETS = [
+  { id: 'pt', label: '🇧🇷 Dublado (PT)', targetIdx: 0 },
+  { id: 'en', label: '🇺🇸 Original / Legendas', targetIdx: 2 },
+  { id: 'es', label: '🇪🇸 Español', targetIdx: 4 },
 ];
 
 const VideoPlayer = ({ tvId, season = 1, episode = 1 }) => {
-    const { t } = useLanguage();
+    const { language, t } = useLanguage();
     const [shouldRender, setShouldRender] = useState(false);
     const [sourceIdx, setSourceIdx] = useState(0);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const playerContainerRef = useRef(null);
+
+    // Auto-select preferred server when language, tvId, season, or episode changes
+    useEffect(() => {
+        if (language.startsWith('en')) {
+            setSourceIdx(2); // VidLink (Original English + Subtitles)
+        } else if (language.startsWith('es')) {
+            setSourceIdx(4); // MultiEmbed (Español / Multi)
+        } else {
+            setSourceIdx(0); // Dublado BR
+        }
+    }, [language, tvId, season, episode]);
 
     useEffect(() => {
         setShouldRender(false);
@@ -66,13 +84,52 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1 }) => {
     if (!tvId) return null;
 
     const iframeSrc = SOURCES[sourceIdx].url(tvId, season, episode);
-    
+
     return (
         <div className="w-full flex flex-col gap-3">
-            {/* Toolbar */}
+            {/* Quick Audio / Language Presets */}
+            <div className="flex flex-wrap items-center justify-between gap-2 px-1 pb-1 border-b border-white/5">
+                <div className="flex items-center gap-2">
+                    <BiGlobe className="text-red-400 text-sm" />
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Idioma do Player:</span>
+                    <div className="flex items-center gap-1.5">
+                        {LANGUAGE_PRESETS.map((preset) => {
+                            const isMatch = (preset.id === 'pt' && (sourceIdx === 0 || sourceIdx === 1)) ||
+                                            (preset.id === 'en' && (sourceIdx === 2 || sourceIdx === 3 || sourceIdx === 5)) ||
+                                            (preset.id === 'es' && sourceIdx === 4);
+                            return (
+                                <button
+                                    key={preset.id}
+                                    type="button"
+                                    onClick={() => setSourceIdx(preset.targetIdx)}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                                        isMatch
+                                            ? 'bg-red-600 text-white shadow-sm ring-1 ring-red-400'
+                                            : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+                                    }`}
+                                >
+                                    {preset.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Fullscreen Button */}
+                <button
+                    onClick={toggleFullscreen}
+                    title={isFullscreen ? 'Sair da Tela Cheia' : 'Abrir em Tela Cheia'}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-all shadow border border-white/10"
+                >
+                    {isFullscreen ? <FaCompress className="text-xs" /> : <FaExpand className="text-xs" />}
+                    <span>{isFullscreen ? 'Sair da Tela Cheia' : 'Tela Cheia'}</span>
+                </button>
+            </div>
+
+            {/* Server Toolbar */}
             <div className="flex flex-wrap items-center gap-2 px-1">
                 <FaServer className="text-gray-400 text-sm mr-1" />
-                <span className="text-sm text-gray-400 font-medium mr-2">{t('server')}:</span>
+                <span className="text-xs text-gray-400 font-medium mr-1">{t('server')}:</span>
                 {SOURCES.map((src, idx) => (
                     <button
                         key={idx}
@@ -86,19 +143,9 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1 }) => {
                         {src.name}
                     </button>
                 ))}
-
-                {/* Tela Cheia Button */}
-                <button
-                    onClick={toggleFullscreen}
-                    title={isFullscreen ? 'Sair da Tela Cheia' : 'Abrir em Tela Cheia'}
-                    className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-all shadow border border-white/10"
-                >
-                    {isFullscreen ? <FaCompress className="text-xs" /> : <FaExpand className="text-xs" />}
-                    <span>{isFullscreen ? 'Sair da Tela Cheia' : 'Tela Cheia'}</span>
-                </button>
             </div>
 
-            {/* Player */}
+            {/* Player Container */}
             <div
                 ref={playerContainerRef}
                 className={`relative w-full bg-black overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.5)] flex items-center justify-center transition-all ${
@@ -111,13 +158,14 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1 }) => {
                     <iframe
                         key={iframeSrc}
                         src={iframeSrc}
-                        title={`TV Show: ${tvId} - S${season}E${episode}`}
-                        className="w-full h-full border-0"
                         allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *"
                         allowFullScreen
                         webkitallowfullscreen="true"
                         mozallowfullscreen="true"
+                        title="Series Stream"
                         referrerPolicy="origin"
+                        className="w-full h-full border-0"
+                        style={{ userSelect: 'none' }}
                     />
                 )}
 
@@ -138,9 +186,9 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1 }) => {
                 <FaInfoCircle className="text-red-500 mt-0.5 flex-shrink-0 text-sm" />
                 <div className="flex flex-col gap-1">
                     <p className="font-semibold text-white">Opções de Idioma (Dublado e Legendado):</p>
-                    <p>• <strong>🇧🇷 Áudio Dublado em Português:</strong> Utilize o <strong>Servidor 1 (Dublado BR)</strong> ou <strong>Servidor 2 (Dublado Alt)</strong>.</p>
-                    <p>• <strong>🌐 Áudio Original com Legendas em Português:</strong> Utilize o <strong>Servidor 3 (VidLink)</strong> e clique no ícone &quot;CC&quot; na barra do vídeo para ativar legendas em português.</p>
-                    <p>• <strong>⛶ Tela Cheia:</strong> Use o botão <strong>&quot;Tela Cheia&quot;</strong> acima do player ou o controle do próprio vídeo.</p>
+                    <p>• <strong>🇧🇷 Dublado (Português):</strong> Utilize o <strong>Servidor 1</strong> ou <strong>Servidor 2</strong>.</p>
+                    <p>• <strong>🇺🇸 Áudio Original com Legendas:</strong> Utilize o <strong>Servidor 3 (VidLink)</strong> e clique no ícone &quot;CC&quot; ou engrenagem no vídeo para selecionar o idioma desejado.</p>
+                    <p>• <strong>🇪🇸 Español:</strong> Utilize o <strong>Servidor 5 (MultiEmbed)</strong> ou selecione áudio/legenda em espanhol no player.</p>
                 </div>
             </div>
         </div>
@@ -149,8 +197,9 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1 }) => {
 
 VideoPlayer.propTypes = {
     tvId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-    season: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-    episode: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    season: PropTypes.number,
+    episode: PropTypes.number,
+    title: PropTypes.string,
 };
 
 export default memo(VideoPlayer);

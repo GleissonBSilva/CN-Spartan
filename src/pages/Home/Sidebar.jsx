@@ -192,8 +192,12 @@ function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpe
 
       {/* Language Selector + User profile / Logout */}
       <div className="mt-auto pt-3 pb-6 px-[10px] shrink-0 border-t border-white/5 relative z-10 bg-gray-900/95 flex flex-col gap-2">
-        <div className="flex items-center justify-center py-1">
+        <div className="flex items-center justify-center group-hover:justify-start px-2 py-1 transition-all">
           <LanguageSelector compact />
+          <div className="hidden group-hover:flex flex-col ml-2.5 text-left text-xs leading-tight">
+            <span className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">{t('language')}</span>
+            <span className="text-gray-300 font-medium text-[11px]">Clique p/ alternar</span>
+          </div>
         </div>
         {user ? (
           <button
