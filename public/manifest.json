@@ -1,6 +1,6 @@
 {
-  "name": "WeFlix",
-  "short_name": "WeFlix",
+  "name": "CineSpartan",
+  "short_name": "CineSpartan",
   "description": "Stream Movies & TV Shows Free",
   "start_url": "/",
   "display": "standalone",

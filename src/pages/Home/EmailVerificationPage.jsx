@@ -63,7 +63,7 @@ export default function EmailVerificationPage() {
 
   return (
     <div className="min-h-screen bg-[#07080a] flex items-center justify-center p-4">
-      <SEO title="Verify Email — WeFlix" noSuffix />
+      <SEO title="Verify Email — CineSpartan" noSuffix />
       
       <div className="w-full max-w-[400px] bg-[#0b0f19]/95 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl shadow-black p-8 text-center">
         <div className="flex justify-center items-center gap-2 mb-8">
@@ -71,7 +71,7 @@ export default function EmailVerificationPage() {
             <BiMoviePlay className="text-red-500 text-2xl" />
           </div>
           <span className="text-2xl font-black text-white tracking-tight">
-            We<span className="text-red-500">Flix</span>
+            Cine<span className="text-red-500">Spartan</span>
           </span>
         </div>
 

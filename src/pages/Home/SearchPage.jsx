@@ -412,8 +412,8 @@ function SearchPage() {
         title={debouncedQuery ? `"${debouncedQuery}" - Search Results` : 'Search & Browse Movies & TV Shows'}
         description={
           debouncedQuery
-            ? `Search results for "${debouncedQuery}" on WeFlix.`
-            : 'Search and browse movies & TV shows by genre, year, and rating on WeFlix.'
+            ? `Resultados de pesquisa para "${debouncedQuery}" no CineSpartan.`
+            : 'Busque e explore filmes e séries por gênero, ano e avaliação no CineSpartan.'
         }
       />
       {/* Mobile-aware sticky top bar */}

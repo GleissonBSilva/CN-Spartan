@@ -223,11 +223,11 @@ const MovieDetails = ({ movieId: movieIdProp }) => {
   return (
     <div className="min-h-screen bg-[#07080a] text-gray-200 selection:bg-red-500/30">
       <SEO
-        title={`${movie.title}${year ? ` (${year})` : ''} — Watch Free on WeFlix`}
+        title={`${movie.title}${year ? ` (${year})` : ''} — Assistir no CineSpartan`}
         description={
           movie.overview
-            ? `${movie.overview.slice(0, 150).trim()}… Watch ${movie.title} free on WeFlix.`
-            : `Watch ${movie.title} free on WeFlix.`
+            ? `${movie.overview.slice(0, 150).trim()}… Assista ${movie.title} grátis no CineSpartan.`
+            : `Assista ${movie.title} grátis no CineSpartan.`
         }
         image={
           movie.backdrop_path
@@ -512,11 +512,11 @@ const MovieDetails = ({ movieId: movieIdProp }) => {
       <footer className="bg-[#040507] border-t border-white/5">
         <div className="max-w-7xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs md:text-sm text-gray-500">
           <div className="flex items-center gap-2">
-            <span className="text-white font-black text-base">We<span className="text-red-500">Flix</span></span>
+            <span className="text-white font-black text-base">Cine<span className="text-red-500">Spartan</span></span>
             <span className="mx-2 opacity-50">|</span>
           </div>
           <div className="flex items-center gap-2">
-            <span>© {new Date().getFullYear()} WeFlix</span>
+            <span>© {new Date().getFullYear()} CineSpartan</span>
             <span className="mx-2 opacity-50">|</span>
             <span>
               Data by{' '}

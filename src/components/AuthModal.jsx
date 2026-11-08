@@ -223,7 +223,7 @@ export default function AuthModal({ isOpen, onClose }) {
                       <BiMoviePlay className="text-red-500 text-xl" />
                     </div>
                     <span className="text-xl font-black text-white tracking-tight">
-                      We<span className="text-red-500">Flix</span>
+                      Cine<span className="text-red-500">Spartan</span>
                     </span>
                   </div>
                   <button

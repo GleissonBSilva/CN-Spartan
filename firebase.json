@@ -3,7 +3,7 @@
     "providers": {
       "emailPassword": true,
       "googleSignIn": {
-        "oAuthBrandDisplayName": "WeFlix",
+        "oAuthBrandDisplayName": "CineSpartan",
         "supportEmail": "phyominthein.leo@gmail.com"
       }
     }

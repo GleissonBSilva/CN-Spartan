@@ -25,7 +25,7 @@ function WatchlistPage() {
       transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
       className="min-h-screen bg-black text-white px-4 sm:px-8 pt-0 md:pt-10 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-16"
     >
-      <SEO title="My Watchlist - WeFlix" description="View your saved movies and TV shows." />
+      <SEO title="Minha Lista - CineSpartan" description="Veja seus filmes e séries salvos." />
 
       {/* Mobile-aware sticky top bar */}
       <div className="sticky top-0 z-40 -mx-4 sm:-mx-8 px-4 sm:px-8 pt-[calc(env(safe-area-inset-top)+0.75rem)] md:pt-0 pb-3 md:pb-0 backdrop-blur-md bg-black/80 md:bg-transparent border-b border-white/[0.06] md:border-none mb-4 md:mb-0">

@@ -84,8 +84,8 @@ function Movie() {
         title={genre ? `${localizedGenreName} — Filmes` : 'Filmes'}
         description={
           genre
-            ? `Assistir filmes de ${localizedGenreName} grátis no WeFlix.`
-            : 'Explore os filmes mais populares, tendências e lançamentos no WeFlix.'
+            ? `Assistir filmes de ${localizedGenreName} grátis no CineSpartan.`
+            : 'Explore os filmes mais populares, tendências e lançamentos no CineSpartan.'
         }
         url={`https://www.weflix.app${buildBrowsePath('movie', genreId)}`}
       />

@@ -83,8 +83,8 @@ function Series() {
         title={genre ? `${localizedGenreName} — Séries` : 'Séries'}
         description={
           genre
-            ? `Assistir séries de ${localizedGenreName} grátis no WeFlix.`
-            : 'Explore as melhores séries, animes e produções de TV no WeFlix.'
+            ? `Assistir séries de ${localizedGenreName} grátis no CineSpartan.`
+            : 'Explore as melhores séries, animes e produções de TV no CineSpartan.'
         }
         url={`https://www.weflix.app${buildBrowsePath('tv', genreId)}`}
       />

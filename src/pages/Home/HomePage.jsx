@@ -47,13 +47,13 @@ export default function HomePage() {
       className="bg-[#0a0c12] min-h-screen"
     >
       <SEO
-        title="WeFlix — Stream Movies & TV Shows"
-        description="Watch trending movies and TV shows for free. Browse by genre, discover new releases, and stream instantly on WeFlix — powered by TMDB."
+        title="CineSpartan — Filmes e Séries Online Grátis"
+        description="Assista filmes, séries e animes gratuitamente no CineSpartan. Explore os melhores títulos em alta qualidade — powered by TMDB."
         noSuffix
       />
       
-      {/* ── Visually Hidden H1 for SEO (Brand Keyword 'WeFlix') ── */}
-      <h1 className="sr-only">WeFlix - Free Movie & TV Show Streaming Platform</h1>
+      {/* ── Visually Hidden H1 for SEO (Brand Keyword 'CineSpartan') ── */}
+      <h1 className="sr-only">CineSpartan - Plataforma de Streaming de Filmes e Séries Grátis</h1>
 
       <HeroBanner />
 

@@ -1,6 +1,6 @@
 import { Helmet } from 'react-helmet-async';
 
-const SITE_NAME = 'WeFlix';
+const SITE_NAME = 'CineSpartan';
 const SITE_URL  = import.meta.env.VITE_SITE_URL || 'https://www.weflix.app';
 const DEFAULT_IMAGE = `${SITE_URL}/weflix2.png`;
 
