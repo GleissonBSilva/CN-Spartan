@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { fetchSeriesDetails, fetchAllEpisodes, fetchRelatedSeries } from "../Fetcher";
 import { getIdFromDetailSlug, toDetailPath } from "../urlUtils";
 import { saveToContinueWatching } from "../../../utils/continueWatching";
-import { FaRedo, FaStar, FaArrowLeft, FaTv, FaStepBackward, FaStepForward, FaInfoCircle, FaBookmark, FaShieldAlt, FaLock, FaBan } from "react-icons/fa";
+import { FaRedo, FaStar, FaArrowLeft, FaTv, FaStepBackward, FaStepForward, FaInfoCircle, FaBookmark, FaShieldAlt, FaLock, FaBan, FaClosedCaptioning } from "react-icons/fa";
 import { BiCalendar, BiGlobe, BiTv, BiChevronLeft, BiChevronRight, BiSearch } from "react-icons/bi";
 import DetailPageSkeleton from "../reused/DetailPageSkeleton";
 import VideoPlayer from "./VideoPlayer";
@@ -563,6 +563,9 @@ const TvDetails = ({ tvId: tvIdProp }) => {
               {year && <span className="flex items-center gap-1.5"><BiCalendar className="text-gray-400 text-base" /> {year}</span>}
               {allSeasons.length > 0 && <span className="flex items-center gap-1.5"><BiTv className="text-gray-400 text-base" /> {allSeasons.length} Season{allSeasons.length !== 1 ? 's' : ''}</span>}
               {rating && <span className="flex items-center gap-1.5"><FaStar className="text-yellow-500 text-base" /> {rating}</span>}
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-xs font-semibold text-amber-300 border border-amber-500/20 shadow-sm">
+                <FaClosedCaptioning className="text-amber-400" /> Dublado & Legendado
+              </span>
             </div>
 
             {(tv.genres ?? []).length > 0 && (

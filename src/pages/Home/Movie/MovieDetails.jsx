@@ -4,7 +4,7 @@ import PropTypes from "prop-types";
 import { fetchMovieDetails, fetchRelatedMovies } from "../Fetcher";
 import { getIdFromDetailSlug, toDetailPath } from "../urlUtils";
 import { saveToContinueWatching } from "../../../utils/continueWatching";
-import { FaRedo, FaStar, FaArrowLeft, FaInfoCircle, FaBookmark, FaShieldAlt, FaLock, FaBan } from "react-icons/fa";
+import { FaRedo, FaStar, FaArrowLeft, FaInfoCircle, FaBookmark, FaShieldAlt, FaLock, FaBan, FaClosedCaptioning } from "react-icons/fa";
 import { BiCalendar, BiTime, BiGlobe } from "react-icons/bi";
 import DetailPageSkeleton from "../reused/DetailPageSkeleton";
 import VideoPlayer from "./VideoPlayer";
@@ -316,6 +316,9 @@ const MovieDetails = ({ movieId: movieIdProp }) => {
               {year && <span className="flex items-center gap-1.5"><BiCalendar className="text-gray-400 text-base" /> {year}</span>}
               {runtime && <span className="flex items-center gap-1.5"><BiTime className="text-gray-400 text-base" /> {runtime}</span>}
               {rating && <span className="flex items-center gap-1.5"><FaStar className="text-yellow-500 text-base" /> {rating}</span>}
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-xs font-semibold text-amber-300 border border-amber-500/20 shadow-sm">
+                <FaClosedCaptioning className="text-amber-400" /> Dublado & Legendado
+              </span>
             </div>
 
             {genres.length > 0 && (
