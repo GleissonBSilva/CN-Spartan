@@ -90,11 +90,11 @@ function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpe
         onClick={() => onNavigate('home')} 
         className="relative flex items-center justify-center group-hover:justify-start w-full px-1.5 pt-5 pb-5 shrink-0 text-left hover:opacity-95 transition-all duration-300"
       >
-        <div className="w-[74px] h-[60px] flex items-center justify-center shrink-0">
+        <div className="w-[74px] h-[60px] flex items-center justify-center shrink-0 rounded-2xl overflow-hidden bg-black/60 border border-white/10 shadow-lg shadow-black/40 group-hover:border-red-500/40 group-hover:shadow-red-950/60 transition-all duration-300">
           <img
             src="/logo-cinespartan.png"
             alt="CineSpartan"
-            className="w-full h-full object-contain filter drop-shadow-[0_2px_12px_rgba(220,38,38,0.5)] transition-transform duration-300 group-hover:scale-105"
+            className="w-full h-full object-contain rounded-2xl filter drop-shadow-[0_2px_12px_rgba(220,38,38,0.5)] transition-transform duration-300 group-hover:scale-105"
           />
         </div>
         <div className="flex flex-col leading-tight whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-100 min-w-0 pr-2">
