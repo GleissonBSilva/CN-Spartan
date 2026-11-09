@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
+import { useNavigate } from 'react-router-dom';
 import {
   BiSearch,
   BiHomeAlt,
@@ -7,11 +8,12 @@ import {
   BiTv,
   BiBookmark
 } from 'react-icons/bi';
-import { FaPlay, FaSignOutAlt, FaUserCircle } from 'react-icons/fa';
+import { FaPlay, FaSignOutAlt, FaUserCircle, FaShieldAlt } from 'react-icons/fa';
 import { GENRES, SPECIAL_CATEGORIES } from './tmdb';
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../../firebase";
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuthProfile } from '../../hooks/useAuthProfile';
 import LanguageSelector from '../../components/LanguageSelector';
 
 const NAV_ITEMS = [
@@ -28,6 +30,8 @@ const getCachedUser = () => {
 };
 
 function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpenAuthModal }) {
+  const navigate = useNavigate();
+  const { isAdmin } = useAuthProfile();
   const [user, setUser] = useState(getCachedUser);
   const { t, getGenreName } = useLanguage();
 
@@ -199,6 +203,23 @@ function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpe
             <span className="text-gray-300 font-medium text-[11px]">Clique p/ alternar</span>
           </div>
         </div>
+        {isAdmin && (
+          <button
+            onClick={() => navigate('/admin')}
+            title="Painel de Clientes & Assinaturas"
+            className="
+              relative flex items-center gap-4 px-4 py-2.5 rounded-2xl
+              w-full whitespace-nowrap
+              bg-red-600/20 border border-red-500/40 text-red-400 hover:bg-red-600/30 hover:text-white transition-all duration-200 focus:outline-none shadow-md shadow-red-950/40
+            "
+          >
+            <FaShieldAlt className="text-[20px] shrink-0" />
+            <div className="flex flex-col text-left opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-75">
+              <span className="text-white text-[12px] font-bold">Painel Master</span>
+              <span className="text-red-400 text-[9px] font-black uppercase tracking-wider">Gestão Clientes</span>
+            </div>
+          </button>
+        )}
         {user ? (
           <button
             onClick={handleLogout}

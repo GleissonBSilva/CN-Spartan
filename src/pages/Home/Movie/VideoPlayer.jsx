@@ -2,6 +2,8 @@ import { memo, useState, useEffect, useRef, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { FaServer, FaInfoCircle, FaExpand, FaCompress, FaVolumeUp, FaClosedCaptioning, FaRedoAlt } from 'react-icons/fa';
 import { useLanguage } from '../../../context/LanguageContext';
+import { useAuthProfile } from '../../../hooks/useAuthProfile';
+import SubscriptionLockGate from '../../../components/SubscriptionLockGate';
 
 const SOURCES = [
   // Servidores Dublados (Áudio em Português)
@@ -14,8 +16,10 @@ const SOURCES = [
   { id: 'sub_3', mode: 'legendado', name: '💬 Servidor 5 (MultiEmbed - Legendado)', url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1` },
 ];
 
-const VideoPlayer = ({ movieId }) => {
+const VideoPlayer = ({ movieId, title }) => {
     const { language, t } = useLanguage();
+    const { isActive, isAdmin } = useAuthProfile();
+    const canPlay = isAdmin || isActive;
     const [shouldRender, setShouldRender] = useState(false);
     const [sourceIdx, setSourceIdx] = useState(0);
     const [streamMode, setStreamMode] = useState(() => localStorage.getItem('cinespartan_stream_mode') || 'dublado');
@@ -101,6 +105,10 @@ const VideoPlayer = ({ movieId }) => {
     };
 
     if (!movieId) return null;
+
+    if (!canPlay) {
+        return <SubscriptionLockGate title={title} />;
+    }
 
     const currentSource = SOURCES[sourceIdx] || SOURCES[0];
     const iframeSrc = currentSource.url(movieId);

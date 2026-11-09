@@ -13,11 +13,13 @@ import ResetPasswordPage from './pages/Home/ResetPasswordPage';
 import EmailVerificationPage from './pages/Home/EmailVerificationPage';
 import PersonPage from './pages/Home/Person/PersonPage';
 import AuthActionPage from './pages/Home/AuthActionPage';
+import AdminDashboard from './pages/Admin/AdminDashboard';
 
 function App() {
   return (
     <Router>
       <Routes>
+        <Route path="/admin" element={<AdminDashboard />} />
         <Route element={<ParentComponent />}>
           <Route index element={<HomePage />} />
           <Route path="/movies" element={<Movie />} />

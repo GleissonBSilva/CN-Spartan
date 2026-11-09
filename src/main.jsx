@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { LanguageProvider } from './context/LanguageContext'
 import { FamilyModeProvider } from './context/FamilyModeContext'
 import { WatchlistProvider } from './context/WatchlistContext'
+import { AuthProfileProvider } from './context/AuthProfileContext'
 import './index.css'
 import App from './App.jsx'
 
@@ -24,13 +25,15 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <HelmetProvider>
-        <LanguageProvider>
-          <FamilyModeProvider>
-            <WatchlistProvider>
-              <App />
-            </WatchlistProvider>
-          </FamilyModeProvider>
-        </LanguageProvider>
+        <AuthProfileProvider>
+          <LanguageProvider>
+            <FamilyModeProvider>
+              <WatchlistProvider>
+                <App />
+              </WatchlistProvider>
+            </FamilyModeProvider>
+          </LanguageProvider>
+        </AuthProfileProvider>
       </HelmetProvider>
     </QueryClientProvider>
   </StrictMode>,

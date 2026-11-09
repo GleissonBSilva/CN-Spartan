@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaTimes, FaGoogle, FaEnvelope, FaLock, FaUser, FaSpinner, FaExclamationCircle, FaCheckCircle } from 'react-icons/fa';
 import { BiMoviePlay } from 'react-icons/bi';
+import { supabase } from '../lib/supabase';
 import { auth, googleProvider, db } from '../firebase';
 import { 
   createUserWithEmailAndPassword, 
@@ -131,48 +132,69 @@ export default function AuthModal({ isOpen, onClose }) {
 
     try {
       if (isLogin) {
-        // Sign in with email/password
-        const result = await signInWithEmailAndPassword(auth, email, password);
+        // Autenticação primária pelo Supabase (Cine Spartan Database)
+        const { data: supaData, error: supaError } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
 
-        await result.user.reload();
-        if (!result.user.emailVerified) {
-          await auth.signOut();
-          setError('Please verify your email address before logging in. Check your inbox or spam folder.');
-          return; // Stop early
+        if (supaError) {
+          // Se falhar no Supabase, tenta o Firebase como fallback
+          try {
+            const result = await signInWithEmailAndPassword(auth, email, password);
+            await result.user.reload();
+            if (!result.user.emailVerified) {
+              await auth.signOut();
+              setError('Por favor, verifique seu e-mail antes de entrar.');
+              setLoading(false);
+              return;
+            }
+          } catch {
+            setError(supaError.message || 'E-mail ou senha incorretos.');
+            setLoading(false);
+            return;
+          }
         }
 
-        // If there is a pending Google credential from a collision, link it now
-        if (pendingGoogleCred) {
-          await linkWithCredential(result.user, pendingGoogleCred);
-          setPendingGoogleCred(null);
-          // Refresh user to get updated profile after link
-          saveUserToFirestore({ ...result.user, displayName: result.user.displayName }).catch(console.error);
-        } else {
-          // Update Firestore on standard login to reflect verified status and last login
-          saveUserToFirestore(result.user).catch(console.error);
+        if (supaData?.user) {
+          localStorage.setItem('weflix_user', JSON.stringify({
+            uid: supaData.user.id,
+            email: supaData.user.email,
+            displayName: supaData.user.user_metadata?.display_name || email.split('@')[0],
+          }));
         }
+
+        onClose();
       } else {
-        // Register new user
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        await updateProfile(userCredential.user, { displayName: name });
+        // Cadastro no Supabase (cria perfil automático com 30 dias de assinatura)
+        const { data: supaData, error: supaError } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: {
+            data: {
+              display_name: name,
+            },
+          },
+        });
 
-        // Send verification email BEFORE writing to Firestore.
-        // The Firestore document is intentionally NOT created here — it will be
-        // written by saveUserToFirestore() on first successful verified login.
-        // This prevents unverified "ghost" rows from cluttering the database.
-        const { sendEmailVerification } = await import('firebase/auth');
-        await sendEmailVerification(userCredential.user);
+        if (supaError) {
+          setError(supaError.message || 'Erro ao criar conta.');
+          setLoading(false);
+          return;
+        }
 
-        // Sign out immediately so the user cannot access protected routes
-        // before they have verified their email address.
-        await auth.signOut();
+        if (supaData?.user) {
+          localStorage.setItem('weflix_user', JSON.stringify({
+            uid: supaData.user.id,
+            email: supaData.user.email,
+            displayName: name,
+          }));
+        }
 
-        setVerificationSent(true);
-        return; // Stop early so we show the success screen
+        onClose();
       }
-      onClose();
     } catch (err) {
-      setError(getFirebaseError(err));
+      setError(err?.message || 'Ocorreu um erro. Tente novamente.');
     } finally {
       setLoading(false);
     }

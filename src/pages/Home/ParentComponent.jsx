@@ -10,8 +10,10 @@ import AuthModal from "../../components/AuthModal";
 import { useLanguage } from "../../context/LanguageContext";
 import LanguageSelector from "../../components/LanguageSelector";
 import FamilyModeControl from "../../components/FamilyModeControl";
+import { useAuthProfile } from "../../hooks/useAuthProfile";
 
 function ParentComponent() {
+  const { signOut: supaSignOut } = useAuthProfile();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -36,6 +38,7 @@ function ParentComponent() {
 
   const handleLogout = async () => {
     try {
+      await supaSignOut();
       await signOut(auth);
     } catch (error) {
       console.error('Logout error:', error);
