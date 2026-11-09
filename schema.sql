@@ -143,6 +143,25 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
+-- 6. Retroalimentação (Backfill) para usuários já existentes em auth.users
+insert into public.profiles (id, email, role, status, plan_name, expires_at, max_screens, created_at)
+select 
+  id, 
+  email, 
+  case when lower(email) = 'gleisson1984@gmail.com' then 'admin' else 'client' end as role,
+  'ativo' as status,
+  'Mensal' as plan_name,
+  now() + interval '365 days' as expires_at,
+  5 as max_screens,
+  now() as created_at
+from auth.users
+on conflict (id) do update set
+  email = excluded.email,
+  role = case 
+    when lower(excluded.email) = 'gleisson1984@gmail.com' then 'admin' 
+    else public.profiles.role 
+  end;
+
 -- ==============================================================================
 -- Fim do script schema.sql
 -- ==============================================================================
