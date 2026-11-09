@@ -13,6 +13,7 @@ import ResetPasswordPage from './pages/Home/ResetPasswordPage';
 import EmailVerificationPage from './pages/Home/EmailVerificationPage';
 import PersonPage from './pages/Home/Person/PersonPage';
 import AuthActionPage from './pages/Home/AuthActionPage';
+import LiveTvPage from './pages/Home/LiveTV/LiveTvPage';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 
 function App() {
@@ -31,6 +32,7 @@ function App() {
           <Route path="/series" element={<Series />} />
           <Route path="/series/:genreSlug" element={<Series />} />
           <Route path="/series/:genreSlug/:sortSlug" element={<Series />} />
+          <Route path="/tv-ao-vivo" element={<LiveTvPage />} />
           <Route path="/movies/watch/:slug" element={<MovieDetails />} />
           <Route path="/series/watch/:slug" element={<TvDetails />} />
           <Route path="/search" element={<SearchPage />} />

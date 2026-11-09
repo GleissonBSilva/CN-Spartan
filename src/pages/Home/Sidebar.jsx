@@ -8,7 +8,7 @@ import {
   BiTv,
   BiBookmark
 } from 'react-icons/bi';
-import { FaPlay, FaSignOutAlt, FaUserCircle, FaShieldAlt } from 'react-icons/fa';
+import { FaPlay, FaSignOutAlt, FaUserCircle, FaShieldAlt, FaBroadcastTower } from 'react-icons/fa';
 import { GENRES, SPECIAL_CATEGORIES } from './tmdb';
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../../firebase";
@@ -21,6 +21,7 @@ const NAV_ITEMS = [
   { id: 'home', icon: BiHomeAlt, action: 'navigate', label: 'Home' },
   { id: 'movies', icon: BiMoviePlay, action: 'navigate', label: 'Movies' },
   { id: 'series', icon: BiTv, action: 'navigate', label: 'TV Shows' },
+  { id: 'livetv', icon: FaBroadcastTower, action: 'navigate', label: 'TV Ao Vivo' },
   { id: 'watchlist', icon: BiBookmark, action: 'navigate', label: 'Watchlist' },
 ];
 
@@ -39,6 +40,7 @@ function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpe
     if (id === 'home') return t('home');
     if (id === 'movies') return t('movies');
     if (id === 'series') return t('tv_shows');
+    if (id === 'livetv') return t('live_tv');
     if (id === 'search') return t('search');
     if (id === 'watchlist') return t('watchlist');
     return fallback;
@@ -65,7 +67,7 @@ function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpe
     }
   };
 
-  const ACTIVE_MAP = { search: 'search', movies: 'movies', series: 'series', watchlist: 'watchlist', home: 'home' };
+  const ACTIVE_MAP = { search: 'search', movies: 'movies', series: 'series', livetv: 'livetv', watchlist: 'watchlist', home: 'home' };
   const activeId = ACTIVE_MAP[activePage] ?? 'home';
 
   const showCategories = activePage === 'movies' || activePage === 'series';

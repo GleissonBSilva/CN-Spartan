@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { BiUpArrowAlt, BiHomeAlt, BiMoviePlay, BiTv, BiSearch, BiBookmark } from 'react-icons/bi';
-import { FaUserCircle, FaSignOutAlt } from 'react-icons/fa';
+import { FaUserCircle, FaSignOutAlt, FaBroadcastTower } from 'react-icons/fa';
 import Sidebar from './Sidebar';
 import { buildBrowsePath, getCategoryBySlug } from './urlFilters';
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -49,6 +49,7 @@ function ParentComponent() {
     location.pathname === '/'                  ? 'home'
     : location.pathname.startsWith('/movies')  ? 'movies'
     : location.pathname.startsWith('/series')  ? 'series'
+    : location.pathname.startsWith('/tv-ao-vivo') ? 'livetv'
     : location.pathname.startsWith('/search')  ? 'search'
     : location.pathname.startsWith('/watchlist') ? 'watchlist'
     : location.pathname.startsWith('/movie/')  ? 'movies'
@@ -122,6 +123,7 @@ function ParentComponent() {
     if (page === 'home')        navigate('/');
     else if (page === 'movies') navigate('/movies');
     else if (page === 'series') navigate('/series');
+    else if (page === 'livetv') navigate('/tv-ao-vivo');
     else                        navigate(`/${page}`);
   };
 
@@ -203,6 +205,7 @@ function ParentComponent() {
           { id: 'home',   icon: BiHomeAlt,   label: t('home') },
           { id: 'movies', icon: BiMoviePlay, label: t('movies') },
           { id: 'series', icon: BiTv,        label: t('tv_shows') },
+          { id: 'livetv', icon: FaBroadcastTower, label: t('live_tv') },
           { id: 'search', icon: BiSearch,    label: t('search') },
           { id: 'watchlist', icon: BiBookmark, label: t('watchlist') },
         ].map(({ id, icon: Icon, label }) => {
