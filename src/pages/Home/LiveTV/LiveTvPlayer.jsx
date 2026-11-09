@@ -23,7 +23,7 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
 
   const [sourceIdx, setSourceIdx] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
@@ -121,12 +121,15 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
     if (Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: true,
-        backBufferLength: 60,
-        maxBufferLength: 20,
-        maxMaxBufferLength: 40,
-        manifestLoadingTimeOut: 4500,
-        levelLoadingTimeOut: 4500,
+        lowLatencyMode: false,
+        backBufferLength: 30,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        liveSyncDurationCount: 3,
+        liveMaxLatencyDurationCount: 6,
+        manifestLoadingTimeOut: 6000,
+        levelLoadingTimeOut: 6000,
+        fragLoadingTimeOut: 10000,
       });
 
       hlsRef.current = hls;
@@ -136,21 +139,26 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setIsLoading(false);
         setHasError(false);
+        // Start muted for 100% reliable autoplay compliance across all browsers
+        video.muted = true;
+        setIsMuted(true);
         const playPromise = video.play();
         if (playPromise !== undefined) {
           playPromise
             .then(() => setIsPlaying(true))
             .catch(() => {
-              // Autoplay protection fallback: start muted
-              video.muted = true;
-              setIsMuted(true);
-              video.play().then(() => setIsPlaying(true)).catch(() => {});
+              setIsPlaying(false);
             });
         }
       });
 
       hls.on(Hls.Events.ERROR, (event, data) => {
-        console.warn('[Hls] Error:', data.type, data.details, data.fatal);
+        // Ignore non-fatal internal events (like bufferSeekOverHole or retry attempts)
+        if (!data.fatal) {
+          return;
+        }
+
+        console.warn('[Hls] Fatal Error:', data.type, data.details);
 
         if (data.details === 'manifestIncompatibleCodecsError' || data.details === 'bufferIncompatibleCodecsError') {
           hls.destroy();
@@ -364,19 +372,48 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
           <iframe
             key={currentSource.url}
             src={currentSource.url}
-            allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *"
-            allowFullScreen
+            allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
             title={channel.name}
             className="w-full h-full border-0"
           />
         ) : (
-          <video
-            ref={videoRef}
-            className="w-full h-full object-contain cursor-pointer"
-            onClick={togglePlay}
-            playsInline
-            controls={false}
-          />
+          <>
+            <video
+              ref={videoRef}
+              className="w-full h-full object-contain cursor-pointer"
+              onClick={togglePlay}
+              playsInline
+              muted={isMuted}
+              controls={false}
+            />
+
+            {/* Central Play Button overlay when paused */}
+            {!isPlaying && !isLoading && !hasError && (
+              <button
+                onClick={togglePlay}
+                type="button"
+                className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/30 transition-all z-10 group"
+                title="Clique para Reproduzir"
+              >
+                <div className="w-16 h-16 rounded-full bg-red-600/90 group-hover:bg-red-600 flex items-center justify-center text-white shadow-2xl transform group-hover:scale-110 transition-all">
+                  <FaPlay className="text-xl ml-1" />
+                </div>
+              </button>
+            )}
+
+            {/* Unmute prompt banner */}
+            {isPlaying && isMuted && (
+              <button
+                type="button"
+                onClick={toggleMute}
+                className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/80 hover:bg-black text-amber-300 hover:text-white text-xs font-semibold backdrop-blur-md border border-amber-500/40 transition-all shadow-lg animate-pulse"
+                title="Clique para ativar som"
+              >
+                <FaVolumeMute className="text-sm text-amber-400" />
+                <span>Clique para ativar o áudio</span>
+              </button>
+            )}
+          </>
         )}
 
         {/* Loading Spinner */}
