@@ -52,14 +52,22 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
       // Se por algum motivo o trigger não criou o perfil ainda (ex: usuário existente antigo)
       if (userEmail) {
         const isMaster = userEmail.toLowerCase() === ADMIN_MASTER_EMAIL;
+        const savedTrialDays = Number(localStorage.getItem('spartan_trial_days') || 3);
+        const trialEnabled = localStorage.getItem('spartan_trial_enabled') !== 'false';
+        const clientDays = trialEnabled ? savedTrialDays : 0;
+        const initialStatus = isMaster ? 'ativo' : clientDays > 0 ? 'ativo' : 'vencido';
+        const expiryDuration = isMaster ? 365 : clientDays;
+
         const fallbackProfile: Profile = {
           id: userId,
           email: userEmail,
           role: isMaster ? 'admin' : 'client',
-          status: 'ativo',
-          plan_name: 'Mensal',
-          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          max_screens: 1,
+          status: initialStatus,
+          plan_name: isMaster ? 'Master Admin' : clientDays > 0 ? `Teste Grátis (${clientDays} dias)` : 'Assinatura Necessária',
+          is_trial: !isMaster && clientDays > 0,
+          trial_used: !isMaster && clientDays > 0,
+          expires_at: new Date(Date.now() + expiryDuration * 24 * 60 * 60 * 1000).toISOString(),
+          max_screens: isMaster ? 5 : 1,
           created_at: new Date().toISOString(),
         };
 

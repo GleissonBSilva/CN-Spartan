@@ -112,7 +112,7 @@ using (
   public.is_admin()
 );
 
--- 5. Trigger Automático após Cadastro em auth.users com Controle Anti-Fraude de Teste Grátis
+-- 5. Trigger Automático após Cadastro em auth.users com Controle Anti-Fraude e Dias de Teste Grátis Configuráveis
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -128,6 +128,8 @@ declare
   initial_plan text;
   is_trial_flag boolean;
   trial_used_flag boolean;
+  cfg_trial_days int := 3;
+  cfg_trial_enabled boolean := true;
 begin
   -- Se for o administrador principal (Master Admin)
   if lower(new.email) = 'gleisson1984@gmail.com' then
@@ -141,7 +143,28 @@ begin
     user_role := 'client';
     clean_phone := regexp_replace(coalesce(new.raw_user_meta_data->>'whatsapp', ''), '\D', '', 'g');
 
-    -- Verifica se este e-mail ou WhatsApp já utilizou o teste grátis anteriormente
+    -- 1. Tenta carregar regra de teste grátis configurada pelo Admin em system_settings
+    begin
+      select 
+        coalesce((value->>'trial_days')::int, 3),
+        coalesce((value->>'enabled')::boolean, true)
+      into cfg_trial_days, cfg_trial_enabled
+      from public.system_settings
+      where key = 'trial_config';
+    exception when others then
+      cfg_trial_days := 3;
+      cfg_trial_enabled := true;
+    end;
+
+    -- 2. Se o payload de cadastro enviou dias específicos no user_metadata
+    if (new.raw_user_meta_data->>'trial_days') is not null then
+      cfg_trial_days := greatest(0, (new.raw_user_meta_data->>'trial_days')::int);
+      if cfg_trial_days = 0 then
+        cfg_trial_enabled := false;
+      end if;
+    end if;
+
+    -- 3. Verifica se este e-mail ou WhatsApp já utilizou o teste grátis anteriormente
     select exists (
       select 1 from public.used_trials
       where lower(email) = lower(new.email)
@@ -155,17 +178,24 @@ begin
       initial_plan := 'Assinatura Necessária';
       is_trial_flag := false;
       trial_used_flag := true;
+    elsif not cfg_trial_enabled or cfg_trial_days <= 0 then
+      -- Teste grátis desativado pelo administrador no painel
+      initial_status := 'vencido';
+      initial_expiry := now();
+      initial_plan := 'Assinatura Necessária';
+      is_trial_flag := false;
+      trial_used_flag := false;
     else
-      -- Novo cliente legítimo: Ganha Teste Grátis de 3 dias
+      -- Novo cliente legítimo: Ganha Teste Grátis conforme configurado pelo Admin!
       initial_status := 'ativo';
-      initial_expiry := now() + interval '3 days';
-      initial_plan := 'Teste Grátis (3 dias)';
+      initial_expiry := now() + (cfg_trial_days || ' days')::interval;
+      initial_plan := 'Teste Grátis (' || cfg_trial_days || ' dias)';
       is_trial_flag := true;
       trial_used_flag := false;
 
       -- Registra de forma permanente na tabela anti-fraude
       insert into public.used_trials (email, whatsapp, trial_days, notes)
-      values (lower(new.email), clean_phone, 3, 'Concedido no primeiro cadastro');
+      values (lower(new.email), clean_phone, cfg_trial_days, 'Concedido no primeiro cadastro (Painel Admin)');
     end if;
   end if;
 
@@ -252,7 +282,34 @@ set
   updated_at = now()
 where lower(email) = 'gleisson1984@gmail.com';
 
--- 8. Retroalimentação (Backfill) para usuários já existentes em auth.users
+-- 8. Tabela de Configurações Dinâmicas do Sistema (Trial, Pix e Plataforma)
+create table if not exists public.system_settings (
+  key text primary key,
+  value jsonb not null,
+  updated_at timestamptz default now()
+);
+
+alter table public.system_settings enable row level security;
+
+-- Leitura pública para todos os visitantes e clientes
+drop policy if exists "Configuracoes publicas para leitura" on public.system_settings;
+create policy "Configuracoes publicas para leitura"
+  on public.system_settings for select
+  using (true);
+
+-- Apenas o administrador Master pode alterar configurações
+drop policy if exists "Apenas admin master pode gerenciar configuracoes" on public.system_settings;
+create policy "Apenas admin master pode gerenciar configuracoes"
+  on public.system_settings for all
+  using (auth.jwt()->>'email' = 'gleisson1984@gmail.com')
+  with check (auth.jwt()->>'email' = 'gleisson1984@gmail.com');
+
+-- Inserir configuração padrão de teste grátis (3 dias ativo)
+insert into public.system_settings (key, value)
+values ('trial_config', '{"trial_days": 3, "enabled": true}'::jsonb)
+on conflict (key) do nothing;
+
+-- 9. Retroalimentação (Backfill) para usuários já existentes em auth.users
 insert into public.profiles (id, email, whatsapp, role, status, plan_name, expires_at, max_screens, created_at)
 select 
   id, 

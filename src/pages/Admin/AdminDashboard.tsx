@@ -253,6 +253,39 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   });
   const [pixConfigModalOpen, setPixConfigModalOpen] = useState(false);
 
+  // Configuração do Período de Teste Grátis (Trial)
+  const [trialConfig, setTrialConfig] = useState<{ enabled: boolean; days: number }>(() => {
+    const savedDays = localStorage.getItem('spartan_trial_days');
+    const savedEnabled = localStorage.getItem('spartan_trial_enabled');
+    return {
+      enabled: savedEnabled !== null ? savedEnabled === 'true' : true,
+      days: savedDays ? parseInt(savedDays, 10) : 3,
+    };
+  });
+  const [savingTrialConfig, setSavingTrialConfig] = useState(false);
+
+  // Sincroniza configuração de Trial do Supabase
+  useEffect(() => {
+    supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'trial_config')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.value) {
+          if (typeof data.value.trial_days === 'number') {
+            setTrialConfig((prev) => ({ ...prev, days: data.value.trial_days }));
+            localStorage.setItem('spartan_trial_days', String(data.value.trial_days));
+          }
+          if (typeof data.value.enabled === 'boolean') {
+            setTrialConfig((prev) => ({ ...prev, enabled: data.value.enabled }));
+            localStorage.setItem('spartan_trial_enabled', String(data.value.enabled));
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Modal Novo Cliente
   const [newUserModalOpen, setNewUserModalOpen] = useState(false);
   const [newUserData, setNewUserData] = useState({
@@ -667,6 +700,36 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       setNotification({ type: 'error', message: msg });
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  // Salvar Regras de Teste Grátis (Trial) do Sistema
+  const handleSaveTrialConfig = async (days: number, enabled: boolean) => {
+    setSavingTrialConfig(true);
+    try {
+      const updated = { days, enabled };
+      setTrialConfig(updated);
+      localStorage.setItem('spartan_trial_days', String(days));
+      localStorage.setItem('spartan_trial_enabled', String(enabled));
+
+      try {
+        await supabase.from('system_settings').upsert({
+          key: 'trial_config',
+          value: { trial_days: days, enabled },
+          updated_at: new Date().toISOString(),
+        });
+      } catch {
+        // Fallback local se a tabela de sistema ainda não estiver disponível
+      }
+
+      setNotification({
+        type: 'success',
+        message: enabled
+          ? `Período de Teste Grátis atualizado para ${days} dias com sucesso!`
+          : 'Teste Grátis desativado com sucesso! Novos clientes deverão contratar imediatamente.',
+      });
+    } finally {
+      setSavingTrialConfig(false);
     }
   };
 
@@ -1131,7 +1194,20 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                   Gerenciamento de acessos, telas simultâneas e vigência das assinaturas
                 </p>
               </div>
-              <div className="flex items-center gap-2.5">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  onClick={() => setActiveTab('plans')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 ${
+                    trialConfig.enabled
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20'
+                      : 'bg-red-500/10 border-red-500/30 text-red-300 hover:bg-red-500/20'
+                  }`}
+                  title="Clique para alterar a duração do teste grátis"
+                >
+                  <FaBolt className={trialConfig.enabled ? 'text-amber-400' : 'text-gray-500'} />
+                  <span>Trial: {trialConfig.enabled ? `${trialConfig.days} dias` : 'Desativado'}</span>
+                  <span className="text-[10px] text-gray-400 font-normal underline ml-0.5">Ajustar</span>
+                </button>
                 <button
                   onClick={() => setTrialsModalOpen(true)}
                   className="px-3.5 py-2 bg-amber-950/40 hover:bg-amber-900/40 border border-amber-600/40 text-amber-300 rounded-xl text-xs font-semibold flex items-center gap-2 transition"
@@ -1325,13 +1401,13 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                               <div className="flex items-center justify-end gap-1.5">
                                 {/* Botão Conceder Teste Grátis */}
                                 <button
-                                  onClick={() => handleGrantTrial(p, 3)}
+                                  onClick={() => handleGrantTrial(p, trialConfig.days || 3)}
                                   disabled={isActionBusy}
-                                  title="Liberar 3 dias de Teste Grátis"
+                                  title={`Liberar ${trialConfig.days || 3} dias de Teste Grátis`}
                                   className="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/25 text-amber-300 rounded-lg text-[10px] font-bold border border-amber-500/20 transition disabled:opacity-50 flex items-center gap-0.5"
                                 >
                                   <FaBolt className="text-[8px]" />
-                                  <span>+3d</span>
+                                  <span>+{trialConfig.days || 3}d</span>
                                 </button>
 
                                 {/* Botões de Estender Validade */}
@@ -1633,7 +1709,140 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         {activeTab === 'plans' && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-white">Configuração Dinâmica de Tiers (Planos)</h2>
+              <h2 className="text-xl font-bold text-white">Planos, Monetização & Teste Grátis</h2>
+              <p className="text-xs text-gray-400">
+                Ajuste os valores dos planos, telas simultâneas e controle a duração do teste grátis (trial) oferecido para novos clientes.
+              </p>
+            </div>
+
+            {/* Card de Configuração de Teste Grátis (Trial do Sistema) */}
+            <div className="bg-[#12121c] border border-amber-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 relative z-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 text-xl shadow-lg shadow-amber-500/10">
+                    <FaBolt />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-black text-white">Configuração do Teste Grátis (Free Trial)</h3>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                        trialConfig.enabled && trialConfig.days > 0
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                          : 'bg-red-500/10 text-red-400 border border-red-500/30'
+                      }`}>
+                        {trialConfig.enabled && trialConfig.days > 0 ? `${trialConfig.days} Dias de Degustação` : 'Desativado'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Controle quantos dias todo novo usuário recebe ao cadastrar o WhatsApp antes de ser cobrado via Pix.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => handleSaveTrialConfig(trialConfig.days || 3, !trialConfig.enabled)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 border ${
+                      trialConfig.enabled
+                        ? 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
+                        : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
+                    }`}
+                  >
+                    {trialConfig.enabled ? 'Desativar Teste Grátis' : 'Ativar Teste Grátis'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-4 border-t border-gray-800/80 relative z-10">
+                {/* Seleção rápida de dias */}
+                <div className="lg:col-span-2 space-y-3">
+                  <label className="text-xs font-bold text-gray-300 block">
+                    Selecione a Duração Padrão do Teste Grátis:
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { days: 1, label: '1 Dia (24h)' },
+                      { days: 2, label: '2 Dias (48h)' },
+                      { days: 3, label: '3 Dias (Recomendado)' },
+                      { days: 5, label: '5 Dias' },
+                      { days: 7, label: '7 Dias (1 Semana)' },
+                    ].map((item) => (
+                      <button
+                        key={item.days}
+                        type="button"
+                        onClick={() => handleSaveTrialConfig(item.days, true)}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition border ${
+                          trialConfig.enabled && trialConfig.days === item.days
+                            ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black border-amber-400 shadow-lg shadow-amber-500/20 font-black'
+                            : 'bg-black/40 text-gray-400 border-gray-800 hover:text-white hover:border-gray-700'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Input numérico livre */}
+                  <div className="flex flex-wrap items-center gap-3 pt-2">
+                    <span className="text-xs text-gray-400">Ou defina outra quantidade de dias:</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        max={30}
+                        value={trialConfig.days}
+                        onChange={(e) => {
+                          const val = Math.max(0, parseInt(e.target.value) || 0);
+                          setTrialConfig((prev) => ({ ...prev, days: val }));
+                        }}
+                        className="w-20 px-3 py-1.5 bg-black/60 border border-gray-800 focus:border-amber-500 rounded-xl text-xs font-bold text-white text-center outline-none"
+                      />
+                      <span className="text-xs text-gray-400">dias</span>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveTrialConfig(trialConfig.days, trialConfig.days > 0)}
+                        disabled={savingTrialConfig}
+                        className="px-3.5 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center gap-1.5"
+                      >
+                        <FaSave className="text-[10px]" />
+                        <span>{savingTrialConfig ? 'Salvando...' : 'Aplicar'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Resumo da regra */}
+                <div className="bg-black/40 border border-gray-800/80 rounded-xl p-4 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                      Comportamento para Novos Clientes
+                    </span>
+                    <p className="text-xs text-gray-300 leading-relaxed">
+                      {trialConfig.enabled && trialConfig.days > 0 ? (
+                        <>
+                          Ao cadastrar o WhatsApp, o visitante recebe imediatamente <strong className="text-amber-400">{trialConfig.days} dias</strong> de acesso total ao catálogo em Full HD & 4K. Ao expirar, a tela bloqueia exigindo contratação via Pix.
+                        </>
+                      ) : (
+                        <>
+                          O teste grátis está <strong className="text-red-400">desativado</strong>. Novos clientes serão cadastrados com status vencido até realizarem o pagamento do plano via Pix.
+                        </>
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="mt-3 pt-3 border-t border-gray-800 text-[11px] text-gray-500 flex items-center gap-1.5">
+                    <FaShieldAlt className="text-amber-400 shrink-0" />
+                    <span>Anti-Fraude impede reutilização mesmo se o perfil for excluído.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Cabeçalho dos Planos */}
+            <div className="pt-2">
+              <h3 className="text-lg font-bold text-white">Configuração Dinâmica de Tiers (Planos)</h3>
               <p className="text-xs text-gray-400">
                 Ajuste os valores e telas simultâneas (1, 2 e 5 telas). Transmissão em Full HD & 4K Ultra HD inclusa como padrão em todos os planos.
               </p>
@@ -1951,7 +2160,14 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                     onChange={(e) => setNewUserData({ ...newUserData, days: parseInt(e.target.value) || 30 })}
                     className="w-full px-3 py-2 bg-black/60 border border-gray-800 rounded-xl text-xs text-white"
                   >
-                    <option value={3}>3 Dias (⚡ Teste Grátis)</option>
+                    <option value={trialConfig.days || 3}>
+                      {trialConfig.days || 3} Dias (⚡ Padrão do Sistema / Teste Grátis)
+                    </option>
+                    <option value={1}>1 Dia (Degustação 24 Horas)</option>
+                    <option value={2}>2 Dias (Degustação 48 Horas)</option>
+                    <option value={3}>3 Dias (Degustação Recomendada)</option>
+                    <option value={5}>5 Dias de Degustação</option>
+                    <option value={7}>7 Dias (1 Semana Completa)</option>
                     <option value={30}>30 Dias (Mensal)</option>
                     <option value={60}>60 Dias (Bimestral)</option>
                     <option value={90}>90 Dias (Trimestral)</option>

@@ -74,6 +74,37 @@ export default function AuthModal({ isOpen, onClose }) {
 
   const [verificationSent, setVerificationSent] = useState(false);
 
+  // Configuração Dinâmica de Teste Grátis (Trial) gerenciada pelo Admin
+  const [trialDays, setTrialDays] = useState(() => {
+    const saved = localStorage.getItem('spartan_trial_days');
+    return saved ? parseInt(saved, 10) : 3;
+  });
+  const [trialEnabled, setTrialEnabled] = useState(() => {
+    const saved = localStorage.getItem('spartan_trial_enabled');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  useEffect(() => {
+    supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'trial_config')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.value) {
+          if (typeof data.value.trial_days === 'number') {
+            setTrialDays(data.value.trial_days);
+            localStorage.setItem('spartan_trial_days', String(data.value.trial_days));
+          }
+          if (typeof data.value.enabled === 'boolean') {
+            setTrialEnabled(data.value.enabled);
+            localStorage.setItem('spartan_trial_enabled', String(data.value.enabled));
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Formata telefone celular com DDD brasileiro (XX) XXXXX-XXXX
   const formatPhone = (val) => {
     const digits = val.replace(/\D/g, '').slice(0, 11);
@@ -191,7 +222,8 @@ export default function AuthModal({ isOpen, onClose }) {
           return;
         }
 
-        // Cadastro no Supabase (cria perfil automático com 30 dias de assinatura)
+        // Cadastro no Supabase com suporte a Trial configurável
+        const effectiveTrialDays = trialEnabled ? trialDays : 0;
         const { data: supaData, error: supaError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
@@ -199,6 +231,7 @@ export default function AuthModal({ isOpen, onClose }) {
             data: {
               display_name: name,
               whatsapp: cleanPhone,
+              trial_days: effectiveTrialDays,
             },
           },
         });
@@ -339,8 +372,10 @@ export default function AuthModal({ isOpen, onClose }) {
                       className="text-gray-400 text-sm mb-6 text-center"
                     >
                       {isLogin
-                        ? 'Welcome back! Sign in to access your Watchlist.'
-                        : 'Create an account to save movies and sync progress.'}
+                        ? 'Bem-vindo de volta! Entre para acessar seu streaming.'
+                        : trialEnabled && trialDays > 0
+                          ? `Cadastre-se e aproveite ${trialDays} dias de Teste Grátis em Full HD & 4K!`
+                          : 'Crie sua conta para acessar filmes, séries e animes no Cine Spartan.'}
                     </motion.p>
                   )}
                 </AnimatePresence>
@@ -518,7 +553,11 @@ export default function AuthModal({ isOpen, onClose }) {
                     {loading && <FaSpinner className="animate-spin" />}
                     {pendingGoogleCred
                       ? <><FaGoogle /> Sign In & Link Google</>
-                      : (isLogin ? 'Continue' : 'Create Account')
+                      : isLogin
+                        ? 'Entrar'
+                        : trialEnabled && trialDays > 0
+                          ? `Criar Conta & Liberar ${trialDays} Dias Grátis`
+                          : 'Criar Minha Conta'
                     }
                   </button>
                 </form>
