@@ -69,7 +69,7 @@ const DEFAULT_PLANS: PlanTier[] = [
     annualPrice: 25.0,
     screens: 1,
     quality: 'Full HD 1080p',
-    description: '1 tela individual para smartphone, tablet ou computador.',
+    description: '1 tela individual para smartphone, tablet, PC ou TV Box.',
   },
   {
     id: 'pro',
@@ -77,9 +77,9 @@ const DEFAULT_PLANS: PlanTier[] = [
     badge: 'Mais Popular',
     monthlyPrice: 59.9,
     annualPrice: 50.0,
-    screens: 3,
+    screens: 2,
     quality: '4K Ultra HD',
-    description: 'Até 3 telas simultâneas para Smart TV, TV Box e família.',
+    description: '2 telas simultâneas para Smart TV, TV Box e família.',
   },
   {
     id: 'business',
@@ -89,7 +89,7 @@ const DEFAULT_PLANS: PlanTier[] = [
     annualPrice: 99.9,
     screens: 5,
     quality: '4K HDR + Áudio 5.1',
-    description: 'Até 5 telas simultâneas, máxima fidelidade e suporte VIP.',
+    description: '5 telas simultâneas em qualquer dispositivo e suporte VIP.',
   },
 ];
 
@@ -178,7 +178,17 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   // Estados dos Planos
   const [plans, setPlans] = useState<PlanTier[]>(() => {
     const saved = localStorage.getItem('spartan_plans_config');
-    return saved ? JSON.parse(saved) : DEFAULT_PLANS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0 && 'screens' in parsed[0]) {
+          return parsed;
+        }
+      } catch {
+        // fallback
+      }
+    }
+    return DEFAULT_PLANS;
   });
   const [savingPlanId, setSavingPlanId] = useState<string | null>(null);
 
