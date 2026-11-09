@@ -16,6 +16,21 @@ import {
   FaExternalLinkAlt
 } from 'react-icons/fa';
 
+// Helper to route external streams without CORS through our same-origin stream proxy
+const resolveStreamUrl = (url) => {
+  if (!url) return '';
+  if (
+    url.includes('45.185.11.126') ||
+    url.includes('64.31.23.207') ||
+    url.includes('acaidopt.org') ||
+    url.includes(':8000') ||
+    url.includes(':2082')
+  ) {
+    return `/api/proxy-stream?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+};
+
 const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
@@ -116,7 +131,7 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
       hlsRef.current = null;
     }
 
-    const streamUrl = currentSource.url;
+    const streamUrl = resolveStreamUrl(currentSource.url);
 
     if (Hls.isSupported()) {
       const hls = new Hls({

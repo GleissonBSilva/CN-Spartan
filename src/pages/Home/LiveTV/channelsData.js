@@ -11,8 +11,8 @@ export const CHANNELS = [
     logo: 'https://images.seeklogo.com/logo-png/42/1/premiere-futebol-clube-logo-png_seeklogo-420216.png',
     resolution: '1080p',
     sources: [
-      { name: 'Servidor 1 (Transmissão HLS Ao Vivo)', url: 'http://acaidopt.org:80/live/3llohwk4g9/kwf099q30o/9037.m3u8' },
-      { name: 'Servidor 2 (HLS Alternativo FHD)', url: 'http://64.31.23.207:80/live/96795792/50165825/3460209.m3u8' }
+      { name: 'Servidor 1 (Transmissão HLS Ao Vivo)', url: 'http://45.185.11.126:8000/play/a06g/index.m3u8' },
+      { name: 'Servidor 2 (Alternativo 1080p)', url: 'http://64.31.23.207:80/96795792/50165825/3460209.ts' }
     ]
   },
   {
@@ -23,8 +23,8 @@ export const CHANNELS = [
     logo: 'https://images.seeklogo.com/logo-png/42/1/premiere-futebol-clube-logo-png_seeklogo-420216.png',
     resolution: '1080p',
     sources: [
-      { name: 'Servidor 1 (Transmissão HLS Ao Vivo)', url: 'http://acaidopt.org:80/live/3llohwk4g9/kwf099q30o/9022.m3u8' },
-      { name: 'Servidor 2 (HLS Alternativo HD)', url: 'http://64.31.23.207:80/live/96795792/50165825/3460210.m3u8' }
+      { name: 'Servidor 1 (Transmissão HLS Ao Vivo)', url: 'http://45.185.11.126:8000/play/a06h/index.m3u8' },
+      { name: 'Servidor 2 (Alternativo)', url: 'http://64.31.23.207:80/96795792/50165825/3460210.ts' }
     ]
   },
   {
@@ -35,8 +35,7 @@ export const CHANNELS = [
     logo: 'https://images.seeklogo.com/logo-png/42/1/premiere-futebol-clube-logo-png_seeklogo-420216.png',
     resolution: '1080p',
     sources: [
-      { name: 'Servidor 1 (Transmissão HLS Ao Vivo)', url: 'http://45.185.11.126:8000/play/a0av/index.m3u8' },
-      { name: 'Servidor 2 (HLS Alternativo)', url: 'http://acaidopt.org:80/live/3llohwk4g9/kwf099q30o/13577.m3u8' }
+      { name: 'Servidor 1 (Transmissão HLS Ao Vivo)', url: 'http://45.185.11.126:8000/play/a0av/index.m3u8' }
     ]
   },
   {
@@ -47,8 +46,7 @@ export const CHANNELS = [
     logo: 'https://images.seeklogo.com/logo-png/42/1/premiere-futebol-clube-logo-png_seeklogo-420216.png',
     resolution: '1080p',
     sources: [
-      { name: 'Servidor 1 (Transmissão HLS Ao Vivo)', url: 'http://45.185.11.126:8000/play/a07b/index.m3u8' },
-      { name: 'Servidor 2 (HLS Alternativo)', url: 'http://acaidopt.org:80/live/3llohwk4g9/kwf099q30o/108295.m3u8' }
+      { name: 'Servidor 1 (Transmissão HLS Ao Vivo)', url: 'http://45.185.11.126:8000/play/a07b/index.m3u8' }
     ]
   },
   {
@@ -59,8 +57,7 @@ export const CHANNELS = [
     logo: 'https://images.seeklogo.com/logo-png/42/1/premiere-futebol-clube-logo-png_seeklogo-420216.png',
     resolution: '1080p',
     sources: [
-      { name: 'Servidor 1 (Transmissão HLS Ao Vivo)', url: 'http://45.185.11.126:8000/play/a07c/index.m3u8' },
-      { name: 'Servidor 2 (HLS Alternativo)', url: 'http://acaidopt.org:80/live/3llohwk4g9/kwf099q30o/108301.m3u8' }
+      { name: 'Servidor 1 (Transmissão HLS Ao Vivo)', url: 'http://45.185.11.126:8000/play/a07c/index.m3u8' }
     ]
   },
   {
@@ -71,8 +68,7 @@ export const CHANNELS = [
     logo: 'https://images.seeklogo.com/logo-png/42/1/premiere-futebol-clube-logo-png_seeklogo-420216.png',
     resolution: '1080p',
     sources: [
-      { name: 'Servidor 1 (Transmissão HLS Ao Vivo)', url: 'http://acaidopt.org:80/live/3llohwk4g9/kwf099q30o/108307.m3u8' },
-      { name: 'Servidor 2 (HLS Alternativo)', url: 'http://acaidopt.org:80/live/3llohwk4g9/kwf099q30o/108310.m3u8' }
+      { name: 'Servidor 1 (Transmissão HLS Ao Vivo)', url: 'http://45.185.11.126:8000/play/a05j/index.m3u8' }
     ]
   },
   {
@@ -83,8 +79,7 @@ export const CHANNELS = [
     logo: 'https://images.seeklogo.com/logo-png/42/1/premiere-futebol-clube-logo-png_seeklogo-420216.png',
     resolution: '1080p',
     sources: [
-      { name: 'Servidor 1 (Transmissão HLS Ao Vivo)', url: 'http://45.185.11.126:8000/play/a05k/index.m3u8' },
-      { name: 'Servidor 2 (HLS Alternativo)', url: 'http://acaidopt.org:80/live/3llohwk4g9/kwf099q30o/108311.m3u8' }
+      { name: 'Servidor 1 (Transmissão HLS Ao Vivo)', url: 'http://45.185.11.126:8000/play/a05k/index.m3u8' }
     ]
   },
   {
@@ -96,7 +91,7 @@ export const CHANNELS = [
     resolution: '1080p',
     sources: [
       { name: 'Servidor 1 (Transmissão HLS Ao Vivo)', url: 'http://45.185.11.126:8000/play/a05l/index.m3u8' },
-      { name: 'Servidor 2 (HLS Alternativo FHD)', url: 'http://64.31.23.207:80/live/96795792/50165825/3460230.m3u8' }
+      { name: 'Servidor 2 (Alternativo)', url: 'http://64.31.23.207:80/96795792/50165825/3460230.ts' }
     ]
   },
   {
