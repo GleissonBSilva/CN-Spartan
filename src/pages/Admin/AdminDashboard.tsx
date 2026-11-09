@@ -518,6 +518,41 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     setNotification({ type: 'success', message: 'CSV exportado com sucesso!' });
   };
 
+  // Abrir Modal de Novo Cliente com Telas Sincronizadas do Plano
+  const handleOpenNewUserModal = () => {
+    const defaultPlan = plans.find((p) => p.name.includes('PRO')) || plans[0] || { name: 'SPARTAN PRO', screens: 2 };
+    setNewUserData({
+      name: '',
+      email: '',
+      whatsapp: '',
+      plan: defaultPlan.name,
+      screens: defaultPlan.screens,
+      days: trialConfig.enabled ? (trialConfig.days || 3) : 30,
+    });
+    setNewUserModalOpen(true);
+  };
+
+  // Seleção de Plano com Preenchimento Automático de Telas Simultâneas
+  const handleSelectPlan = (planName: string) => {
+    const foundPlan = plans.find((p) => p.name.toLowerCase() === planName.toLowerCase());
+    let autoScreens = 1;
+    if (foundPlan) {
+      autoScreens = foundPlan.screens;
+    } else if (planName.toUpperCase().includes('START')) {
+      autoScreens = 1;
+    } else if (planName.toUpperCase().includes('PRO')) {
+      autoScreens = 2;
+    } else if (planName.toUpperCase().includes('BUSINESS')) {
+      autoScreens = 5;
+    }
+
+    setNewUserData((prev) => ({
+      ...prev,
+      plan: planName,
+      screens: autoScreens,
+    }));
+  };
+
   // Cadastrar Novo Cliente
   const handleCreateNewUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1224,7 +1259,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                   <span>Exportar CSV</span>
                 </button>
                 <button
-                  onClick={() => setNewUserModalOpen(true)}
+                  onClick={handleOpenNewUserModal}
                   className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-purple-600/25 transition"
                 >
                   <FaPlus />
@@ -2130,27 +2165,43 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-semibold text-gray-300 block mb-1">Plano</label>
+                    <label className="text-xs font-semibold text-gray-300 block mb-1">
+                      Plano Contratado
+                    </label>
                     <select
                       value={newUserData.plan}
-                      onChange={(e) => setNewUserData({ ...newUserData, plan: e.target.value })}
-                      className="w-full px-3 py-2 bg-black/60 border border-gray-800 rounded-xl text-xs text-white"
+                      onChange={(e) => handleSelectPlan(e.target.value)}
+                      className="w-full px-3 py-2 bg-black/60 border border-gray-800 focus:border-purple-500 rounded-xl text-xs text-white outline-none"
                     >
-                      <option value="SPARTAN START">SPARTAN START</option>
-                      <option value="SPARTAN PRO">SPARTAN PRO</option>
-                      <option value="SPARTAN BUSINESS">SPARTAN BUSINESS</option>
+                      {plans.map((pl) => (
+                        <option key={pl.id} value={pl.name}>
+                          {pl.name} ({pl.screens} {pl.screens === 1 ? 'tela' : 'telas'})
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-gray-300 block mb-1">Telas Simultâneas</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={10}
-                      value={newUserData.screens}
-                      onChange={(e) => setNewUserData({ ...newUserData, screens: parseInt(e.target.value) || 1 })}
-                      className="w-full px-3 py-2 bg-black/60 border border-gray-800 rounded-xl text-xs text-white"
-                    />
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-gray-300">
+                        Telas Simultâneas
+                      </label>
+                      <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                        Automático
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={newUserData.screens}
+                        onChange={(e) => setNewUserData({ ...newUserData, screens: parseInt(e.target.value) || 1 })}
+                        className="w-full px-3 py-2 bg-black/60 border border-purple-500/40 focus:border-purple-500 rounded-xl text-xs font-bold text-white outline-none"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-medium pointer-events-none">
+                        {newUserData.screens === 1 ? 'tela' : 'telas'}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <div>
