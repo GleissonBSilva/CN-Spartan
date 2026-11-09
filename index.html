@@ -13,14 +13,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap"
     rel="stylesheet">
 
-  <!-- Cloudflare Turnstile -->
-  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad" async defer></script>
+  <!-- Cloudflare Turnstile Callback & Script -->
   <script>
     function onTurnstileLoad() {
       window._turnstileReady = true;
       window.dispatchEvent(new Event('turnstile-ready'));
     }
   </script>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad" async defer></script>
 
   <!-- Web App / PWA -->
   <meta name="theme-color" content="#000000" />

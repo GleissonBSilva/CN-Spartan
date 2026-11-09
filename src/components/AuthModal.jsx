@@ -85,12 +85,19 @@ export default function AuthModal({ isOpen, onClose }) {
   });
 
   useEffect(() => {
+    if (!isOpen) return;
+    if (sessionStorage.getItem('spartan_settings_404')) return;
+
     supabase
       .from('system_settings')
       .select('value')
       .eq('key', 'trial_config')
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          sessionStorage.setItem('spartan_settings_404', 'true');
+          return;
+        }
         if (data?.value) {
           if (typeof data.value.trial_days === 'number') {
             setTrialDays(data.value.trial_days);
@@ -102,8 +109,10 @@ export default function AuthModal({ isOpen, onClose }) {
           }
         }
       })
-      .catch(() => {});
-  }, []);
+      .catch(() => {
+        sessionStorage.setItem('spartan_settings_404', 'true');
+      });
+  }, [isOpen]);
 
   // Formata telefone celular com DDD brasileiro (XX) XXXXX-XXXX
   const formatPhone = (val) => {

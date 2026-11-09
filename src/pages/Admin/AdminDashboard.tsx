@@ -266,12 +266,18 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
   // Sincroniza configuração de Trial do Supabase
   useEffect(() => {
+    if (sessionStorage.getItem('spartan_settings_404')) return;
+
     supabase
       .from('system_settings')
       .select('value')
       .eq('key', 'trial_config')
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          sessionStorage.setItem('spartan_settings_404', 'true');
+          return;
+        }
         if (data?.value) {
           if (typeof data.value.trial_days === 'number') {
             setTrialConfig((prev) => ({ ...prev, days: data.value.trial_days }));
@@ -283,7 +289,9 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           }
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        sessionStorage.setItem('spartan_settings_404', 'true');
+      });
   }, []);
 
   // Modal Novo Cliente

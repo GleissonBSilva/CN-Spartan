@@ -33,58 +33,59 @@ export const fetchContentByGenre = async (type, genreId, page = 1, overrideParam
       : (validPage <= 3 ? 120 : validPage <= 10 ? 60 : 25);
 
     const url = new URL(`${BASE_URL}/discover/${type}`);
-    url.searchParams.append('api_key', API_KEY);
-    url.searchParams.append('language', lang || getCurrentLanguage());
-    url.searchParams.append('page', validPage);
-    url.searchParams.append('sort_by', sortBy);
-    url.searchParams.append('include_adult', 'false');
+    url.searchParams.set('api_key', API_KEY);
+    url.searchParams.set('language', lang || getCurrentLanguage());
+    url.searchParams.set('page', validPage);
+    url.searchParams.set('sort_by', sortBy);
+    url.searchParams.set('include_adult', 'false');
+
     // Require minimum votes when sorting by rating to avoid low-vote noise
     if (sortBy.startsWith('vote_average')) {
-      url.searchParams.append('vote_count.gte', isSpecialCategory ? String(specialTopRatedMinVotes) : '300');
+      url.searchParams.set('vote_count.gte', isSpecialCategory ? String(specialTopRatedMinVotes) : '300');
     } else if (!isPopularitySort) {
       // General floor for Newest/Oldest on generic genres
-      if (!isSpecialCategory) url.searchParams.append('vote_count.gte', '50');
+      if (!isSpecialCategory) url.searchParams.set('vote_count.gte', '50');
     }
 
     // Keep TV top-rated results realistic and avoid sparse lists with invalid/future dates.
     if (isTvTopRatedSort) {
       if (!isDonghuaCategory) {
-        url.searchParams.append('include_null_first_air_dates', 'false');
-        url.searchParams.append('first_air_date.lte', today);
+        url.searchParams.set('include_null_first_air_dates', 'false');
+        url.searchParams.set('first_air_date.lte', today);
       }
     }
 
     // Keep "Newest" practical: only aired shows with real dates and minimum traction.
     if (isTvNewestSort) {
-      url.searchParams.append('include_null_first_air_dates', 'false');
-      url.searchParams.append('first_air_date.lte', today);
-      url.searchParams.append('vote_count.gte', '50');
+      url.searchParams.set('include_null_first_air_dates', 'false');
+      url.searchParams.set('first_air_date.lte', today);
+      url.searchParams.set('vote_count.gte', '50');
     }
     
     if (isMovieNewestSort) {
-      url.searchParams.append('primary_release_date.lte', today);
-      url.searchParams.append('vote_count.gte', '50');
+      url.searchParams.set('primary_release_date.lte', today);
+      url.searchParams.set('vote_count.gte', '50');
     }
 
     // Improve "Most Popular" quality for TV by filtering out low-signal or unaired records.
     if (isTvPopularitySort) {
       if (!isDonghuaCategory) {
-        url.searchParams.append('include_null_first_air_dates', 'false');
-        url.searchParams.append('first_air_date.lte', today);
+        url.searchParams.set('include_null_first_air_dates', 'false');
+        url.searchParams.set('first_air_date.lte', today);
       }
-      url.searchParams.append('vote_count.gte', String(tvPopularMinVotes));
+      url.searchParams.set('vote_count.gte', String(tvPopularMinVotes));
     }
 
     // Improve movie "Most Popular" by excluding future/low-signal releases.
     if (isMoviePopularitySort) {
-      url.searchParams.append('primary_release_date.lte', today);
-      url.searchParams.append('vote_count.gte', String(moviePopularMinVotes));
+      url.searchParams.set('primary_release_date.lte', today);
+      url.searchParams.set('vote_count.gte', String(moviePopularMinVotes));
     }
 
     if (overrideParams) {
-      Object.entries(overrideParams).forEach(([k, v]) => url.searchParams.append(k, v));
+      Object.entries(overrideParams).forEach(([k, v]) => url.searchParams.set(k, v));
     } else if (genreId) {
-      url.searchParams.append('with_genres', genreId);
+      url.searchParams.set('with_genres', genreId);
     }
 
     const response = await fetch(url, { signal });
