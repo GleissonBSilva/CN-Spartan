@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { FaBroadcastTower, FaSearch, FaTv, FaPlay, FaFire, FaFilter } from 'react-icons/fa';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { FaBroadcastTower, FaSearch, FaTv, FaPlay, FaPlus, FaTrash, FaInfoCircle } from 'react-icons/fa';
 import { CHANNELS, CATEGORIES } from './channelsData';
 import LiveTvPlayer from './LiveTvPlayer';
 import SEO from '../SEO';
@@ -10,18 +10,40 @@ const LiveTvPage = () => {
   const { isActive, isAdmin } = useAuthProfile();
   const canPlay = isAdmin || isActive;
 
-  const [selectedChannelId, setSelectedChannelId] = useState(CHANNELS[0].id);
+  // Custom channels loaded from localStorage (M3U or custom added)
+  const [customChannels, setCustomChannels] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('cinespartan_custom_channels') || '[]');
+    } catch {
+      return [];
+    }
+  });
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [customName, setCustomName] = useState('');
+  const [customUrl, setCustomUrl] = useState('');
+  const [customCategory, setCustomCategory] = useState('esportes');
+  const [m3uUrl, setM3uUrl] = useState('');
+  const [isLoadingM3u, setIsLoadingM3u] = useState(false);
+  const [modalError, setModalError] = useState('');
+
+  // Combine default channels with user custom channels
+  const allChannels = useMemo(() => {
+    return [...CHANNELS, ...customChannels];
+  }, [customChannels]);
+
+  const [selectedChannelId, setSelectedChannelId] = useState(() => allChannels[0]?.id || 'caze_tv');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Encontra o canal ativo
+  // Active channel object
   const activeChannel = useMemo(() => {
-    return CHANNELS.find(c => c.id === selectedChannelId) || CHANNELS[0];
-  }, [selectedChannelId]);
+    return allChannels.find(c => c.id === selectedChannelId) || allChannels[0];
+  }, [allChannels, selectedChannelId]);
 
-  // Filtra canais por categoria e busca
+  // Filter channels by category and search
   const filteredChannels = useMemo(() => {
-    return CHANNELS.filter(c => {
+    return allChannels.filter(c => {
       const matchCategory = selectedCategory === 'all' || c.category === selectedCategory;
       const matchQuery =
         !searchQuery.trim() ||
@@ -29,7 +51,7 @@ const LiveTvPage = () => {
         c.categoryLabel.toLowerCase().includes(searchQuery.toLowerCase());
       return matchCategory && matchQuery;
     });
-  }, [selectedCategory, searchQuery]);
+  }, [allChannels, selectedCategory, searchQuery]);
 
   const handleNextChannel = useCallback(() => {
     const currentIdx = filteredChannels.findIndex(c => c.id === activeChannel.id);
@@ -46,6 +68,105 @@ const LiveTvPage = () => {
       setSelectedChannelId(filteredChannels[prevIdx].id);
     }
   }, [filteredChannels, activeChannel.id]);
+
+  // Add a single custom channel
+  const handleAddSingleChannel = (e) => {
+    e.preventDefault();
+    if (!customName.trim() || !customUrl.trim()) {
+      setModalError('Preencha o nome e a URL da transmissão.');
+      return;
+    }
+
+    const newChannel = {
+      id: 'custom_' + Date.now(),
+      name: customName.trim(),
+      category: customCategory,
+      categoryLabel: CATEGORIES.find(c => c.id === customCategory)?.label || 'Canais',
+      logo: '',
+      resolution: 'HD',
+      isCustom: true,
+      sources: [{ name: 'Stream Direto', url: customUrl.trim() }]
+    };
+
+    const updated = [newChannel, ...customChannels];
+    setCustomChannels(updated);
+    localStorage.setItem('cinespartan_custom_channels', JSON.stringify(updated));
+    setSelectedChannelId(newChannel.id);
+    setCustomName('');
+    setCustomUrl('');
+    setIsModalOpen(false);
+    setModalError('');
+  };
+
+  // Import M3U playlist URL
+  const handleImportM3U = async (e) => {
+    e.preventDefault();
+    if (!m3uUrl.trim()) return;
+
+    setIsLoadingM3u(true);
+    setModalError('');
+
+    try {
+      const res = await fetch(m3uUrl.trim());
+      const text = await res.text();
+      const lines = text.split('\n');
+      const parsed = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.startsWith('#EXTINF:')) {
+          const title = line.substring(line.indexOf(',') + 1).trim();
+          const logoMatch = line.match(/tvg-logo="([^"]+)"/);
+          let nextUrl = '';
+          for (let j = i + 1; j < lines.length; j++) {
+            const l = lines[j].trim();
+            if (l && !l.startsWith('#')) {
+              nextUrl = l;
+              break;
+            }
+          }
+          if (nextUrl && title) {
+            const isSport = title.toLowerCase().includes('premiere') || title.toLowerCase().includes('sport') || title.toLowerCase().includes('espn');
+            parsed.push({
+              id: 'm3u_' + Date.now() + '_' + parsed.length,
+              name: title,
+              category: isSport ? 'esportes' : 'filmes_series',
+              categoryLabel: isSport ? 'Esportes & Futebol' : 'Filmes & Séries',
+              logo: logoMatch ? logoMatch[1] : '',
+              resolution: 'HD',
+              isCustom: true,
+              sources: [{ name: 'IPTV Stream', url: nextUrl }]
+            });
+          }
+        }
+      }
+
+      if (parsed.length === 0) {
+        setModalError('Nenhum canal válido foi encontrado nesta lista M3U.');
+        setIsLoadingM3u(false);
+        return;
+      }
+
+      const updated = [...parsed, ...customChannels];
+      setCustomChannels(updated);
+      localStorage.setItem('cinespartan_custom_channels', JSON.stringify(updated));
+      setSelectedChannelId(parsed[0].id);
+      setM3uUrl('');
+      setIsModalOpen(false);
+    } catch (err) {
+      setModalError('Erro ao carregar lista M3U. Verifique o link e se o servidor permite acesso.');
+    } finally {
+      setIsLoadingM3u(false);
+    }
+  };
+
+  const handleClearCustom = () => {
+    if (window.confirm('Deseja remover todos os canais personalizados importados?')) {
+      setCustomChannels([]);
+      localStorage.removeItem('cinespartan_custom_channels');
+      setSelectedChannelId(CHANNELS[0].id);
+    }
+  };
 
   return (
     <div className="min-h-screen pb-24 md:pb-12 text-white">
@@ -74,24 +195,36 @@ const LiveTvPage = () => {
             </div>
           </div>
 
-          {/* Search Bar */}
-          <div className="relative w-full sm:w-72">
-            <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar canal ou esporte..."
-              className="w-full pl-9 pr-4 py-2 rounded-xl bg-[#0f141f] border border-white/10 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/50 transition-all shadow-inner"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500 hover:text-white"
-              >
-                ✕
-              </button>
-            )}
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            {/* Search Bar */}
+            <div className="relative flex-1 sm:w-64">
+              <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar canal ou esporte..."
+                className="w-full pl-9 pr-4 py-2 rounded-xl bg-[#0f141f] border border-white/10 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/50 transition-all shadow-inner"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500 hover:text-white"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Custom Channel / M3U Button */}
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-bold shadow-md transition-all shrink-0"
+              title="Adicionar Canal ou Lista M3U"
+            >
+              <FaPlus className="text-[10px]" />
+              <span className="hidden md:inline">Adicionar Canal / M3U</span>
+            </button>
           </div>
         </div>
 
@@ -99,6 +232,10 @@ const LiveTvPage = () => {
         <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-6 scrollbar-none">
           {CATEGORIES.map(cat => {
             const isSelected = selectedCategory === cat.id;
+            const count = cat.id === 'all'
+              ? allChannels.length
+              : allChannels.filter(c => c.category === cat.id).length;
+
             return (
               <button
                 key={cat.id}
@@ -111,11 +248,9 @@ const LiveTvPage = () => {
               >
                 <span>{cat.icon}</span>
                 <span>{cat.label}</span>
-                {cat.id === 'all' && (
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20">
-                    {CHANNELS.length}
-                  </span>
-                )}
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20">
+                  {count}
+                </span>
               </button>
             );
           })}
@@ -126,7 +261,7 @@ const LiveTvPage = () => {
           {/* Main Video Player Column (8 cols) */}
           <div className="lg:col-span-8 flex flex-col gap-4">
             {!canPlay ? (
-              <SubscriptionLockGate title={activeChannel.name} />
+              <SubscriptionLockGate title={activeChannel?.name || 'Canal Ao Vivo'} />
             ) : (
               <LiveTvPlayer
                 channel={activeChannel}
@@ -145,9 +280,20 @@ const LiveTvPage = () => {
                   Guia de Canais
                 </span>
               </div>
-              <span className="text-[11px] font-semibold text-gray-400">
-                {filteredChannels.length} disponíveis
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold text-gray-400">
+                  {filteredChannels.length} canais
+                </span>
+                {customChannels.length > 0 && (
+                  <button
+                    onClick={handleClearCustom}
+                    title="Limpar canais personalizados"
+                    className="p-1 rounded text-gray-500 hover:text-red-400 text-xs"
+                  >
+                    <FaTrash />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Channels Scroll List */}
@@ -158,7 +304,7 @@ const LiveTvPage = () => {
                 </div>
               ) : (
                 filteredChannels.map(channel => {
-                  const isActive = channel.id === activeChannel.id;
+                  const isActive = channel.id === activeChannel?.id;
                   return (
                     <button
                       key={channel.id}
@@ -207,7 +353,7 @@ const LiveTvPage = () => {
                         </span>
                       </div>
 
-                      {/* Active indicator arrow / play */}
+                      {/* Active indicator play */}
                       {isActive && (
                         <div className="shrink-0 p-1.5 rounded-lg bg-red-600 text-white shadow-sm">
                           <FaPlay className="text-[9px]" />
@@ -221,6 +367,90 @@ const LiveTvPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal: Adicionar Canal ou Lista M3U */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-md p-6 rounded-3xl bg-[#0f141f] border border-white/10 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <FaPlus className="text-red-500 text-xs" />
+                <span>Adicionar Canal ou Lista M3U</span>
+              </h3>
+              <button
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setModalError('');
+                }}
+                className="text-gray-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {modalError && (
+              <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs">
+                {modalError}
+              </div>
+            )}
+
+            {/* Tab 1: Adicionar Canal Único */}
+            <form onSubmit={handleAddSingleChannel} className="flex flex-col gap-3 mb-6">
+              <span className="text-xs font-bold text-gray-300">1. Adicionar Canal Direto (Link .m3u8):</span>
+              <input
+                type="text"
+                placeholder="Nome do Canal (ex: Premiere 1 HD)"
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-red-500"
+              />
+              <input
+                type="url"
+                placeholder="URL da transmissão (https://.../stream.m3u8)"
+                value={customUrl}
+                onChange={(e) => setCustomUrl(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-red-500"
+              />
+              <select
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white focus:outline-none focus:border-red-500"
+              >
+                <option value="esportes">⚽ Esportes & Premiere</option>
+                <option value="abertos">📡 Canais Abertos</option>
+                <option value="filmes_series">🎬 Filmes & Séries</option>
+                <option value="noticias">📰 Notícias</option>
+                <option value="infantil">🧒 Infantil</option>
+              </select>
+              <button
+                type="submit"
+                className="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md transition-all"
+              >
+                Adicionar Canal
+              </button>
+            </form>
+
+            {/* Tab 2: Importar Lista M3U Completa */}
+            <form onSubmit={handleImportM3U} className="flex flex-col gap-3 pt-4 border-t border-white/10">
+              <span className="text-xs font-bold text-gray-300">2. Ou Importar Lista M3U Completa (IPTV):</span>
+              <input
+                type="url"
+                placeholder="Link da lista (https://.../lista.m3u)"
+                value={m3uUrl}
+                onChange={(e) => setM3uUrl(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-red-500"
+              />
+              <button
+                type="submit"
+                disabled={isLoadingM3u}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white font-bold text-xs shadow-md transition-all disabled:opacity-50"
+              >
+                {isLoadingM3u ? 'Importando Canais...' : 'Carregar Lista M3U'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

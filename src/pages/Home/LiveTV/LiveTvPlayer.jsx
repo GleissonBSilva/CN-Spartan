@@ -9,9 +9,10 @@ import {
   FaExpand,
   FaCompress,
   FaRedoAlt,
-  FaServer,
   FaTv,
-  FaInfoCircle
+  FaInfoCircle,
+  FaStepForward,
+  FaStepBackward
 } from 'react-icons/fa';
 
 const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
@@ -27,17 +28,43 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const currentSource = channel?.sources?.[sourceIdx] || channel?.sources?.[0];
-  const isEmbed = currentSource?.url?.includes('multiembed.mov') || currentSource?.url?.includes('embed');
+  const sources = channel?.sources || [];
+  const currentSource = sources[sourceIdx] || sources[0];
+  const isEmbed =
+    currentSource?.url?.includes('multiembed.mov') ||
+    currentSource?.url?.includes('youtube.com/embed') ||
+    currentSource?.url?.includes('embed');
 
   // Reset state when channel changes
   useEffect(() => {
     setSourceIdx(0);
     setHasError(false);
     setIsLoading(true);
+    setIsPlaying(false);
   }, [channel?.id]);
 
-  // Handle HLS stream loading
+  // Watchdog timer to ensure the player NEVER hangs indefinitely on "Carregando"
+  useEffect(() => {
+    let timer;
+    if (isLoading && !hasError && !isEmbed) {
+      timer = setTimeout(() => {
+        if (isLoading && !isPlaying) {
+          console.warn('[LiveTvPlayer] Stream load timeout (5s) for:', currentSource?.url);
+          // If there is another route available, automatically attempt the next route
+          if (sources.length > 1 && sourceIdx < sources.length - 1) {
+            setSourceIdx(prev => prev + 1);
+          } else {
+            setIsLoading(false);
+            setHasError(true);
+            setErrorMessage('O sinal deste canal está instável ou aguardando início de transmissão. Teste uma das rotas alternativas.');
+          }
+        }
+      }, 5000);
+    }
+    return () => clearTimeout(timer);
+  }, [isLoading, isPlaying, hasError, isEmbed, sourceIdx, sources.length, currentSource?.url]);
+
+  // Handle stream loading (HLS or Native)
   useEffect(() => {
     if (!currentSource?.url || isEmbed) {
       setIsLoading(false);
@@ -50,7 +77,6 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
     setIsLoading(true);
     setHasError(false);
 
-    // Destroy existing HLS instance
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
@@ -62,9 +88,11 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
-        backBufferLength: 90,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
+        backBufferLength: 60,
+        maxBufferLength: 20,
+        maxMaxBufferLength: 40,
+        manifestLoadingTimeOut: 4500,
+        levelLoadingTimeOut: 4500,
       });
 
       hlsRef.current = hls;
@@ -73,51 +101,62 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setIsLoading(false);
+        setHasError(false);
         video.play().then(() => setIsPlaying(true)).catch(() => {
-          // Autoplay policy: start muted if needed
+          // Autoplay protection fallback: start muted
           video.muted = true;
           setIsMuted(true);
-          video.play().catch(() => {});
+          video.play().then(() => setIsPlaying(true)).catch(() => {});
         });
       });
 
       hls.on(Hls.Events.ERROR, (event, data) => {
+        console.warn('[Hls] Error:', data.type, data.details, data.fatal);
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              console.warn('Live stream network error, trying recover...', data);
-              hls.startLoad();
+              // Try next route or fail gracefully
+              hls.destroy();
+              if (sources.length > 1 && sourceIdx < sources.length - 1) {
+                setSourceIdx(prev => prev + 1);
+              } else {
+                setIsLoading(false);
+                setHasError(true);
+                setErrorMessage('Não foi possível conectar ao servidor de streaming deste canal.');
+              }
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
-              console.warn('Live stream media error, recovering...', data);
               hls.recoverMediaError();
               break;
             default:
-              console.error('Fatal HLS error:', data);
               hls.destroy();
-              setHasError(true);
-              setErrorMessage('Falha ao conectar à transmissão deste canal.');
               setIsLoading(false);
+              setHasError(true);
+              setErrorMessage('Falha ao reproduzir o sinal ao vivo.');
               break;
           }
         }
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      // Native Safari support
+      // Safari iOS/macOS Native HLS
       video.src = streamUrl;
-      video.addEventListener('loadedmetadata', () => {
+      const onLoaded = () => {
         setIsLoading(false);
+        setHasError(false);
         video.play().then(() => setIsPlaying(true)).catch(() => {});
-      });
-      video.addEventListener('error', () => {
-        setHasError(true);
-        setErrorMessage('Transmissão ao vivo indisponível neste momento.');
+      };
+      const onError = () => {
         setIsLoading(false);
-      });
+        setHasError(true);
+        setErrorMessage('Sinal temporariamente indisponível no navegador.');
+      };
+
+      video.addEventListener('loadedmetadata', onLoaded, { once: true });
+      video.addEventListener('error', onError, { once: true });
     } else {
-      setHasError(true);
-      setErrorMessage('Seu navegador não suporta streaming HLS ao vivo.');
       setIsLoading(false);
+      setHasError(true);
+      setErrorMessage('Navegador não suporta streaming HLS nativo.');
     }
 
     return () => {
@@ -126,7 +165,7 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
         hlsRef.current = null;
       }
     };
-  }, [currentSource?.url, isEmbed]);
+  }, [currentSource?.url, isEmbed, sourceIdx, sources.length]);
 
   // Fullscreen change listener
   useEffect(() => {
@@ -165,8 +204,8 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
   };
 
   const handleNextServer = () => {
-    if (!channel?.sources || channel.sources.length <= 1) return;
-    const nextIdx = (sourceIdx + 1) % channel.sources.length;
+    if (sources.length <= 1) return;
+    const nextIdx = (sourceIdx + 1) % sources.length;
     setSourceIdx(nextIdx);
     setHasError(false);
     setIsLoading(true);
@@ -198,16 +237,37 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
         </div>
 
         <div className="flex items-center gap-2 ml-auto">
+          {/* Quick channel skip */}
+          {onPrevChannel && (
+            <button
+              onClick={onPrevChannel}
+              title="Canal Anterior"
+              className="p-2 rounded-xl bg-white/5 hover:bg-white/15 text-gray-300 hover:text-white border border-white/10 transition-all text-xs"
+            >
+              <FaStepBackward />
+            </button>
+          )}
+
+          {onNextChannel && (
+            <button
+              onClick={onNextChannel}
+              title="Próximo Canal"
+              className="p-2 rounded-xl bg-white/5 hover:bg-white/15 text-gray-300 hover:text-white border border-white/10 transition-all text-xs"
+            >
+              <FaStepForward />
+            </button>
+          )}
+
           {/* Servidores alternativos */}
-          {channel?.sources?.length > 1 && (
+          {sources.length > 1 && (
             <button
               type="button"
               onClick={handleNextServer}
-              title="Trocar para o servidor alternativo deste canal"
+              title="Trocar para rota alternativa"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-white border border-amber-500/30 transition-all shadow-sm"
             >
               <FaRedoAlt className="text-[10px]" />
-              <span>Trocar Rota ({sourceIdx + 1}/{channel.sources.length})</span>
+              <span>Rota {sourceIdx + 1}/{sources.length}</span>
             </button>
           )}
 
@@ -250,7 +310,7 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
         )}
 
         {/* Loading Spinner */}
-        {isLoading && !hasError && (
+        {isLoading && !hasError && !isEmbed && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-20 pointer-events-none">
             <div className="w-12 h-12 border-4 border-red-500/20 border-t-red-600 rounded-full animate-spin mb-3"></div>
             <p className="text-sm font-semibold text-white animate-pulse">Sintonizando {channel.name}...</p>
@@ -261,19 +321,30 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
         {hasError && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 z-20 p-6 text-center">
             <FaTv className="text-4xl text-red-500 mb-3" />
-            <h3 className="text-base font-bold text-white mb-1">Sinal Temporariamente Fora do Ar</h3>
+            <h3 className="text-base font-bold text-white mb-1">Sinal Fora do Ar ou em Intervalo</h3>
             <p className="text-xs text-gray-400 max-w-md mb-4 leading-relaxed">
-              {errorMessage || 'Este canal está fora do ar no momento ou em intervalo de transmissão.'}
+              {errorMessage || 'Este canal está fora do ar no momento ou em intervalo entre transmissões.'}
             </p>
-            {channel?.sources?.length > 1 && (
-              <button
-                onClick={handleNextServer}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-lg transition-all"
-              >
-                <FaRedoAlt />
-                <span>Testar Rota Alternativa ({sourceIdx + 1}/{channel.sources.length})</span>
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {sources.length > 1 && (
+                <button
+                  onClick={handleNextServer}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-lg transition-all"
+                >
+                  <FaRedoAlt />
+                  <span>Testar Rota Alternativa ({sourceIdx + 1}/{sources.length})</span>
+                </button>
+              )}
+              {onNextChannel && (
+                <button
+                  onClick={onNextChannel}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-all border border-white/10"
+                >
+                  <FaStepForward />
+                  <span>Próximo Canal</span>
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -315,7 +386,7 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
       <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-xs">
         <FaInfoCircle className="text-red-500 shrink-0 text-sm" />
         <span>
-          <strong>Dica Esportiva:</strong> Canais como <strong>Premiere</strong> ativam seu sinal principal e abrem múltiplas câmeras durante os horários dos jogos da rodada. Se um canal demorar a carregar, clique em <strong>&quot;Trocar Rota&quot;</strong> ou selecione outro canal na grade ao lado.
+          <strong>Dica Esportiva:</strong> Canais como <strong>Premiere</strong> iniciam a transmissão completa minutos antes de cada partida. Se um canal demorar a carregar, clique em <strong>&quot;Rota Alternativa&quot;</strong> ou escolha outro canal na lista ao lado.
         </span>
       </div>
     </div>
