@@ -68,7 +68,7 @@ const DEFAULT_PLANS: PlanTier[] = [
     monthlyPrice: 29.9,
     annualPrice: 25.0,
     screens: 1,
-    quality: 'Full HD 1080p',
+    quality: 'Full HD & 4K Ultra HD',
     description: '1 tela individual para smartphone, tablet, PC ou TV Box.',
   },
   {
@@ -78,7 +78,7 @@ const DEFAULT_PLANS: PlanTier[] = [
     monthlyPrice: 59.9,
     annualPrice: 50.0,
     screens: 2,
-    quality: '4K Ultra HD',
+    quality: 'Full HD & 4K Ultra HD',
     description: '2 telas simultâneas para Smart TV, TV Box e família.',
   },
   {
@@ -88,8 +88,8 @@ const DEFAULT_PLANS: PlanTier[] = [
     monthlyPrice: 119.9,
     annualPrice: 99.9,
     screens: 5,
-    quality: '4K HDR + Áudio 5.1',
-    description: '5 telas simultâneas em qualquer dispositivo e suporte VIP.',
+    quality: 'Full HD & 4K Ultra HD',
+    description: '5 telas simultâneas em qualquer dispositivo com suporte VIP.',
   },
 ];
 
@@ -1431,7 +1431,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             <div>
               <h2 className="text-xl font-bold text-white">Configuração Dinâmica de Tiers (Planos)</h2>
               <p className="text-xs text-gray-400">
-                Ajuste os valores mensais, anuais, número de telas simultâneas e resolução em tempo real
+                Ajuste os valores e telas simultâneas (1, 2 e 5 telas). Transmissão em Full HD & 4K Ultra HD inclusa como padrão em todos os planos.
               </p>
             </div>
 
@@ -1491,7 +1491,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                         </div>
                       </div>
 
-                      {/* Configurações de Telas e Resolução de Streaming */}
+                      {/* Configurações de Telas e Resolução Padrão de Streaming */}
                       <div className="pt-2 border-t border-gray-800 space-y-3">
                         <div>
                           <label className="text-[11px] font-medium text-gray-400 block mb-1">
@@ -1503,20 +1503,19 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                             max={10}
                             value={pl.screens}
                             onChange={(e) => handlePlanChange(pl.id, 'screens', parseInt(e.target.value) || 1)}
-                            className="w-full px-3.5 py-1.5 bg-black/40 border border-gray-800 rounded-lg text-xs text-white"
+                            className="w-full px-3.5 py-1.5 bg-black/40 border border-gray-800 rounded-lg text-xs font-bold text-white"
                           />
                         </div>
 
-                        <div>
-                          <label className="text-[11px] font-medium text-gray-400 block mb-1">
-                            Resolução / Qualidade Máxima
-                          </label>
-                          <input
-                            type="text"
-                            value={pl.quality}
-                            onChange={(e) => handlePlanChange(pl.id, 'quality', e.target.value)}
-                            className="w-full px-3.5 py-1.5 bg-black/40 border border-gray-800 rounded-lg text-xs text-white"
-                          />
+                        {/* Qualidade Padrão Cinema Fixa */}
+                        <div className="p-3 bg-black/40 border border-purple-900/30 rounded-xl flex items-center justify-between">
+                          <div>
+                            <span className="text-[11px] font-bold text-gray-300 block">Qualidade de Vídeo</span>
+                            <span className="text-[10px] text-gray-500">Padrão Cine Spartan</span>
+                          </div>
+                          <span className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+                            Full HD & 4K Ultra HD
+                          </span>
                         </div>
                       </div>
                     </div>
