@@ -188,9 +188,27 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<'all' | ProfileStatus>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | ProfileStatus | 'trial'>('all');
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Lista Anti-Fraude de Testes Utilizados (permanente)
+  const [usedTrials, setUsedTrials] = useState<Array<{ id: string; email: string; whatsapp?: string; claimed_at: string; trial_days: number; notes?: string }>>(() => {
+    const saved = localStorage.getItem('spartan_used_trials');
+    return saved
+      ? JSON.parse(saved)
+      : [
+          {
+            id: 'trial-seed-1',
+            email: 'cliente.antigo@gmail.com',
+            whatsapp: '92988112233',
+            claimed_at: '2026-11-02',
+            trial_days: 3,
+            notes: 'Teste grátis utilizado e expirado',
+          },
+        ];
+  });
+  const [trialsModalOpen, setTrialsModalOpen] = useState(false);
 
   // Estados dos Planos
   const [plans, setPlans] = useState<PlanTier[]>(() => {
@@ -388,13 +406,48 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   };
 
   const handleDeleteUser = async (profile: Profile) => {
-    if (!window.confirm(`Tem certeza que deseja excluir o cliente ${profile.email}?`)) return;
+    if (
+      !window.confirm(
+        `Tem certeza que deseja excluir o cliente ${profile.email}?\n\nEle será removido da lista para não tomar lugar de um novo cliente. O e-mail e WhatsApp serão gravados permanentemente no Anti-Fraude e ele perderá o direito a qualquer novo teste grátis!`
+      )
+    )
+      return;
     setActionLoadingId(profile.id);
     try {
+      // 1. Grava no histórico permanente anti-fraude
+      const usedEntry = {
+        id: 'trial-' + Date.now(),
+        email: profile.email.toLowerCase(),
+        whatsapp: profile.whatsapp,
+        claimed_at: new Date().toISOString(),
+        trial_days: 3,
+        notes: 'Cliente excluído da lista ativa (bloqueio permanente de trial)',
+      };
+      const updatedUsedTrials = [usedEntry, ...usedTrials];
+      setUsedTrials(updatedUsedTrials);
+      localStorage.setItem('spartan_used_trials', JSON.stringify(updatedUsedTrials));
+
+      try {
+        await supabase.from('used_trials').insert([
+          {
+            email: profile.email.toLowerCase(),
+            whatsapp: profile.whatsapp ? profile.whatsapp.replace(/\D/g, '') : null,
+            trial_days: 3,
+            notes: 'Excluído da lista ativa pelo administrador',
+          },
+        ]);
+      } catch {
+        // Ignora caso offline ou fallback local
+      }
+
+      // 2. Remove da lista de perfis
       const { error } = await supabase.from('profiles').delete().eq('id', profile.id);
       if (error) throw error;
       setProfiles((prev) => prev.filter((p) => p.id !== profile.id));
-      setNotification({ type: 'success', message: `Cliente ${profile.email} excluído com sucesso.` });
+      setNotification({
+        type: 'success',
+        message: `Cliente ${profile.email} excluído. Anti-fraude ativado: direito a teste grátis revogado permanentemente.`,
+      });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao excluir cliente';
       setNotification({ type: 'error', message: msg });
@@ -570,13 +623,66 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     }, 600);
   };
 
+  // Conceder Teste Grátis Manualmente
+  const handleGrantTrial = async (profile: Profile, days: number = 3) => {
+    setActionLoadingId(profile.id);
+    try {
+      const baseDate = new Date();
+      baseDate.setDate(baseDate.getDate() + days);
+      const newExpiryIso = baseDate.toISOString();
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          expires_at: newExpiryIso,
+          status: 'ativo',
+          is_trial: true,
+          trial_used: true,
+          plan_name: `Teste Grátis (${days}d)`,
+        })
+        .eq('id', profile.id);
+
+      if (error) throw error;
+
+      setProfiles((prev) =>
+        prev.map((p) =>
+          p.id === profile.id
+            ? {
+                ...p,
+                expires_at: newExpiryIso,
+                status: 'ativo',
+                is_trial: true,
+                trial_used: true,
+                plan_name: `Teste Grátis (${days}d)`,
+              }
+            : p
+        )
+      );
+      setNotification({
+        type: 'success',
+        message: `Teste grátis de ${days} dias liberado para ${profile.email}!`,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao conceder teste';
+      setNotification({ type: 'error', message: msg });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   // Clientes filtrados
   const filteredProfiles = useMemo(() => {
     return profiles.filter((p) => {
       const matchSearch =
         p.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.plan_name.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchStatus = statusFilter === 'all' || p.status === statusFilter;
+        p.plan_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.whatsapp && p.whatsapp.includes(searchTerm));
+      const matchStatus =
+        statusFilter === 'all'
+          ? true
+          : statusFilter === 'trial'
+          ? p.is_trial || p.plan_name?.toLowerCase().includes('teste')
+          : p.status === statusFilter;
       return matchSearch && matchStatus;
     });
   }, [profiles, searchTerm, statusFilter]);
@@ -1027,6 +1133,14 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
               </div>
               <div className="flex items-center gap-2.5">
                 <button
+                  onClick={() => setTrialsModalOpen(true)}
+                  className="px-3.5 py-2 bg-amber-950/40 hover:bg-amber-900/40 border border-amber-600/40 text-amber-300 rounded-xl text-xs font-semibold flex items-center gap-2 transition"
+                  title="Ver clientes que já usaram o teste grátis e estão bloqueados"
+                >
+                  <FaShieldAlt className="text-amber-400" />
+                  <span>Anti-Fraude ({usedTrials.length})</span>
+                </button>
+                <button
                   onClick={handleExportCsv}
                   className="px-3.5 py-2 bg-[#1c1c2b] hover:bg-[#252538] border border-gray-700 text-gray-200 rounded-xl text-xs font-semibold flex items-center gap-2 transition"
                 >
@@ -1047,24 +1161,26 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             <div className="bg-[#12121c] border border-purple-900/30 rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
               {/* Abas por Estado */}
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
-                {(['all', 'ativo', 'vencido', 'suspenso'] as const).map((st) => (
+                {(
+                  [
+                    { key: 'all', label: 'Todos', count: profiles.length },
+                    { key: 'ativo', label: 'Ativos', count: profiles.filter((p) => p.status === 'ativo' && !p.is_trial && !p.plan_name?.toLowerCase().includes('teste')).length },
+                    { key: 'trial', label: '⚡ Em Teste', count: profiles.filter((p) => p.is_trial || p.plan_name?.toLowerCase().includes('teste')).length },
+                    { key: 'vencido', label: 'Vencidos / Bloqueados', count: profiles.filter((p) => p.status === 'vencido').length },
+                    { key: 'suspenso', label: 'Suspensos', count: profiles.filter((p) => p.status === 'suspenso').length },
+                  ] as const
+                ).map((st) => (
                   <button
-                    key={st}
-                    onClick={() => setStatusFilter(st)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition whitespace-nowrap ${
-                      statusFilter === st
+                    key={st.key}
+                    onClick={() => setStatusFilter(st.key as any)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                      statusFilter === st.key
                         ? 'bg-purple-600 text-white shadow-sm'
                         : 'text-gray-400 hover:text-white hover:bg-white/5'
                     }`}
                   >
-                    {st === 'all' ? 'Todos' : st}
-                    <span className="ml-1.5 text-[10px] opacity-70">
-                      (
-                      {st === 'all'
-                        ? profiles.length
-                        : profiles.filter((p) => p.status === st).length}
-                      )
-                    </span>
+                    {st.label}
+                    <span className="ml-1.5 text-[10px] opacity-70">({st.count})</span>
                   </button>
                 ))}
               </div>
@@ -1172,7 +1288,18 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
                             {/* Status de Vigência */}
                             <td className="py-3.5 px-4">
-                              {p.status === 'ativo' && !isExpired ? (
+                              {p.is_trial || p.plan_name?.toLowerCase().includes('teste') ? (
+                                !isExpired && p.status === 'ativo' ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                    <FaBolt className="text-[9px] text-amber-400" />
+                                    Teste Grátis ({daysLeft > 0 ? `${daysLeft}d restantes` : 'Último dia'})
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-red-500/15 text-red-400 border border-red-500/30" title="Teste expirado - Acesso bloqueado">
+                                    <FaLock className="text-[9px]" /> Teste Expirado (Bloqueado)
+                                  </span>
+                                )
+                              ) : p.status === 'ativo' && !isExpired ? (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
                                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                                   Ativo ({daysLeft}d restantes)
@@ -1196,6 +1323,17 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                             {/* Ações Rápidas por Linha */}
                             <td className="py-3.5 px-4 text-right">
                               <div className="flex items-center justify-end gap-1.5">
+                                {/* Botão Conceder Teste Grátis */}
+                                <button
+                                  onClick={() => handleGrantTrial(p, 3)}
+                                  disabled={isActionBusy}
+                                  title="Liberar 3 dias de Teste Grátis"
+                                  className="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/25 text-amber-300 rounded-lg text-[10px] font-bold border border-amber-500/20 transition disabled:opacity-50 flex items-center gap-0.5"
+                                >
+                                  <FaBolt className="text-[8px]" />
+                                  <span>+3d</span>
+                                </button>
+
                                 {/* Botões de Estender Validade */}
                                 <button
                                   onClick={() => handleExtendSubscription(p, 30)}
@@ -1813,6 +1951,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                     onChange={(e) => setNewUserData({ ...newUserData, days: parseInt(e.target.value) || 30 })}
                     className="w-full px-3 py-2 bg-black/60 border border-gray-800 rounded-xl text-xs text-white"
                   >
+                    <option value={3}>3 Dias (⚡ Teste Grátis)</option>
                     <option value={30}>30 Dias (Mensal)</option>
                     <option value={60}>60 Dias (Bimestral)</option>
                     <option value={90}>90 Dias (Trimestral)</option>
@@ -2040,6 +2179,100 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                   <span>Salvar Configuração Pix</span>
                 </button>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal 7: Histórico Anti-Fraude de Teste Grátis */}
+      <AnimatePresence>
+        {trialsModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-2xl bg-[#13131e] border border-amber-500/40 rounded-2xl p-6 shadow-2xl relative"
+            >
+              <button
+                onClick={() => setTrialsModalOpen(false)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-white"
+              >
+                <FaTimes />
+              </button>
+
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center text-lg border border-amber-500/30">
+                  <FaShieldAlt />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Anti-Fraude: Testes Grátis Bloqueados</h3>
+                  <p className="text-xs text-gray-400">
+                    Histórico permanente de clientes que já utilizaram o teste grátis e perderam o direito a novos trials
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-black/50 border border-gray-800 rounded-xl overflow-hidden my-4 max-h-72 overflow-y-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#181826] text-gray-400 text-[10px] uppercase font-semibold border-b border-gray-800 sticky top-0">
+                    <tr>
+                      <th className="py-2.5 px-3">E-mail</th>
+                      <th className="py-2.5 px-3">WhatsApp</th>
+                      <th className="py-2.5 px-3">Data Utilizado</th>
+                      <th className="py-2.5 px-3">Status</th>
+                      <th className="py-2.5 px-3 text-right">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800/60 font-mono text-[11px]">
+                    {usedTrials.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-gray-500">
+                          Nenhum registro no histórico anti-fraude.
+                        </td>
+                      </tr>
+                    ) : (
+                      usedTrials.map((ut) => (
+                        <tr key={ut.id} className="hover:bg-white/[0.02]">
+                          <td className="py-2.5 px-3 text-white font-sans">{ut.email}</td>
+                          <td className="py-2.5 px-3 text-emerald-400">{ut.whatsapp || 'Não informado'}</td>
+                          <td className="py-2.5 px-3 text-gray-400">{new Date(ut.claimed_at).toLocaleDateString('pt-BR')}</td>
+                          <td className="py-2.5 px-3">
+                            <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-red-500/15 text-red-400 border border-red-500/25">
+                              Trial Bloqueado
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <button
+                              onClick={async () => {
+                                if (window.confirm(`Deseja perdoar ${ut.email} e permitir que ele faça um novo teste grátis?`)) {
+                                  try {
+                                    await supabase.from('used_trials').delete().eq('email', ut.email);
+                                  } catch {
+                                    // ignore
+                                  }
+                                  const updated = usedTrials.filter((t) => t.id !== ut.id);
+                                  setUsedTrials(updated);
+                                  localStorage.setItem('spartan_used_trials', JSON.stringify(updated));
+                                  setNotification({ type: 'success', message: `Bloqueio de ${ut.email} removido.` });
+                                }
+                              }}
+                              className="px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-[10px] font-sans transition"
+                              title="Permitir novo teste para este cliente"
+                            >
+                              Perdoar / Liberar
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="p-3 bg-amber-950/30 border border-amber-800/40 rounded-xl text-xs text-amber-200/90 leading-relaxed">
+                <strong>🛡️ Como funciona a proteção:</strong> Mesmo que você exclua um cliente da lista ativa para liberar telas ou espaço, o e-mail e o WhatsApp dele permanecem gravados aqui. Se ele tentar criar uma conta nova, o sistema detecta na hora e bloqueia o acesso, exigindo o pagamento via Pix.
+              </div>
             </motion.div>
           </div>
         )}

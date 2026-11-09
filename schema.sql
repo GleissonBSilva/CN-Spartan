@@ -16,8 +16,26 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
--- Garantir adição da coluna whatsapp caso a tabela já exista
+-- Garantir adição das colunas na tabela profiles caso ela já exista
 alter table public.profiles add column if not exists whatsapp text;
+alter table public.profiles add column if not exists is_trial boolean default false;
+alter table public.profiles add column if not exists trial_used boolean default false;
+
+-- 2. Tabela Permanente Anti-Fraude de Teste Grátis ('used_trials')
+-- Impede que um usuário receba novo teste grátis mesmo se o seu perfil for excluído
+create table if not exists public.used_trials (
+  id uuid primary key default gen_random_uuid(),
+  email text not null,
+  whatsapp text,
+  claimed_at timestamptz not null default now(),
+  trial_days int not null default 3,
+  notes text default 'Teste grátis utilizado'
+);
+
+create index if not exists idx_used_trials_email on public.used_trials(lower(email));
+create index if not exists idx_used_trials_whatsapp on public.used_trials(whatsapp);
+
+alter table public.used_trials enable row level security;
 
 -- Índices para otimização de consultas e relatórios
 create index if not exists idx_profiles_email on public.profiles(email);
@@ -26,7 +44,7 @@ create index if not exists idx_profiles_status on public.profiles(status);
 create index if not exists idx_profiles_role on public.profiles(role);
 create index if not exists idx_profiles_expires_at on public.profiles(expires_at);
 
--- 2. Habilitação de Row Level Security (RLS)
+-- 3. Habilitação de Row Level Security (RLS)
 alter table public.profiles enable row level security;
 
 -- 3. Função de Segurança Definer para checar se o usuário atual é Administrador
@@ -94,8 +112,7 @@ using (
   public.is_admin()
 );
 
--- 5. Trigger Automático após Cadastro em auth.users
--- Cria o perfil imediatamente após o cadastro, definindo role='admin' para o e-mail mestre
+-- 5. Trigger Automático após Cadastro em auth.users com Controle Anti-Fraude de Teste Grátis
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -104,12 +121,52 @@ set search_path = public
 as $$
 declare
   user_role text;
+  already_used_trial boolean := false;
+  clean_phone text;
+  initial_status text;
+  initial_expiry timestamptz;
+  initial_plan text;
+  is_trial_flag boolean;
+  trial_used_flag boolean;
 begin
-  -- Se for o e-mail do administrador principal, concede role de admin
+  -- Se for o administrador principal (Master Admin)
   if lower(new.email) = 'gleisson1984@gmail.com' then
     user_role := 'admin';
+    initial_status := 'ativo';
+    initial_expiry := now() + interval '365 days';
+    initial_plan := 'Master Admin';
+    is_trial_flag := false;
+    trial_used_flag := false;
   else
     user_role := 'client';
+    clean_phone := regexp_replace(coalesce(new.raw_user_meta_data->>'whatsapp', ''), '\D', '', 'g');
+
+    -- Verifica se este e-mail ou WhatsApp já utilizou o teste grátis anteriormente
+    select exists (
+      select 1 from public.used_trials
+      where lower(email) = lower(new.email)
+         or (clean_phone <> '' and clean_phone is not null and regexp_replace(coalesce(whatsapp, ''), '\D', '', 'g') = clean_phone)
+    ) into already_used_trial;
+
+    if already_used_trial then
+      -- Já usou o teste grátis! Cria a conta bloqueada (vencida) para obrigar contratação
+      initial_status := 'vencido';
+      initial_expiry := now();
+      initial_plan := 'Assinatura Necessária';
+      is_trial_flag := false;
+      trial_used_flag := true;
+    else
+      -- Novo cliente legítimo: Ganha Teste Grátis de 3 dias
+      initial_status := 'ativo';
+      initial_expiry := now() + interval '3 days';
+      initial_plan := 'Teste Grátis (3 dias)';
+      is_trial_flag := true;
+      trial_used_flag := false;
+
+      -- Registra de forma permanente na tabela anti-fraude
+      insert into public.used_trials (email, whatsapp, trial_days, notes)
+      values (lower(new.email), clean_phone, 3, 'Concedido no primeiro cadastro');
+    end if;
   end if;
 
   insert into public.profiles (
@@ -119,6 +176,8 @@ begin
     role,
     status,
     plan_name,
+    is_trial,
+    trial_used,
     expires_at,
     max_screens,
     created_at
@@ -127,9 +186,11 @@ begin
     new.email,
     coalesce(new.raw_user_meta_data->>'whatsapp', ''),
     user_role,
-    'ativo',
-    'Mensal',
-    now() + interval '30 days',
+    initial_status,
+    initial_plan,
+    is_trial_flag,
+    trial_used_flag,
+    initial_expiry,
     1,
     now()
   )
@@ -150,6 +211,34 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Trigger Anti-Fraude: quando o Admin deleta um perfil de cliente,
+-- grava permanentemente o e-mail e WhatsApp em used_trials para NUNCA mais ter direito a teste grátis!
+create or replace function public.record_deleted_profile_trial()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if lower(old.email) <> 'gleisson1984@gmail.com' then
+    insert into public.used_trials (email, whatsapp, trial_days, notes)
+    values (
+      lower(old.email), 
+      regexp_replace(coalesce(old.whatsapp, ''), '\D', '', 'g'), 
+      3, 
+      'Gravado na exclusão do cliente para impedir novo teste grátis'
+    )
+    on conflict do nothing;
+  end if;
+  return old;
+end;
+$$;
+
+drop trigger if exists on_profile_deleted_record_trial on public.profiles;
+create trigger on_profile_deleted_record_trial
+  before delete on public.profiles
+  for each row execute function public.record_deleted_profile_trial();
 
 -- 6. Garantir extensão pgcrypto para criptografia de senhas
 create extension if not exists pgcrypto;

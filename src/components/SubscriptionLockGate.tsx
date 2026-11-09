@@ -108,8 +108,10 @@ export default function SubscriptionLockGate({ onOpenAuth, title }: Subscription
     );
   }
 
-  // CASO 3: Assinatura vencida
+  // CASO 3: Assinatura ou Teste Grátis vencido
   if (isExpired) {
+    const isTrialExpired = profile?.is_trial || profile?.plan_name?.toLowerCase().includes('teste');
+
     return (
       <div className="w-full aspect-video rounded-2xl bg-gradient-to-br from-[#150f08] via-[#0d0905] to-black border border-amber-500/40 flex flex-col items-center justify-center p-6 sm:p-10 text-center shadow-2xl relative overflow-hidden">
         <div className="relative z-10 max-w-md flex flex-col items-center">
@@ -118,23 +120,25 @@ export default function SubscriptionLockGate({ onOpenAuth, title }: Subscription
           </div>
 
           <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight mb-2">
-            Assinatura Cine Spartan Vencida
+            {isTrialExpired ? 'Seu Teste Grátis Expirou' : 'Assinatura Cine Spartan Vencida'}
           </h2>
           <p className="text-xs sm:text-sm text-gray-300 leading-relaxed mb-2">
-            Sua assinatura do plano <span className="text-amber-400 font-bold">{profile?.plan_name || 'Mensal'}</span> expirou em:
+            {isTrialExpired
+              ? 'Esperamos que tenha gostado da experiência! Para continuar assistindo sem limites em Full HD e 4K, ative sua assinatura via Pix agora mesmo.'
+              : `Sua assinatura do plano ${profile?.plan_name || 'Mensal'} expirou em:`}
           </p>
           <div className="px-3.5 py-1.5 rounded-full bg-black/60 border border-amber-500/30 text-amber-400 text-xs font-mono font-bold mb-6">
-            {formattedExpiration}
+            {isTrialExpired ? 'Degustação Finalizada' : formattedExpiration}
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-3 w-full">
             <button
               type="button"
               onClick={handleOpenWhatsApp}
-              className="flex-1 min-w-[160px] py-3 px-5 bg-amber-500 hover:bg-amber-400 text-black font-black rounded-xl shadow-lg shadow-amber-950/60 transition-all flex items-center justify-center gap-2 text-sm"
+              className="flex-1 min-w-[160px] py-3 px-5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-black rounded-xl shadow-lg shadow-amber-950/60 transition-all flex items-center justify-center gap-2 text-sm"
             >
               <FaWhatsapp className="text-lg" />
-              <span>Renovar Assinatura</span>
+              <span>{isTrialExpired ? 'Liberar Acesso via Pix' : 'Renovar Assinatura'}</span>
             </button>
 
             <button

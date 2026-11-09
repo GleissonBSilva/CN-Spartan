@@ -8,9 +8,20 @@ export interface Profile {
   role: ProfileRole;
   status: ProfileStatus;
   plan_name: string;
+  is_trial?: boolean;
+  trial_used?: boolean;
   expires_at: string;
   max_screens: number;
   created_at: string;
+}
+
+export interface UsedTrial {
+  id: string;
+  email: string;
+  whatsapp?: string;
+  claimed_at: string;
+  trial_days: number;
+  notes?: string;
 }
 
 export interface ProfileUpdateInput {
@@ -18,6 +29,8 @@ export interface ProfileUpdateInput {
   role?: ProfileRole;
   whatsapp?: string;
   plan_name?: string;
+  is_trial?: boolean;
+  trial_used?: boolean;
   expires_at?: string;
   max_screens?: number;
 }
