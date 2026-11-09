@@ -7,23 +7,23 @@ import SubscriptionLockGate from '../../../components/SubscriptionLockGate';
 
 const SOURCES = [
   // 🇧🇷 Servidores Dublados (Áudio em Português do Brasil)
-  { id: 'dub_1', mode: 'dublado', name: '🇧🇷 Servidor 1 (SuperFlix Top)', url: (id, s, e) => `https://superflixapi.top/serie/${id}/${s}/${e}` },
-  { id: 'dub_2', mode: 'dublado', name: '🇧🇷 Servidor 2 (SuperFlix Bond)', url: (id, s, e) => `https://superflixapi.bond/serie/${id}/${s}/${e}` },
-  { id: 'dub_3', mode: 'dublado', name: '🇧🇷 Servidor 3 (SuperFlix Dev)', url: (id, s, e) => `https://superflixapi.dev/serie/${id}/${s}/${e}` },
-  { id: 'dub_4', mode: 'dublado', name: '🇧🇷 Servidor 4 (WarezCDN BR)', url: (id, s, e) => `https://embed.warezcdn.link/serie/${id}/${s}/${e}` },
+  { id: 'dub_1', mode: 'dublado', name: '🇧🇷 Servidor 1 (SuperFlix Principal)', url: (id, s, e) => `https://superflixapi.bond/serie/${id}/${s}/${e}` },
+  { id: 'dub_2', mode: 'dublado', name: '🇧🇷 Servidor 2 (SuperFlix Alternativo)', url: (id, s, e) => `https://superflixapi.buzz/serie/${id}/${s}/${e}` },
+  { id: 'dub_3', mode: 'dublado', name: '🇧🇷 Servidor 3 (MyEmbed BR)', url: (id, s, e) => `https://myembed.biz/serie/${id}/${s}/${e}` },
+  { id: 'dub_4', mode: 'dublado', name: '🇧🇷 Servidor 4 (EmbedMovies HD)', url: (id, s, e) => `https://embedmovies.org/serie/${id}/${s}/${e}` },
 
   // 💬 Servidores Legendados (Áudio Original com Legendas CC em Português PT-BR / Multi)
-  { id: 'sub_1', mode: 'legendado', name: '💬 Servidor 1 (VidLink HD - Legendas CC)', url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?primaryColor=e50914&secondaryColor=ffffff&iconColor=e50914&poster=true&title=true&nextbutton=false` },
-  { id: 'sub_2', mode: 'legendado', name: '💬 Servidor 2 (Embed.su - Ultra Rápido)', url: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}` },
-  { id: 'sub_3', mode: 'legendado', name: '💬 Servidor 3 (VidSrc Pro v2)', url: (id, s, e) => `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}` },
-  { id: 'sub_4', mode: 'legendado', name: '💬 Servidor 4 (AutoEmbed CC)', url: (id, s, e) => `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}` },
-  { id: 'sub_5', mode: 'legendado', name: '💬 Servidor 5 (MultiEmbed)', url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}` },
+  { id: 'sub_1', mode: 'legendado', name: '💬 Servidor 1 (MultiEmbed Player)', url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}` },
+  { id: 'sub_2', mode: 'legendado', name: '💬 Servidor 2 (VidSrc To)', url: (id, s, e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}` },
+  { id: 'sub_3', mode: 'legendado', name: '💬 Servidor 3 (VidSrc Me)', url: (id, s, e) => `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}` },
+  { id: 'sub_4', mode: 'legendado', name: '💬 Servidor 4 (VidSrc PM)', url: (id, s, e) => `https://vidsrc.pm/embed/tv/${id}/${s}/${e}` },
+  { id: 'sub_5', mode: 'legendado', name: '💬 Servidor 5 (2Embed CC)', url: (id, s, e) => `https://2embed.cc/embedtv/${id}&s=${s}&e=${e}` },
 
   // 🚫 Servidores Sem Legenda (Áudio Original Puro / Sem Legendas na Tela)
-  { id: 'raw_1', mode: 'sem_legenda', name: '🚫 Servidor 1 (VidLink Pure - Sem Legenda)', url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?primaryColor=e50914&secondaryColor=ffffff&iconColor=e50914&sub=none&poster=true&title=true&nextbutton=false` },
-  { id: 'raw_2', mode: 'sem_legenda', name: '🚫 Servidor 2 (Embed.su Original)', url: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}` },
-  { id: 'raw_3', mode: 'sem_legenda', name: '🚫 Servidor 3 (VidSrc Original)', url: (id, s, e) => `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}` },
-  { id: 'raw_4', mode: 'sem_legenda', name: '🚫 Servidor 4 (AutoEmbed Original)', url: (id, s, e) => `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}` },
+  { id: 'raw_1', mode: 'sem_legenda', name: '🚫 Servidor 1 (VidSrc To)', url: (id, s, e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}` },
+  { id: 'raw_2', mode: 'sem_legenda', name: '🚫 Servidor 2 (VidSrc Me)', url: (id, s, e) => `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}` },
+  { id: 'raw_3', mode: 'sem_legenda', name: '🚫 Servidor 3 (VidSrc PM)', url: (id, s, e) => `https://vidsrc.pm/embed/tv/${id}/${s}/${e}` },
+  { id: 'raw_4', mode: 'sem_legenda', name: '🚫 Servidor 4 (2Embed)', url: (id, s, e) => `https://2embed.cc/embedtv/${id}&s=${s}&e=${e}` },
 ];
 
 const VideoPlayer = ({ tvId, season = 1, episode = 1, title }) => {
@@ -334,7 +334,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title }) => {
                 <FaInfoCircle className="text-red-500 mt-0.5 flex-shrink-0 text-sm" />
                 <div className="flex flex-col gap-1">
                     <p className="font-semibold text-white">Central de Dicas de Transmissão:</p>
-                    <p>• <strong>🇧🇷 Dublado:</strong> Áudio em português do Brasil via SuperFlix e WarezCDN.</p>
+                    <p>• <strong>🇧🇷 Dublado:</strong> Áudio em português do Brasil via SuperFlix, MyEmbed e EmbedMovies.</p>
                     <p>• <strong>💬 Legendado:</strong> Áudio original com legendas em português. Use os controles de &quot;CC&quot; do player se quiser alterar o tamanho ou idioma.</p>
                     <p>• <strong>🚫 Sem Legenda:</strong> Áudio original puro sem legendas na tela para máxima imersão.</p>
                     <p>• <strong>Servidor com Erro?</strong> Clique em <strong>&quot;Trocar Servidor&quot;</strong> no canto direito acima do player para testar as rotas alternativas instantaneamente.</p>
