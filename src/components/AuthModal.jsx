@@ -49,6 +49,15 @@ const saveUserToFirestore = async (user) => {
   }, { merge: true });
 };
 
+const formatAuthError = (msg) => {
+  if (!msg) return 'E-mail ou senha incorretos.';
+  if (msg.includes('Email not confirmed')) return 'E-mail ainda não confirmado. Acesse o painel do Supabase para confirmar ou cheque seu Gmail.';
+  if (msg.includes('Invalid login credentials')) return 'E-mail ou senha incorretos.';
+  if (msg.includes('User already registered')) return 'Este e-mail já está cadastrado. Faça login.';
+  if (msg.includes('Password should be')) return 'A senha deve ter pelo menos 6 caracteres.';
+  return msg;
+};
+
 export default function AuthModal({ isOpen, onClose }) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -150,7 +159,7 @@ export default function AuthModal({ isOpen, onClose }) {
               return;
             }
           } catch {
-            setError(supaError.message || 'E-mail ou senha incorretos.');
+            setError(formatAuthError(supaError.message));
             setLoading(false);
             return;
           }
@@ -178,7 +187,7 @@ export default function AuthModal({ isOpen, onClose }) {
         });
 
         if (supaError) {
-          setError(supaError.message || 'Erro ao criar conta.');
+          setError(formatAuthError(supaError.message));
           setLoading(false);
           return;
         }
