@@ -41,9 +41,8 @@ interface PlanTier {
   badge?: string;
   monthlyPrice: number;
   annualPrice: number;
-  filesLimit: number;
-  teamMembers: number;
-  aiCredits: number;
+  screens: number;
+  quality: string;
   description: string;
 }
 
@@ -60,17 +59,16 @@ interface PixCharge {
   createdAt: string;
 }
 
-// Planos padrão conforme especificação
+// Planos padrão para streaming Cine Spartan
 const DEFAULT_PLANS: PlanTier[] = [
   {
     id: 'start',
     name: 'SPARTAN START',
     monthlyPrice: 29.9,
     annualPrice: 25.0,
-    filesLimit: 25,
-    teamMembers: 3,
-    aiCredits: 3000,
-    description: 'Ideal para usuários individuais e pequenas telas residenciais.',
+    screens: 1,
+    quality: 'Full HD 1080p',
+    description: '1 tela individual para smartphone, tablet ou computador.',
   },
   {
     id: 'pro',
@@ -78,10 +76,9 @@ const DEFAULT_PLANS: PlanTier[] = [
     badge: 'Mais Popular',
     monthlyPrice: 59.9,
     annualPrice: 50.0,
-    filesLimit: 50,
-    teamMembers: 6,
-    aiCredits: 10000,
-    description: 'Perfeito para famílias e reproduções simultâneas em 4K.',
+    screens: 3,
+    quality: '4K Ultra HD',
+    description: 'Até 3 telas simultâneas para Smart TV, TV Box e família.',
   },
   {
     id: 'business',
@@ -89,10 +86,9 @@ const DEFAULT_PLANS: PlanTier[] = [
     badge: 'Ilimitado',
     monthlyPrice: 119.9,
     annualPrice: 99.9,
-    filesLimit: 999,
-    teamMembers: 999,
-    aiCredits: 100000,
-    description: 'Máximo poder para redes parceiras, TV Box e múltiplas telas.',
+    screens: 5,
+    quality: '4K HDR + Áudio 5.1',
+    description: 'Até 5 telas simultâneas, máxima fidelidade e suporte VIP.',
   },
 ];
 
@@ -1355,7 +1351,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             <div>
               <h2 className="text-xl font-bold text-white">Configuração Dinâmica de Tiers (Planos)</h2>
               <p className="text-xs text-gray-400">
-                Ajuste os valores mensais, anuais e os limites de telas e créditos de IA em tempo real
+                Ajuste os valores mensais, anuais, número de telas simultâneas e resolução em tempo real
               </p>
             </div>
 
@@ -1415,40 +1411,30 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                         </div>
                       </div>
 
-                      {/* Limites e Créditos */}
+                      {/* Configurações de Telas e Resolução de Streaming */}
                       <div className="pt-2 border-t border-gray-800 space-y-3">
                         <div>
                           <label className="text-[11px] font-medium text-gray-400 block mb-1">
-                            Limite de Arquivos / Mídias
+                            Telas Simultâneas Permitidas
                           </label>
                           <input
                             type="number"
-                            value={pl.filesLimit}
-                            onChange={(e) => handlePlanChange(pl.id, 'filesLimit', parseInt(e.target.value) || 0)}
+                            min={1}
+                            max={10}
+                            value={pl.screens}
+                            onChange={(e) => handlePlanChange(pl.id, 'screens', parseInt(e.target.value) || 1)}
                             className="w-full px-3.5 py-1.5 bg-black/40 border border-gray-800 rounded-lg text-xs text-white"
                           />
                         </div>
 
                         <div>
                           <label className="text-[11px] font-medium text-gray-400 block mb-1">
-                            Membros de Equipe / Telas
+                            Resolução / Qualidade Máxima
                           </label>
                           <input
-                            type="number"
-                            value={pl.teamMembers}
-                            onChange={(e) => handlePlanChange(pl.id, 'teamMembers', parseInt(e.target.value) || 0)}
-                            className="w-full px-3.5 py-1.5 bg-black/40 border border-gray-800 rounded-lg text-xs text-white"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-[11px] font-medium text-gray-400 block mb-1">
-                            Créditos de IA / Horas de Stream
-                          </label>
-                          <input
-                            type="number"
-                            value={pl.aiCredits}
-                            onChange={(e) => handlePlanChange(pl.id, 'aiCredits', parseInt(e.target.value) || 0)}
+                            type="text"
+                            value={pl.quality}
+                            onChange={(e) => handlePlanChange(pl.id, 'quality', e.target.value)}
                             className="w-full px-3.5 py-1.5 bg-black/40 border border-gray-800 rounded-lg text-xs text-white"
                           />
                         </div>
