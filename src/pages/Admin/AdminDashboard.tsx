@@ -13,6 +13,7 @@ import {
   FaTv,
   FaLock,
   FaUserShield,
+  FaWhatsapp,
 } from 'react-icons/fa';
 import { supabase } from '../../lib/supabase';
 import { useAuthProfile } from '../../hooks/useAuthProfile';
@@ -296,6 +297,16 @@ export default function AdminDashboard() {
           </div>
 
           <div className="flex items-center gap-3">
+            <a
+              href="https://wa.me/5592993746740"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-400 text-xs font-bold transition-all"
+              title="Abrir WhatsApp de Suporte"
+            >
+              <FaWhatsapp className="text-sm" />
+              <span>(92) 99374-6740</span>
+            </a>
             <div className="text-right hidden sm:block">
               <span className="block text-xs font-bold text-white">{user?.email}</span>
               <span className="text-[10px] uppercase tracking-wider text-red-400 font-bold">

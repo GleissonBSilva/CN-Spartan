@@ -10,11 +10,13 @@ interface SubscriptionLockGateProps {
 export default function SubscriptionLockGate({ onOpenAuth, title }: SubscriptionLockGateProps) {
   const { user, profile, isExpired, isSuspended, formattedExpiration, refreshProfile, loading } = useAuthProfile();
 
+  const whatsappNumber = import.meta.env.VITE_WHATSAPP_NUMBER || '5592993746740';
+
   const handleOpenWhatsApp = () => {
     const text = encodeURIComponent(
       `Olá! Gostaria de assinar/renovar meu plano no Cine Spartan. Meu e-mail é: ${user?.email || 'novo cliente'}`
     );
-    window.open(`https://wa.me/5599999999999?text=${text}`, '_blank');
+    window.open(`https://wa.me/${whatsappNumber}?text=${text}`, '_blank');
   };
 
   const handleOpenLogin = () => {
