@@ -12,7 +12,8 @@ import {
   FaTv,
   FaInfoCircle,
   FaStepForward,
-  FaStepBackward
+  FaStepBackward,
+  FaExternalLinkAlt
 } from 'react-icons/fa';
 
 const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
@@ -30,10 +31,13 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
 
   const sources = channel?.sources || [];
   const currentSource = sources[sourceIdx] || sources[0];
-  const isEmbed =
+  const isEmbed = Boolean(
     currentSource?.url?.includes('multiembed.mov') ||
+    currentSource?.url?.includes('embedsports.me') ||
     currentSource?.url?.includes('youtube.com/embed') ||
-    currentSource?.url?.includes('embed');
+    currentSource?.url?.includes('embed') ||
+    currentSource?.url?.includes('live=')
+  );
 
   // Reset state when channel changes
   useEffect(() => {
@@ -42,6 +46,36 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
     setIsLoading(true);
     setIsPlaying(false);
   }, [channel?.id]);
+
+  // Video element event listeners to reliably track playback state
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || isEmbed) return;
+
+    const handlePlaying = () => {
+      setIsLoading(false);
+      setIsPlaying(true);
+      setHasError(false);
+    };
+
+    const handleWaiting = () => {
+      setIsLoading(true);
+    };
+
+    const handleCanPlay = () => {
+      setIsLoading(false);
+    };
+
+    video.addEventListener('playing', handlePlaying);
+    video.addEventListener('waiting', handleWaiting);
+    video.addEventListener('canplay', handleCanPlay);
+
+    return () => {
+      video.removeEventListener('playing', handlePlaying);
+      video.removeEventListener('waiting', handleWaiting);
+      video.removeEventListener('canplay', handleCanPlay);
+    };
+  }, [isEmbed, currentSource?.url]);
 
   // Watchdog timer to ensure the player NEVER hangs indefinitely on "Carregando"
   useEffect(() => {
@@ -56,7 +90,7 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
           } else {
             setIsLoading(false);
             setHasError(true);
-            setErrorMessage('O sinal deste canal está instável ou aguardando início de transmissão. Teste uma das rotas alternativas.');
+            setErrorMessage('O sinal deste canal está demorando para responder ou em intervalo. Clique em "Rota Alternativa" ou escolha outro canal.');
           }
         }
       }, 5000);
@@ -102,20 +136,37 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setIsLoading(false);
         setHasError(false);
-        video.play().then(() => setIsPlaying(true)).catch(() => {
-          // Autoplay protection fallback: start muted
-          video.muted = true;
-          setIsMuted(true);
-          video.play().then(() => setIsPlaying(true)).catch(() => {});
-        });
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => setIsPlaying(true))
+            .catch(() => {
+              // Autoplay protection fallback: start muted
+              video.muted = true;
+              setIsMuted(true);
+              video.play().then(() => setIsPlaying(true)).catch(() => {});
+            });
+        }
       });
 
       hls.on(Hls.Events.ERROR, (event, data) => {
         console.warn('[Hls] Error:', data.type, data.details, data.fatal);
+
+        if (data.details === 'manifestIncompatibleCodecsError' || data.details === 'bufferIncompatibleCodecsError') {
+          hls.destroy();
+          if (sources.length > 1 && sourceIdx < sources.length - 1) {
+            setSourceIdx(prev => prev + 1);
+          } else {
+            setIsLoading(false);
+            setHasError(true);
+            setErrorMessage('Codec de vídeo incompatível com o navegador atual.');
+          }
+          return;
+        }
+
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              // Try next route or fail gracefully
               hls.destroy();
               if (sources.length > 1 && sourceIdx < sources.length - 1) {
                 setSourceIdx(prev => prev + 1);
@@ -233,6 +284,11 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/10 text-gray-300 uppercase">
               {channel.resolution || 'HD'}
             </span>
+            {isEmbed && (
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase hidden sm:inline">
+                Web Embed
+              </span>
+            )}
           </div>
         </div>
 
@@ -269,6 +325,20 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
               <FaRedoAlt className="text-[10px]" />
               <span>Rota {sourceIdx + 1}/{sources.length}</span>
             </button>
+          )}
+
+          {/* Abrir link externo se for embed */}
+          {isEmbed && currentSource?.url && (
+            <a
+              href={currentSource.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Abrir player em nova aba"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/15 text-gray-300 hover:text-white transition-all border border-white/10"
+            >
+              <FaExternalLinkAlt className="text-[10px]" />
+              <span className="hidden md:inline">Nova Aba</span>
+            </a>
           )}
 
           {/* Botão de Tela Cheia */}
@@ -386,7 +456,7 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
       <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-xs">
         <FaInfoCircle className="text-red-500 shrink-0 text-sm" />
         <span>
-          <strong>Dica Esportiva:</strong> Canais como <strong>Premiere</strong> iniciam a transmissão completa minutos antes de cada partida. Se um canal demorar a carregar, clique em <strong>&quot;Rota Alternativa&quot;</strong> ou escolha outro canal na lista ao lado.
+          <strong>Dica Esportiva:</strong> Canais como <strong>Premiere</strong> e <strong>SporTV</strong> transmitem via Web Player e iniciam a cobertura minutos antes das partidas. Caso o player necessite, clique no botão de reprodução dentro do vídeo.
         </span>
       </div>
     </div>

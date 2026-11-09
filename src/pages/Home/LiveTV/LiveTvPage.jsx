@@ -32,7 +32,7 @@ const LiveTvPage = () => {
     return [...CHANNELS, ...customChannels];
   }, [customChannels]);
 
-  const [selectedChannelId, setSelectedChannelId] = useState(() => allChannels[0]?.id || 'caze_tv');
+  const [selectedChannelId, setSelectedChannelId] = useState(() => allChannels[0]?.id || 'fifa_plus');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
