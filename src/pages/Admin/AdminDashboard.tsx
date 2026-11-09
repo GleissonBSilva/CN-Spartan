@@ -60,6 +60,23 @@ interface PixCharge {
   createdAt: string;
 }
 
+// Configuração do Pix do Administrador
+interface PixConfig {
+  keyType: 'email' | 'cpf' | 'cnpj' | 'telefone' | 'aleatoria';
+  key: string;
+  recipientName: string;
+  city: string;
+  customMessage: string;
+}
+
+const DEFAULT_PIX_CONFIG: PixConfig = {
+  keyType: 'email',
+  key: 'gleisson1984@gmail.com',
+  recipientName: 'Gleisson B Silva',
+  city: 'Manaus',
+  customMessage: 'Olá! Segue sua cobrança Pix Cine Spartan para ativação ou renovação imediata:',
+};
+
 // Planos padrão para streaming Cine Spartan
 const DEFAULT_PLANS: PlanTier[] = [
   {
@@ -211,11 +228,19 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     amount: 99.0,
   });
 
+  // Configurações do Pix do Master Admin
+  const [pixConfig, setPixConfig] = useState<PixConfig>(() => {
+    const saved = localStorage.getItem('spartan_pix_config');
+    return saved ? JSON.parse(saved) : DEFAULT_PIX_CONFIG;
+  });
+  const [pixConfigModalOpen, setPixConfigModalOpen] = useState(false);
+
   // Modal Novo Cliente
   const [newUserModalOpen, setNewUserModalOpen] = useState(false);
   const [newUserData, setNewUserData] = useState({
     name: '',
     email: '',
+    whatsapp: '',
     plan: 'SPARTAN PRO',
     screens: 2,
     days: 30,
@@ -517,9 +542,20 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     setNotification({ type: 'success', message: 'Cobrança Pix gerada com sucesso!' });
   };
 
+  // Salvar Configurações do Pix
+  const handleSavePixConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    localStorage.setItem('spartan_pix_config', JSON.stringify(pixConfig));
+    setPixConfigModalOpen(false);
+    setNotification({
+      type: 'success',
+      message: 'Configurações de Pix do administrador atualizadas com sucesso!',
+    });
+  };
+
   // Copiar código Pix
   const handleCopyPixCode = (hash: string) => {
-    const payload = `00020126580014br.gov.bcb.pix0136${hash}520400005303986540599.005802BR5913CINE SPARTAN6009MANAUS62070503***6304E8A2`;
+    const payload = `00020126580014br.gov.bcb.pix0136${pixConfig.key}520400005303986540599.005802BR5913${pixConfig.recipientName.slice(0, 13).toUpperCase()}6009${pixConfig.city.slice(0, 9).toUpperCase()}62070503***6304E8A2`;
     navigator.clipboard.writeText(payload);
     setCopiedPix(true);
     setTimeout(() => setCopiedPix(false), 2000);
@@ -1104,7 +1140,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                               {cleanPhone ? (
                                 <a
                                   href={`https://wa.me/55${cleanPhone}?text=${encodeURIComponent(
-                                    `Olá! Mensagem Cine Spartan para a conta ${p.email}:\n\nSeguem os dados do seu Pix para renovação/ativação do plano ${p.plan_name}:\n\n🔑 Chave Pix: gleisson1984@gmail.com\n💰 Valor: R$ 59,90\n\nAssim que realizar o pagamento, responda com o comprovante aqui para liberação imediata!`
+                                    `Olá! Mensagem Cine Spartan para a conta ${p.email}:\n\n${pixConfig.customMessage}\n\n🔑 Chave Pix (${pixConfig.keyType}): ${pixConfig.key}\n👤 Titular: ${pixConfig.recipientName}\n💰 Valor: R$ 59,90 (Plano ${p.plan_name})\n\nAssim que realizar o pagamento, responda com o comprovante aqui para liberação imediata!`
                                   )}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
@@ -1267,6 +1303,36 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
               </div>
             </div>
 
+            {/* Banner e Atalho de Configuração do Pix */}
+            <div className="bg-[#141422] border border-purple-800/40 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg">
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center justify-center text-lg shadow-inner">
+                  <FaSlidersH />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-bold text-gray-300">Chave Pix de Recebimento:</span>
+                    <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-lg border border-emerald-500/25">
+                      {pixConfig.key}
+                    </span>
+                    <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-gray-800 text-gray-300">
+                      {pixConfig.keyType}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    Titular: <strong className="text-white">{pixConfig.recipientName}</strong> • {pixConfig.city}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPixConfigModalOpen(true)}
+                className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-purple-600/30 transition shrink-0"
+              >
+                <FaSlidersH className="text-xs" />
+                <span>Configurar Chave Pix</span>
+              </button>
+            </div>
+
             {/* Ações de Faturamento Manual */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#12121c] border border-purple-900/30 rounded-2xl p-4">
               <div>
@@ -1374,7 +1440,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                           <div className="flex items-center justify-end gap-2">
                             <a
                               href={`https://wa.me/55${(charge.customerWhatsapp || '92993746740').replace(/\D/g, '')}?text=${encodeURIComponent(
-                                `Olá ${charge.customerName}! Seguem os dados para pagamento do Pix Cine Spartan no valor de R$ ${charge.amount.toFixed(2).replace('.', ',')}:\n\n🔑 Chave Pix: gleisson1984@gmail.com\n📋 Código Copia e Cola:\n${charge.hash}\n\nApós o pagamento, envie o comprovante para liberação imediata!`
+                                `Olá ${charge.customerName}! ${pixConfig.customMessage}\n\n🔑 Chave Pix (${pixConfig.keyType}): ${pixConfig.key}\n👤 Titular: ${pixConfig.recipientName}\n💰 Valor: R$ ${charge.amount.toFixed(2).replace('.', ',')}\n📋 Código Pix:\n${charge.hash}\n\nApós o pagamento, envie o comprovante para liberação imediata!`
                               )}`}
                               target="_blank"
                               rel="noopener noreferrer"
@@ -1578,8 +1644,10 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
               </div>
 
               <div className="space-y-3">
-                <div className="bg-black/60 p-3 rounded-xl border border-gray-800 text-[11px] font-mono text-gray-300 break-all select-all">
-                  00020126580014br.gov.bcb.pix0136{selectedPix.hash}5204000053039865405{selectedPix.amount.toFixed(2)}5802BR5913CINE SPARTAN6009MANAUS
+                <div className="bg-black/60 p-3 rounded-xl border border-gray-800 text-[11px] font-mono text-gray-300 break-all select-all space-y-1">
+                  <div><strong className="text-purple-400">Chave Pix:</strong> {pixConfig.key} ({pixConfig.keyType})</div>
+                  <div><strong className="text-gray-400">Titular:</strong> {pixConfig.recipientName} • {pixConfig.city}</div>
+                  <div className="text-[10px] text-gray-500 pt-1 border-t border-gray-800 truncate">Payload: 00020126580014br.gov.bcb.pix0136{pixConfig.key}52040000...</div>
                 </div>
                 <button
                   onClick={() => handleCopyPixCode(selectedPix.hash)}
@@ -1868,6 +1936,110 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
               >
                 Fechar Análise
               </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal 6: Configurar Chave Pix */}
+      <AnimatePresence>
+        {pixConfigModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-[#13131e] border border-purple-900/50 rounded-2xl p-6 shadow-2xl relative"
+            >
+              <button
+                onClick={() => setPixConfigModalOpen(false)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-white"
+              >
+                <FaTimes />
+              </button>
+
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-300 flex items-center justify-center text-lg">
+                  <FaSlidersH />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Configuração do Pix</h3>
+                  <p className="text-xs text-gray-400">Defina a chave Pix onde você receberá os pagamentos</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSavePixConfig} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-300 block mb-1">Tipo de Chave</label>
+                    <select
+                      value={pixConfig.keyType}
+                      onChange={(e) => setPixConfig({ ...pixConfig, keyType: e.target.value as any })}
+                      className="w-full px-3 py-2 bg-black/60 border border-gray-800 rounded-xl text-xs text-white"
+                    >
+                      <option value="email">E-mail</option>
+                      <option value="telefone">Telefone</option>
+                      <option value="cpf">CPF</option>
+                      <option value="cnpj">CNPJ</option>
+                      <option value="aleatoria">Chave Aleatória (EVP)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-300 block mb-1">Cidade do Titular</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Manaus"
+                      value={pixConfig.city}
+                      onChange={(e) => setPixConfig({ ...pixConfig, city: e.target.value })}
+                      required
+                      className="w-full px-3 py-2 bg-black/60 border border-gray-800 focus:border-purple-500 rounded-xl text-xs text-white outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-emerald-400 block mb-1">Chave Pix de Recebimento *</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: gleisson1984@gmail.com"
+                    value={pixConfig.key}
+                    onChange={(e) => setPixConfig({ ...pixConfig, key: e.target.value })}
+                    required
+                    className="w-full px-4 py-2 bg-black/60 border border-emerald-500/40 focus:border-emerald-500 rounded-xl text-xs text-white outline-none font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-300 block mb-1">Nome do Titular / Beneficiário</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Gleisson B Silva"
+                    value={pixConfig.recipientName}
+                    onChange={(e) => setPixConfig({ ...pixConfig, recipientName: e.target.value })}
+                    required
+                    className="w-full px-4 py-2 bg-black/60 border border-gray-800 focus:border-purple-500 rounded-xl text-xs text-white outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-300 block mb-1">Mensagem Padrão do WhatsApp</label>
+                  <textarea
+                    rows={2}
+                    value={pixConfig.customMessage}
+                    onChange={(e) => setPixConfig({ ...pixConfig, customMessage: e.target.value })}
+                    className="w-full px-3 py-2 bg-black/60 border border-gray-800 focus:border-purple-500 rounded-xl text-xs text-gray-300 outline-none"
+                    placeholder="Texto que acompanha a chave no WhatsApp..."
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-2"
+                >
+                  <FaSave />
+                  <span>Salvar Configuração Pix</span>
+                </button>
+              </form>
             </motion.div>
           </div>
         )}
