@@ -143,7 +143,18 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- 6. Retroalimentação (Backfill) para usuários já existentes em auth.users
+-- 6. Garantir extensão pgcrypto para criptografia de senhas
+create extension if not exists pgcrypto;
+
+-- 7. Atualizar a senha e confirmar o e-mail do Administrador (gleisson1984@gmail.com)
+update auth.users
+set 
+  encrypted_password = crypt('SpartanAg@200624', gen_salt('bf')),
+  email_confirmed_at = coalesce(email_confirmed_at, now()),
+  updated_at = now()
+where lower(email) = 'gleisson1984@gmail.com';
+
+-- 8. Retroalimentação (Backfill) para usuários já existentes em auth.users
 insert into public.profiles (id, email, role, status, plan_name, expires_at, max_screens, created_at)
 select 
   id, 
