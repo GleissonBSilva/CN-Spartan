@@ -7,6 +7,7 @@
 create table if not exists public.profiles (
   id uuid references auth.users(id) on delete cascade primary key,
   email text not null,
+  whatsapp text,
   role text not null default 'client' check (role in ('admin', 'client')),
   status text not null default 'ativo' check (status in ('ativo', 'suspenso', 'vencido')),
   plan_name text not null default 'Mensal',
@@ -15,8 +16,12 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
+-- Garantir adição da coluna whatsapp caso a tabela já exista
+alter table public.profiles add column if not exists whatsapp text;
+
 -- Índices para otimização de consultas e relatórios
 create index if not exists idx_profiles_email on public.profiles(email);
+create index if not exists idx_profiles_whatsapp on public.profiles(whatsapp);
 create index if not exists idx_profiles_status on public.profiles(status);
 create index if not exists idx_profiles_role on public.profiles(role);
 create index if not exists idx_profiles_expires_at on public.profiles(expires_at);
@@ -110,6 +115,7 @@ begin
   insert into public.profiles (
     id,
     email,
+    whatsapp,
     role,
     status,
     plan_name,
@@ -119,6 +125,7 @@ begin
   ) values (
     new.id,
     new.email,
+    coalesce(new.raw_user_meta_data->>'whatsapp', ''),
     user_role,
     'ativo',
     'Mensal',
@@ -128,6 +135,7 @@ begin
   )
   on conflict (id) do update set
     email = excluded.email,
+    whatsapp = coalesce(nullif(excluded.whatsapp, ''), public.profiles.whatsapp),
     role = case 
       when lower(excluded.email) = 'gleisson1984@gmail.com' then 'admin'
       else public.profiles.role
@@ -151,14 +159,16 @@ update auth.users
 set 
   encrypted_password = crypt('SpartanAg@200624', gen_salt('bf')),
   email_confirmed_at = coalesce(email_confirmed_at, now()),
+  raw_user_meta_data = coalesce(raw_user_meta_data, '{}'::jsonb) || '{"whatsapp": "5592993746740"}'::jsonb,
   updated_at = now()
 where lower(email) = 'gleisson1984@gmail.com';
 
 -- 8. Retroalimentação (Backfill) para usuários já existentes em auth.users
-insert into public.profiles (id, email, role, status, plan_name, expires_at, max_screens, created_at)
+insert into public.profiles (id, email, whatsapp, role, status, plan_name, expires_at, max_screens, created_at)
 select 
   id, 
   email, 
+  coalesce(raw_user_meta_data->>'whatsapp', case when lower(email) = 'gleisson1984@gmail.com' then '5592993746740' else '' end) as whatsapp,
   case when lower(email) = 'gleisson1984@gmail.com' then 'admin' else 'client' end as role,
   'ativo' as status,
   'Mensal' as plan_name,
@@ -168,6 +178,7 @@ select
 from auth.users
 on conflict (id) do update set
   email = excluded.email,
+  whatsapp = coalesce(nullif(excluded.whatsapp, ''), public.profiles.whatsapp),
   role = case 
     when lower(excluded.email) = 'gleisson1984@gmail.com' then 'admin' 
     else public.profiles.role 

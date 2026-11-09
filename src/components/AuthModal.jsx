@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaTimes, FaGoogle, FaEnvelope, FaLock, FaUser, FaSpinner, FaExclamationCircle, FaCheckCircle } from 'react-icons/fa';
+import { FaTimes, FaGoogle, FaEnvelope, FaLock, FaUser, FaSpinner, FaExclamationCircle, FaCheckCircle, FaWhatsapp } from 'react-icons/fa';
 import { BiMoviePlay } from 'react-icons/bi';
 import { supabase } from '../lib/supabase';
 import { auth, googleProvider, db } from '../firebase';
@@ -63,6 +63,7 @@ export default function AuthModal({ isOpen, onClose }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
@@ -72,6 +73,14 @@ export default function AuthModal({ isOpen, onClose }) {
   const [pendingGoogleCred, setPendingGoogleCred] = useState(null);
 
   const [verificationSent, setVerificationSent] = useState(false);
+
+  // Formata telefone celular com DDD brasileiro (XX) XXXXX-XXXX
+  const formatPhone = (val) => {
+    const digits = val.replace(/\D/g, '').slice(0, 11);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  };
 
   // Cloudflare Turnstile
   const turnstileRef = useRef(null);
@@ -175,6 +184,13 @@ export default function AuthModal({ isOpen, onClose }) {
 
         onClose();
       } else {
+        const cleanPhone = whatsapp.replace(/\D/g, '');
+        if (cleanPhone.length < 10) {
+          setError('WhatsApp com DDD é obrigatório para envio da chave Pix de liberação.');
+          setLoading(false);
+          return;
+        }
+
         // Cadastro no Supabase (cria perfil automático com 30 dias de assinatura)
         const { data: supaData, error: supaError } = await supabase.auth.signUp({
           email: email.trim(),
@@ -182,6 +198,7 @@ export default function AuthModal({ isOpen, onClose }) {
           options: {
             data: {
               display_name: name,
+              whatsapp: cleanPhone,
             },
           },
         });
@@ -193,10 +210,20 @@ export default function AuthModal({ isOpen, onClose }) {
         }
 
         if (supaData?.user) {
+          try {
+            await supabase
+              .from('profiles')
+              .update({ whatsapp: cleanPhone })
+              .eq('id', supaData.user.id);
+          } catch {
+            // Silencioso se trigger já tiver gravado
+          }
+
           localStorage.setItem('weflix_user', JSON.stringify({
             uid: supaData.user.id,
             email: supaData.user.email,
             displayName: name,
+            whatsapp: cleanPhone,
           }));
         }
 
@@ -394,24 +421,48 @@ export default function AuthModal({ isOpen, onClose }) {
                 ) : (
                 <form className="space-y-4" onSubmit={handleSubmit}>
                   {!isLogin && (
-                    <motion.div 
-                      initial={{ opacity: 0, height: 0 }} 
-                      animate={{ opacity: 1, height: 'auto' }} 
-                      exit={{ opacity: 0, height: 0 }}
-                      className="relative"
-                    >
-                      <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                        <FaUser className="text-gray-500 text-sm" />
-                      </div>
-                      <input
-                        type="text"
-                        required={!isLogin}
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Full Name"
-                        className="w-full bg-black/20 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500 transition-all font-medium text-sm"
-                      />
-                    </motion.div>
+                    <>
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }} 
+                        animate={{ opacity: 1, height: 'auto' }} 
+                        exit={{ opacity: 0, height: 0 }}
+                        className="relative"
+                      >
+                        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                          <FaUser className="text-gray-500 text-sm" />
+                        </div>
+                        <input
+                          type="text"
+                          required={!isLogin}
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          placeholder="Nome Completo *"
+                          className="w-full bg-black/20 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-all font-medium text-sm"
+                        />
+                      </motion.div>
+
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }} 
+                        animate={{ opacity: 1, height: 'auto' }} 
+                        exit={{ opacity: 0, height: 0 }}
+                        className="relative"
+                      >
+                        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                          <FaWhatsapp className="text-emerald-400 text-sm" />
+                        </div>
+                        <input
+                          type="tel"
+                          required={!isLogin}
+                          value={whatsapp}
+                          onChange={(e) => setWhatsapp(formatPhone(e.target.value))}
+                          placeholder="WhatsApp com DDD (Ex: 92 99374-6740) *"
+                          className="w-full bg-black/20 border border-emerald-500/30 focus:border-emerald-500 rounded-xl py-3 pl-11 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all font-medium text-sm"
+                        />
+                        <div className="text-[10px] text-emerald-400/90 mt-1 pl-1 font-medium">
+                          * Obrigatório para envio da chave Pix e suporte.
+                        </div>
+                      </motion.div>
+                    </>
                   )}
 
                   <div className="relative">

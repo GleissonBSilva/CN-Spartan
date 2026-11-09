@@ -52,6 +52,7 @@ interface PixCharge {
   hash: string;
   customerName: string;
   customerEmail: string;
+  customerWhatsapp?: string;
   amount: number;
   method: string;
   dueDate: string;
@@ -99,6 +100,7 @@ const INITIAL_PIX_CHARGES: PixCharge[] = [
     hash: 'PIX-8F92A-4B2E-99F0',
     customerName: 'Gleisson Silva',
     customerEmail: 'gleisson1984@gmail.com',
+    customerWhatsapp: '92993746740',
     amount: 99.0,
     method: 'Pix Instantâneo',
     dueDate: new Date().toLocaleDateString('pt-BR'),
@@ -110,6 +112,7 @@ const INITIAL_PIX_CHARGES: PixCharge[] = [
     hash: 'PIX-3C11D-89AA-55E2',
     customerName: 'Carlos Eduardo',
     customerEmail: 'carlos.spartan@gmail.com',
+    customerWhatsapp: '92981223344',
     amount: 59.9,
     method: 'Pix Instantâneo',
     dueDate: '15/11/2026',
@@ -121,6 +124,7 @@ const INITIAL_PIX_CHARGES: PixCharge[] = [
     hash: 'PIX-7B44E-1200-91C8',
     customerName: 'Mariana Costa',
     customerEmail: 'mariana.costa@hotmail.com',
+    customerWhatsapp: '92991887766',
     amount: 29.9,
     method: 'Pix Instantâneo',
     dueDate: '20/11/2026',
@@ -132,6 +136,7 @@ const INITIAL_PIX_CHARGES: PixCharge[] = [
     hash: 'PIX-00A9F-7741-23B9',
     customerName: 'Rafael Mendes',
     customerEmail: 'rafael.spartan@outlook.com',
+    customerWhatsapp: '92984556677',
     amount: 59.9,
     method: 'Pix Instantâneo',
     dueDate: '01/11/2026',
@@ -192,6 +197,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   const [newPixData, setNewPixData] = useState({
     customerName: '',
     customerEmail: '',
+    customerWhatsapp: '',
     amount: 99.0,
   });
 
@@ -232,6 +238,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           {
             id: 'mock-1',
             email: 'gleisson1984@gmail.com',
+            whatsapp: '(92) 99374-6740',
             role: 'admin',
             status: 'ativo',
             plan_name: 'SPARTAN BUSINESS',
@@ -242,6 +249,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           {
             id: 'mock-2',
             email: 'carlos.spartan@gmail.com',
+            whatsapp: '(92) 98122-3344',
             role: 'client',
             status: 'ativo',
             plan_name: 'SPARTAN PRO',
@@ -252,6 +260,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           {
             id: 'mock-3',
             email: 'mariana.costa@hotmail.com',
+            whatsapp: '(92) 99188-7766',
             role: 'client',
             status: 'ativo',
             plan_name: 'SPARTAN START',
@@ -361,10 +370,11 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
   // Exportar CSV
   const handleExportCsv = () => {
-    const headers = ['ID', 'Email', 'Role', 'Status', 'Plano', 'Telas', 'Expira Em', 'Criado Em'];
+    const headers = ['ID', 'Email', 'WhatsApp (Pix)', 'Role', 'Status', 'Plano', 'Telas', 'Expira Em', 'Criado Em'];
     const rows = profiles.map((p) => [
       p.id,
       p.email,
+      p.whatsapp || 'Nao informado',
       p.role,
       p.status,
       p.plan_name,
@@ -400,6 +410,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       const newProf: Profile = {
         id: dummyId,
         email: newUserData.email.trim().toLowerCase(),
+        whatsapp: newUserData.whatsapp.trim() || undefined,
         role: 'client',
         status: 'ativo',
         plan_name: newUserData.plan,
@@ -408,9 +419,27 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         created_at: new Date().toISOString(),
       };
 
+      // Tenta salvar diretamente no Supabase se tabela existir
+      try {
+        await supabase.from('profiles').insert([
+          {
+            id: dummyId,
+            email: newProf.email,
+            whatsapp: newProf.whatsapp,
+            role: newProf.role,
+            status: newProf.status,
+            plan_name: newProf.plan_name,
+            max_screens: newProf.max_screens,
+            expires_at: newProf.expires_at,
+          },
+        ]);
+      } catch {
+        // Fallback local
+      }
+
       setProfiles((prev) => [newProf, ...prev]);
       setNewUserModalOpen(false);
-      setNewUserData({ name: '', email: '', plan: 'SPARTAN PRO', screens: 2, days: 30 });
+      setNewUserData({ name: '', email: '', whatsapp: '', plan: 'SPARTAN PRO', screens: 2, days: 30 });
       setNotification({
         type: 'success',
         message: `Novo cliente ${newProf.email} cadastrado com sucesso!`,
@@ -461,6 +490,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       hash: 'PIX-' + Math.random().toString(36).substring(2, 7).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase(),
       customerName: newPixData.customerName || 'Cliente Spartan',
       customerEmail: newPixData.customerEmail,
+      customerWhatsapp: newPixData.customerWhatsapp ? newPixData.customerWhatsapp.replace(/\D/g, '') : undefined,
       amount: Number(newPixData.amount),
       method: 'Pix Instantâneo',
       dueDate: new Date(Date.now() + 3 * 86400000).toLocaleDateString('pt-BR'),
@@ -471,7 +501,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     setPixCharges(updated);
     localStorage.setItem('spartan_pix_charges', JSON.stringify(updated));
     setNewPixModalOpen(false);
-    setNewPixData({ customerName: '', customerEmail: '', amount: 99.0 });
+    setNewPixData({ customerName: '', customerEmail: '', customerWhatsapp: '', amount: 99.0 });
     setSelectedPix(newEntry);
     setPixModalOpen(true);
     setNotification({ type: 'success', message: 'Cobrança Pix gerada com sucesso!' });
@@ -1013,6 +1043,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                   <thead className="bg-[#181826] text-gray-400 font-semibold uppercase text-[10px] tracking-wider border-b border-gray-800">
                     <tr>
                       <th className="py-3.5 px-4">Cliente / E-mail</th>
+                      <th className="py-3.5 px-4">WhatsApp (Envio Pix)</th>
                       <th className="py-3.5 px-4">Plano Contratado</th>
                       <th className="py-3.5 px-4">Telas / Máquinas</th>
                       <th className="py-3.5 px-4">Status de Vigência</th>
@@ -1023,7 +1054,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                   <tbody className="divide-y divide-gray-800/60">
                     {filteredProfiles.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="py-12 text-center text-gray-400">
+                        <td colSpan={7} className="py-12 text-center text-gray-400">
                           Nenhum cliente encontrado com os filtros selecionados.
                         </td>
                       </tr>
@@ -1034,6 +1065,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                           (new Date(p.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
                         );
                         const isActionBusy = actionLoadingId === p.id;
+                        const cleanPhone = p.whatsapp ? p.whatsapp.replace(/\D/g, '') : '';
 
                         return (
                           <tr key={p.id} className="hover:bg-white/[0.02] transition">
@@ -1055,6 +1087,26 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                                   <span className="text-[10px] text-gray-500 font-mono">ID: {p.id.slice(0, 8)}...</span>
                                 </div>
                               </div>
+                            </td>
+
+                            {/* WhatsApp (Envio Pix) */}
+                            <td className="py-3.5 px-4">
+                              {cleanPhone ? (
+                                <a
+                                  href={`https://wa.me/55${cleanPhone}?text=${encodeURIComponent(
+                                    `Olá! Mensagem Cine Spartan para a conta ${p.email}:\n\nSeguem os dados do seu Pix para renovação/ativação do plano ${p.plan_name}:\n\n🔑 Chave Pix: gleisson1984@gmail.com\n💰 Valor: R$ 59,90\n\nAssim que realizar o pagamento, responda com o comprovante aqui para liberação imediata!`
+                                  )}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-bold transition group"
+                                  title="Clique para abrir WhatsApp e enviar dados do Pix"
+                                >
+                                  <FaWhatsapp className="text-sm text-emerald-400 group-hover:scale-110 transition" />
+                                  <span>{p.whatsapp || cleanPhone}</span>
+                                </a>
+                              ) : (
+                                <span className="text-[11px] text-gray-500 italic">Sem WhatsApp</span>
+                              )}
                             </td>
 
                             {/* Plano */}
@@ -1268,6 +1320,12 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                         <td className="py-3 px-4">
                           <div className="font-semibold text-white">{charge.customerName}</div>
                           <div className="text-[10px] text-gray-400">{charge.customerEmail}</div>
+                          {charge.customerWhatsapp && (
+                            <div className="text-[10px] text-emerald-400 font-mono flex items-center gap-1 mt-0.5 font-bold">
+                              <FaWhatsapp className="text-[10px]" />
+                              <span>{charge.customerWhatsapp}</span>
+                            </div>
+                          )}
                         </td>
 
                         {/* Valor */}
@@ -1304,6 +1362,18 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                         {/* Ações */}
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            <a
+                              href={`https://wa.me/55${(charge.customerWhatsapp || '92993746740').replace(/\D/g, '')}?text=${encodeURIComponent(
+                                `Olá ${charge.customerName}! Seguem os dados para pagamento do Pix Cine Spartan no valor de R$ ${charge.amount.toFixed(2).replace('.', ',')}:\n\n🔑 Chave Pix: gleisson1984@gmail.com\n📋 Código Copia e Cola:\n${charge.hash}\n\nApós o pagamento, envie o comprovante para liberação imediata!`
+                              )}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-300 rounded-lg text-[10px] font-bold border border-emerald-500/20 transition flex items-center gap-1"
+                              title="Enviar Pix direto no WhatsApp do cliente"
+                            >
+                              <FaWhatsapp className="text-xs text-emerald-400" />
+                              <span>Enviar no Zap</span>
+                            </a>
                             <button
                               onClick={() => {
                                 setSelectedPix(charge);
@@ -1559,6 +1629,16 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                   />
                 </div>
                 <div>
+                  <label className="text-xs font-semibold text-emerald-400 block mb-1">WhatsApp para Envio (com DDD)</label>
+                  <input
+                    type="tel"
+                    placeholder="(92) 99374-6740"
+                    value={newPixData.customerWhatsapp}
+                    onChange={(e) => setNewPixData({ ...newPixData, customerWhatsapp: e.target.value })}
+                    className="w-full px-4 py-2 bg-black/60 border border-emerald-500/30 focus:border-emerald-500 rounded-xl text-xs text-white outline-none"
+                  />
+                </div>
+                <div>
                   <label className="text-xs font-semibold text-gray-300 block mb-1">Valor da Cobrança (R$)</label>
                   <input
                     type="number"
@@ -1611,6 +1691,17 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                     onChange={(e) => setNewUserData({ ...newUserData, email: e.target.value })}
                     required
                     className="w-full px-4 py-2 bg-black/60 border border-gray-800 focus:border-purple-500 rounded-xl text-xs text-white outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-emerald-400 block mb-1">WhatsApp com DDD (Obrigatório para Pix) *</label>
+                  <input
+                    type="tel"
+                    placeholder="(92) 99374-6740"
+                    value={newUserData.whatsapp}
+                    onChange={(e) => setNewUserData({ ...newUserData, whatsapp: e.target.value })}
+                    required
+                    className="w-full px-4 py-2 bg-black/60 border border-emerald-500/30 focus:border-emerald-500 rounded-xl text-xs text-white outline-none"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
