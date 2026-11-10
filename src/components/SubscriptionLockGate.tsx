@@ -224,6 +224,14 @@ export default function SubscriptionLockGate({
           <div className="flex flex-wrap items-center justify-center gap-3 w-full">
             <button
               type="button"
+              onClick={() => window.dispatchEvent(new Event('openAccountModal'))}
+              className="flex-1 min-w-[160px] py-3 px-5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-black rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-sm"
+            >
+              <span>Ver Minha Conta & Planos</span>
+            </button>
+
+            <button
+              type="button"
               onClick={handleOpenWhatsApp}
               className="flex-1 min-w-[160px] py-3 px-5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-black rounded-xl shadow-lg shadow-amber-950/60 transition-all flex items-center justify-center gap-2 text-sm"
             >

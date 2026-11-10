@@ -17,6 +17,7 @@ import PersonPage from './pages/Home/Person/PersonPage';
 import AuthActionPage from './pages/Home/AuthActionPage';
 import LiveTvPage from './pages/Home/LiveTV/LiveTvPage';
 import AdminDashboard from './pages/Admin/AdminDashboard';
+import AccountPage from './pages/Home/AccountPage';
 
 // Handles TV Remote Control (Back button, Escape, Return)
 function TvNavigationHandler() {
@@ -81,6 +82,8 @@ function App() {
           <Route path="/search" element={<SearchPage />} />
           <Route path="/person/:id/:slug" element={<PersonPage />} />
           <Route path="/watchlist" element={<WatchlistPage />} />
+          <Route path="/minha-conta" element={<AccountPage />} />
+          <Route path="/conta" element={<AccountPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/verify-email" element={<EmailVerificationPage />} />
           <Route path="/auth-action" element={<AuthActionPage />} />

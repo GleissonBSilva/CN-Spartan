@@ -30,9 +30,9 @@ const getCachedUser = () => {
   try { return JSON.parse(localStorage.getItem('weflix_user')) ?? null; } catch { return null; }
 };
 
-function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpenAuthModal }) {
+function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpenAuthModal, onOpenAccountModal }) {
   const navigate = useNavigate();
-  const { isAdmin } = useAuthProfile();
+  const { isAdmin, profile, daysRemaining, isActive } = useAuthProfile();
   const [user, setUser] = useState(getCachedUser);
   const { t, getGenreName } = useLanguage();
 
@@ -223,21 +223,47 @@ function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpe
           </button>
         )}
         {user ? (
-          <button
-            onClick={handleLogout}
-            title={t('log_out')}
-            className="
-              relative flex items-center gap-4 px-4 py-3.5 rounded-2xl
-              w-full whitespace-nowrap
-              border-2 border-transparent text-gray-400 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-colors duration-200 focus:outline-none group/user
-            "
-          >
-            <FaSignOutAlt className="text-[24px] shrink-0" />
-            <div className="flex flex-col text-left opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-75">
-              <span className="text-white line-clamp-1 text-[13px] font-bold">{user.displayName || user.email?.split('@')[0]}</span>
-              <span className="text-red-400 text-[10px] font-bold uppercase tracking-wider">{t('log_out')}</span>
-            </div>
-          </button>
+          <>
+            <button
+              onClick={onOpenAccountModal}
+              title="Minha Conta, Vencimento & Trocar Plano"
+              className="
+                relative flex items-center gap-4 px-4 py-2.5 rounded-2xl
+                w-full whitespace-nowrap
+                bg-purple-950/30 border border-purple-500/30 text-gray-200 hover:bg-purple-600/25 hover:border-purple-500/50 hover:text-white transition-all duration-200 focus:outline-none shadow-md group/acc
+              "
+            >
+              <FaUserCircle className="text-[22px] text-purple-400 shrink-0 group-hover/acc:scale-110 transition-transform" />
+              <div className="flex flex-col text-left opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-75">
+                <span className="text-white text-[12px] font-bold line-clamp-1">
+                  {profile?.plan_name || 'Minha Conta'}
+                </span>
+                <span
+                  className={`text-[10px] font-black ${
+                    isActive ? 'text-emerald-400' : 'text-red-400'
+                  }`}
+                >
+                  {isActive ? `${daysRemaining}d restantes` : 'Assinatura Vencida'}
+                </span>
+              </div>
+            </button>
+
+            <button
+              onClick={handleLogout}
+              title={t('log_out')}
+              className="
+                relative flex items-center gap-4 px-4 py-3 rounded-2xl
+                w-full whitespace-nowrap
+                border-2 border-transparent text-gray-400 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-colors duration-200 focus:outline-none group/user
+              "
+            >
+              <FaSignOutAlt className="text-[22px] shrink-0" />
+              <div className="flex flex-col text-left opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-75">
+                <span className="text-white line-clamp-1 text-[13px] font-bold">{user.displayName || user.email?.split('@')[0]}</span>
+                <span className="text-red-400 text-[10px] font-bold uppercase tracking-wider">{t('log_out')}</span>
+              </div>
+            </button>
+          </>
         ) : (
           <button
             onClick={onOpenAuthModal}
@@ -264,7 +290,8 @@ Sidebar.propTypes = {
   onNavigate: PropTypes.func.isRequired,
   selectedGenreId: PropTypes.number,
   onGenreSelect: PropTypes.func,
-  onOpenAuthModal: PropTypes.func
+  onOpenAuthModal: PropTypes.func,
+  onOpenAccountModal: PropTypes.func,
 };
 
 export default React.memo(Sidebar);

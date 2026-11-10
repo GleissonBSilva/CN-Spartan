@@ -7,21 +7,25 @@ import { buildBrowsePath, getCategoryBySlug } from './urlFilters';
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../../firebase";
 import AuthModal from "../../components/AuthModal";
+import AccountModal from "../../components/AccountModal";
 import { useLanguage } from "../../context/LanguageContext";
 import LanguageSelector from "../../components/LanguageSelector";
 import FamilyModeControl from "../../components/FamilyModeControl";
 import { useAuthProfile } from "../../hooks/useAuthProfile";
 
 function ParentComponent() {
-  const { signOut: supaSignOut } = useAuthProfile();
+  const { user: supaUser, profile, isActive, isExpired, daysRemaining, signOut: supaSignOut } = useAuthProfile();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [scrollPosition, setScrollPosition] = useState(0);
   const [user, setUser] = useState(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const { t } = useLanguage();
+
+  const isUserLoggedIn = !!(supaUser || user);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -32,8 +36,13 @@ function ParentComponent() {
 
   useEffect(() => {
     const handleOpenAuthModal = () => setIsAuthModalOpen(true);
+    const handleOpenAccountModal = () => setIsAccountModalOpen(true);
     window.addEventListener('openAuthModal', handleOpenAuthModal);
-    return () => window.removeEventListener('openAuthModal', handleOpenAuthModal);
+    window.addEventListener('openAccountModal', handleOpenAccountModal);
+    return () => {
+      window.removeEventListener('openAuthModal', handleOpenAuthModal);
+      window.removeEventListener('openAccountModal', handleOpenAccountModal);
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -141,6 +150,7 @@ function ParentComponent() {
         selectedGenreId={selectedGenreId}
         onGenreSelect={handleGenreSelect}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onOpenAccountModal={() => setIsAccountModalOpen(true)}
       />
 
       {scrollPosition > 300 && (
@@ -153,8 +163,37 @@ function ParentComponent() {
         </button>
       )}
 
-      {/* Global Top Controls (Family Mode & Language) */}
-      <div className="fixed top-4 right-4 z-40 flex items-center gap-2.5">
+      {/* Global Top Controls (Account / Plan Badge, Family Mode & Language) */}
+      <div className="fixed top-4 right-4 z-40 flex items-center gap-2">
+        {isUserLoggedIn ? (
+          <button
+            onClick={() => setIsAccountModalOpen(true)}
+            title="Minha Conta, Vencimento & Plano"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/70 hover:bg-purple-950/70 border border-purple-500/40 text-white text-xs font-semibold backdrop-blur-md shadow-lg transition-all hover:scale-105 active:scale-95"
+          >
+            <FaUserCircle className="text-purple-400 text-sm" />
+            <span className="hidden sm:inline font-bold text-[11px] max-w-[130px] truncate">
+              {profile?.plan_name || 'Minha Conta'}
+            </span>
+            <span
+              className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+                isActive
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  : 'bg-red-500/20 text-red-300 border border-red-500/30'
+              }`}
+            >
+              {isActive ? `${daysRemaining}d` : 'Vencido'}
+            </span>
+          </button>
+        ) : (
+          <button
+            onClick={() => setIsAuthModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-600 to-red-600 hover:from-purple-500 hover:to-red-500 text-white text-xs font-bold shadow-lg shadow-purple-950/50 transition-all hover:scale-105"
+          >
+            <FaUserCircle className="text-xs" />
+            <span>Entrar / Teste Grátis</span>
+          </button>
+        )}
         <FamilyModeControl />
         <LanguageSelector />
       </div>
@@ -224,13 +263,14 @@ function ParentComponent() {
           );
         })}
         {/* Mobile Profile/Auth Button */}
-        {user ? (
+        {isUserLoggedIn ? (
           <button
-            onClick={handleLogout}
-            className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors text-red-500/80 hover:text-red-400"
+            onClick={() => setIsAccountModalOpen(true)}
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors text-purple-400 hover:text-purple-300"
+            title="Minha Conta"
           >
-            <FaSignOutAlt className="text-2xl" />
-            <span className="text-[10px] font-medium font-bold uppercase tracking-wider">{t('log_out')}</span>
+            <FaUserCircle className="text-2xl" />
+            <span className="text-[10px] font-bold">Conta</span>
           </button>
         ) : (
           <button
@@ -245,6 +285,9 @@ function ParentComponent() {
 
       {/* Auth Modal Form */}
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
+
+      {/* Account / Subscription / Data Modal */}
+      <AccountModal isOpen={isAccountModalOpen} onClose={() => setIsAccountModalOpen(false)} />
     </div>
   );
 }
