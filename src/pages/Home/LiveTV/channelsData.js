@@ -734,18 +734,20 @@ export const CHANNELS = [
     logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/NASA_logo.svg/1200px-NASA_logo.svg.png',
     resolution: '1080p',
     sources: [
-      { name: 'Sinal Oficial NASA Akamai HD', url: 'https://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8' }
+      { name: 'Transmissão Oficial NASA 24h', url: 'https://www.youtube.com/embed/live_stream?channel=UC2WmAQahn43VLIurgwUrmGQ' },
+      { name: 'Sinal HLS NASA Akamai', url: 'https://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8' }
     ]
   },
   {
     id: 'love_nature',
-    name: 'Love Nature HD',
+    name: 'Love Nature & Animais HD',
     category: 'documentarios',
     categoryLabel: 'Documentários & Natureza',
     logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Love_Nature_logo_2020.svg/1200px-Love_Nature_logo_2020.svg.png',
     resolution: '720p',
     sources: [
-      { name: 'Sinal Love Nature Animal HD', url: 'https://jmp2.uk/plu-602e9bc298ff3000078170c0.m3u8' }
+      { name: 'Sinal Oficial NatureTime HD', url: 'https://jmp2.uk/plu-681ba2ad93d3d19bcab47433.m3u8' },
+      { name: 'Sinal Love Nature Animal HD', url: 'https://jmp2.uk/plu-66df8a29b25d2b0008fc5fe0.m3u8' }
     ]
   },
   {
@@ -753,10 +755,11 @@ export const CHANNELS = [
     name: 'Pluto TV Natureza Animal HD',
     category: 'documentarios',
     categoryLabel: 'Documentários & Natureza',
-    logo: 'https://images.pluto.tv/channels/5f32d7e50af67400077f29ee/colorLogoPNG.png',
+    logo: 'https://images.pluto.tv/channels/5f1213ba0ecebc00070e170f/colorLogoPNG.png',
     resolution: '720p',
     sources: [
-      { name: 'Sinal Oficial Natureza HD', url: 'https://jmp2.uk/plu-5f32d7e50af67400077f29ee.m3u8' }
+      { name: 'Sinal Oficial Natureza HD', url: 'https://jmp2.uk/plu-5f1213ba0ecebc00070e170f.m3u8' },
+      { name: 'Sinal Pluto TV Animais HD', url: 'https://jmp2.uk/plu-6474aa984cfc2c0008883a92.m3u8' }
     ]
   },
   {
@@ -764,10 +767,11 @@ export const CHANNELS = [
     name: 'Pluto TV Mistérios & Ciência HD',
     category: 'documentarios',
     categoryLabel: 'Documentários & Natureza',
-    logo: 'https://images.pluto.tv/channels/5fa45371c4c1a700077cfd02/colorLogoPNG.png',
+    logo: 'https://images.pluto.tv/channels/5fac52f142044f00078e2a51/colorLogoPNG.png',
     resolution: '720p',
     sources: [
-      { name: 'Sinal Oficial Mistérios HD', url: 'https://jmp2.uk/plu-5fa45371c4c1a700077cfd02.m3u8' }
+      { name: 'Sinal Oficial Mistérios HD', url: 'https://jmp2.uk/plu-5fac52f142044f00078e2a51.m3u8' },
+      { name: 'Smithsonian Channel Pluto TV', url: 'https://jmp2.uk/plu-6298bd10d88ef000073f16b7.m3u8' }
     ]
   },
 
@@ -782,7 +786,8 @@ export const CHANNELS = [
     logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/Euronews_2016_logo.svg/1200px-Euronews_2016_logo.svg.png',
     resolution: '1080p',
     sources: [
-      { name: 'Sinal Oficial Euronews English', url: 'https://euronews-euronews-world-1-eu.rakuten.wurl.tv/playlist.m3u8' }
+      { name: 'Sinal Oficial Euronews English', url: 'https://cdn-euronews.akamaized.net/live/eds/euronews-en/25002/index.m3u8' },
+      { name: 'Sinal Euronews English HD', url: 'https://dash4.antik.sk/live/test_euronews/playlist.m3u8' }
     ]
   },
   {
@@ -793,7 +798,8 @@ export const CHANNELS = [
     logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/Euronews_2016_logo.svg/1200px-Euronews_2016_logo.svg.png',
     resolution: '1080p',
     sources: [
-      { name: 'Sinal Oficial Euronews Español', url: 'https://euronews-euronews-spanish-1-eu.rakuten.wurl.tv/playlist.m3u8' }
+      { name: 'Sinal Oficial Euronews Español', url: 'https://jmp2.uk/plu-60d3583ef310610007fb02b1.m3u8' },
+      { name: 'Sinal Euronews Español 2', url: 'https://jmp2.uk/plu-619d59b7cbef25000728221c.m3u8' }
     ]
   },
   {
@@ -815,7 +821,8 @@ export const CHANNELS = [
     logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/France_24_logo.svg/1200px-France_24_logo.svg.png',
     resolution: '1080p',
     sources: [
-      { name: 'Sinal Oficial France 24 HD', url: 'https://stream.france24.com/hls/live/2034033/F24_EN_LO_HLS/master_5000.m3u8' }
+      { name: 'Sinal Oficial France 24 HD', url: 'https://live.france24.com/hls/live/2037218/F24_EN_HI_HLS/master_2300.m3u8' },
+      { name: 'Transmissão Oficial France 24', url: 'https://www.youtube.com/embed/live_stream?channel=UCQfwfsi5VrQ8yKZ-UWmAEFg' }
     ]
   },
   {
@@ -826,7 +833,8 @@ export const CHANNELS = [
     logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/France_24_logo.svg/1200px-France_24_logo.svg.png',
     resolution: '1080p',
     sources: [
-      { name: 'Sinal Oficial France 24 Español', url: 'https://stream.france24.com/hls/live/2034035/F24_ES_LO_HLS/master_5000.m3u8' }
+      { name: 'Sinal Oficial France 24 Español', url: 'https://live.france24.com/hls/live/2037220/F24_ES_HI_HLS/master_2300.m3u8' },
+      { name: 'Transmissão Oficial France 24 ES', url: 'https://www.youtube.com/embed/live_stream?channel=UCUdOoVWuWmgo1wByzcsyKDQ' }
     ]
   },
   {
@@ -837,7 +845,8 @@ export const CHANNELS = [
     logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/NHK_World-Japan_logo.svg/1200px-NHK_World-Japan_logo.svg.png',
     resolution: '1080p',
     sources: [
-      { name: 'Sinal Oficial NHK Japão HD', url: 'https://b-nhkworld.akamaized.net/hls/live/2013824/nhkworld-tv/index.m3u8' }
+      { name: 'Sinal Oficial NHK Japão HD', url: 'https://masterpl.hls.nhkworld.jp/hls/w/live/smarttv.m3u8' },
+      { name: 'Transmissão Oficial NHK Live', url: 'https://www.youtube.com/embed/live_stream?channel=UCvEQP9b4jT2hE_Qz3sK2wkg' }
     ]
   },
   {
@@ -848,7 +857,8 @@ export const CHANNELS = [
     logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/94/Al_Jazeera_English_logo.svg/1200px-Al_Jazeera_English_logo.svg.png',
     resolution: '1080p',
     sources: [
-      { name: 'Sinal Oficial Al Jazeera HD', url: 'https://live-hls-web-aje.getaj.net/AJE/01.m3u8' }
+      { name: 'Sinal Oficial Al Jazeera English HD', url: 'https://dash4.antik.sk/live/test_aljazeera_eng/playlist.m3u8' },
+      { name: 'Sinal Al Jazeera Amagi', url: 'https://amg00222-amg00222c4-amgplt0002.playout.now3.amagi.tv/aljazeera-noscte/playlist.m3u8' }
     ]
   },
   {

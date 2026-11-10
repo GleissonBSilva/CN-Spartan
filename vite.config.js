@@ -24,15 +24,16 @@ function streamProxyPlugin() {
             return res.end('Missing url param');
           }
 
-          // Fetch target with timeout
+          // Fetch target with timeout (15s for upstream CDNs)
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 8000);
+          const timeout = setTimeout(() => controller.abort(), 15000);
 
           const response = await fetch(target, {
             signal: controller.signal,
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': '*/*'
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              'Accept': '*/*',
+              'Referer': target
             }
           });
           clearTimeout(timeout);
@@ -53,6 +54,7 @@ function streamProxyPlugin() {
             const rewritten = text.split('\n').map(line => {
               const trimmed = line.trim();
               if (trimmed && !trimmed.startsWith('#')) {
+                if (trimmed.startsWith('/api/proxy-stream')) return trimmed;
                 let fullUrl;
                 try {
                   fullUrl = trimmed.startsWith('http') ? trimmed : new URL(trimmed, actualUrl).href;
@@ -63,6 +65,7 @@ function streamProxyPlugin() {
               }
               if (trimmed.startsWith('#EXT') && trimmed.includes('URI="')) {
                 return trimmed.replace(/URI="([^"]+)"/g, (match, p1) => {
+                  if (p1.startsWith('/api/proxy-stream')) return match;
                   let fullUrl;
                   try {
                     fullUrl = p1.startsWith('http') ? p1 : new URL(p1, actualUrl).href;

@@ -31,8 +31,13 @@ const resolveStreamUrl = (url) => {
 
   // Em navegadores web (localhost / browser), streams de terceiros sem CORS
   // são direcionados para o proxy CORS local / Vercel
-  const isWebBrowser = typeof window !== 'undefined' && !window.Capacitor?.isNativePlatform();
-  if (isWebBrowser) {
+  const isNativeApp = typeof window !== 'undefined' && (
+    window?.Capacitor?.isNativePlatform?.() === true ||
+    window?.Capacitor?.getPlatform?.() === 'android' ||
+    window?.Capacitor?.getPlatform?.() === 'ios'
+  );
+
+  if (!isNativeApp) {
     if (
       url.includes('jmp2.uk') ||
       url.includes('pluto.tv') ||
@@ -43,6 +48,8 @@ const resolveStreamUrl = (url) => {
       url.includes('acaidopt.org') ||
       url.includes('tvcultura') ||
       url.includes('zoeweb.tv') ||
+      url.includes('amagi.tv') ||
+      url.includes('wurl.tv') ||
       url.includes(':8000') ||
       url.includes(':2082') ||
       url.includes(':8080') ||
@@ -122,7 +129,7 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
     if (isLoading && !hasError && !isEmbed) {
       timer = setTimeout(() => {
         if (isLoading && !isPlaying) {
-          console.warn('[LiveTvPlayer] Stream load timeout (8s) for:', currentSource?.url);
+          console.warn('[LiveTvPlayer] Stream load timeout (15s) for:', currentSource?.url);
           // If there is another route available, automatically attempt the next route
           if (sources.length > 1 && sourceIdx < sources.length - 1) {
             setSourceIdx(prev => prev + 1);
@@ -132,7 +139,7 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
             setErrorMessage('O sinal deste canal está demorando para responder ou em intervalo. Clique em "Rota Alternativa" ou escolha outro canal.');
           }
         }
-      }, 8000);
+      }, 15000);
     }
     return () => clearTimeout(timer);
   }, [isLoading, isPlaying, hasError, isEmbed, sourceIdx, sources.length, currentSource?.url]);
@@ -166,9 +173,9 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
         maxMaxBufferLength: 60,
         liveSyncDurationCount: 3,
         liveMaxLatencyDurationCount: 6,
-        manifestLoadingTimeOut: 6000,
-        levelLoadingTimeOut: 6000,
-        fragLoadingTimeOut: 10000,
+        manifestLoadingTimeOut: 15000,
+        levelLoadingTimeOut: 15000,
+        fragLoadingTimeOut: 20000,
       });
 
       hlsRef.current = hls;
@@ -189,6 +196,10 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
               setIsPlaying(false);
             });
         }
+      });
+
+      hls.on(Hls.Events.LEVEL_LOADED, () => {
+        setIsLoading(false);
       });
 
       hls.on(Hls.Events.ERROR, (event, data) => {
@@ -223,9 +234,9 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
                   lowLatencyMode: false,
                   backBufferLength: 30,
                   maxBufferLength: 30,
-                  manifestLoadingTimeOut: 10000,
-                  levelLoadingTimeOut: 10000,
-                  fragLoadingTimeOut: 15000,
+                  manifestLoadingTimeOut: 15000,
+                  levelLoadingTimeOut: 15000,
+                  fragLoadingTimeOut: 20000,
                 });
                 hlsRef.current = retryHls;
                 retryHls.loadSource(proxiedRetryUrl);
@@ -236,6 +247,9 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
                   video.muted = true;
                   setIsMuted(true);
                   video.play().catch(() => {});
+                });
+                retryHls.on(Hls.Events.LEVEL_LOADED, () => {
+                  setIsLoading(false);
                 });
                 retryHls.on(Hls.Events.ERROR, (_evt, retryErr) => {
                   if (retryErr.fatal) {
