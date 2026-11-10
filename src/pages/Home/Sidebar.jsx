@@ -10,6 +10,7 @@ import {
 } from 'react-icons/bi';
 import { FaPlay, FaSignOutAlt, FaUserCircle, FaShieldAlt, FaBroadcastTower } from 'react-icons/fa';
 import { GENRES, SPECIAL_CATEGORIES } from './tmdb';
+import { CATEGORIES as TV_CATEGORIES } from './LiveTV/channelsData';
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../../firebase";
 import { useLanguage } from '../../context/LanguageContext';
@@ -70,10 +71,12 @@ function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpe
   const ACTIVE_MAP = { search: 'search', movies: 'movies', series: 'series', livetv: 'livetv', watchlist: 'watchlist', home: 'home' };
   const activeId = ACTIVE_MAP[activePage] ?? 'home';
 
-  const showCategories = activePage === 'movies' || activePage === 'series';
+  const showCategories = activePage === 'movies' || activePage === 'series' || activePage === 'livetv';
   const genreType = activePage === 'movies' ? 'movie' : 'tv';
   const allCategories = showCategories
-    ? [...GENRES[genreType], ...SPECIAL_CATEGORIES[genreType]].sort((a, b) => a.name.localeCompare(b.name))
+    ? activePage === 'livetv'
+      ? TV_CATEGORIES.map((c) => ({ id: c.id, name: c.label }))
+      : [...GENRES[genreType], ...SPECIAL_CATEGORIES[genreType]].sort((a, b) => a.name.localeCompare(b.name))
     : [];
 
   return (
@@ -155,14 +158,14 @@ function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpe
             {/* Section label */}
             <div className="px-[18px] mb-2 shrink-0">
               <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-75 text-[11px] font-bold tracking-[0.22em] uppercase text-gray-500 whitespace-nowrap">
-                {t('genres')}
+                {activePage === 'livetv' ? 'Canais & Categorias' : t('genres')}
               </span>
             </div>
             {/* Scrollable genre list */}
             <div className="flex-1 overflow-y-auto hide-scrollbar px-[10px] pt-1 flex flex-col gap-0.5">
               {allCategories.map((genre) => {
-                const isActiveGenre = selectedGenreId === genre.id;
-                const localizedGenreName = getGenreName(genre.id, genre.name);
+                const isActiveGenre = String(selectedGenreId) === String(genre.id);
+                const localizedGenreName = activePage === 'livetv' ? genre.name : getGenreName(genre.id, genre.name);
                 return (
                   <button
                     key={genre.id}
@@ -288,7 +291,7 @@ function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpe
 Sidebar.propTypes = {
   activePage: PropTypes.string.isRequired,
   onNavigate: PropTypes.func.isRequired,
-  selectedGenreId: PropTypes.number,
+  selectedGenreId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
   onGenreSelect: PropTypes.func,
   onOpenAuthModal: PropTypes.func,
   onOpenAccountModal: PropTypes.func,

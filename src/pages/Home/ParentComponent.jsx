@@ -117,6 +117,9 @@ function ParentComponent() {
   }, []);
 
   const selectedGenreId = (() => {
+    if (activePage === 'livetv') {
+      return searchParams.get('cat') || 'all';
+    }
     const pathParts = location.pathname.split('/').filter(Boolean);
     if (pathParts[0] === 'movies' && pathParts[1]) {
       return getCategoryBySlug('movie', pathParts[1])?.id ?? null;
@@ -137,6 +140,11 @@ function ParentComponent() {
   };
 
   const handleGenreSelect = (genreId) => {
+    if (activePage === 'livetv') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      navigate(genreId === 'all' ? '/tv-ao-vivo' : `/tv-ao-vivo?cat=${genreId}`);
+      return;
+    }
     const type = activePage === 'series' ? 'tv' : 'movie';
     window.scrollTo({ top: 0, behavior: 'auto' });
     navigate(buildBrowsePath(type, genreId, 'popularity.desc'));

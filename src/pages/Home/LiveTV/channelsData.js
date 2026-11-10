@@ -721,15 +721,157 @@ export const CHANNELS = [
     sources: [
       { name: 'Sinal Oficial Tastemade', url: 'https://jmp2.uk/plu-68b8875777201ec428d9eaa5.m3u8' }
     ]
+  },
+
+  // ==========================================
+  // 🦁 DOCUMENTÁRIOS, NATUREZA & CIÊNCIA
+  // ==========================================
+  {
+    id: 'nasa_tv',
+    name: 'NASA TV HD (Oficial)',
+    category: 'documentarios',
+    categoryLabel: 'Documentários & Natureza',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/NASA_logo.svg/1200px-NASA_logo.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Oficial NASA Akamai HD', url: 'https://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8' }
+    ]
+  },
+  {
+    id: 'love_nature',
+    name: 'Love Nature HD',
+    category: 'documentarios',
+    categoryLabel: 'Documentários & Natureza',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Love_Nature_logo_2020.svg/1200px-Love_Nature_logo_2020.svg.png',
+    resolution: '720p',
+    sources: [
+      { name: 'Sinal Love Nature Animal HD', url: 'https://jmp2.uk/plu-602e9bc298ff3000078170c0.m3u8' }
+    ]
+  },
+  {
+    id: 'pluto_natureza',
+    name: 'Pluto TV Natureza Animal HD',
+    category: 'documentarios',
+    categoryLabel: 'Documentários & Natureza',
+    logo: 'https://images.pluto.tv/channels/5f32d7e50af67400077f29ee/colorLogoPNG.png',
+    resolution: '720p',
+    sources: [
+      { name: 'Sinal Oficial Natureza HD', url: 'https://jmp2.uk/plu-5f32d7e50af67400077f29ee.m3u8' }
+    ]
+  },
+  {
+    id: 'pluto_misterios',
+    name: 'Pluto TV Mistérios & Ciência HD',
+    category: 'documentarios',
+    categoryLabel: 'Documentários & Natureza',
+    logo: 'https://images.pluto.tv/channels/5fa45371c4c1a700077cfd02/colorLogoPNG.png',
+    resolution: '720p',
+    sources: [
+      { name: 'Sinal Oficial Mistérios HD', url: 'https://jmp2.uk/plu-5fa45371c4c1a700077cfd02.m3u8' }
+    ]
+  },
+
+  // ==========================================
+  // 🌍 CANAIS INTERNACIONAIS (MUNDO)
+  // ==========================================
+  {
+    id: 'euronews_en',
+    name: 'Euronews English HD',
+    category: 'internacionais',
+    categoryLabel: 'Canais Internacionais',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/Euronews_2016_logo.svg/1200px-Euronews_2016_logo.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Oficial Euronews English', url: 'https://euronews-euronews-world-1-eu.rakuten.wurl.tv/playlist.m3u8' }
+    ]
+  },
+  {
+    id: 'euronews_es',
+    name: 'Euronews Español HD',
+    category: 'internacionais',
+    categoryLabel: 'Canais Internacionais',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/Euronews_2016_logo.svg/1200px-Euronews_2016_logo.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Oficial Euronews Español', url: 'https://euronews-euronews-spanish-1-eu.rakuten.wurl.tv/playlist.m3u8' }
+    ]
+  },
+  {
+    id: 'dw_news',
+    name: 'DW News HD (Alemanha)',
+    category: 'internacionais',
+    categoryLabel: 'Canais Internacionais',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/Deutsche_Welle_logo.svg/1200px-Deutsche_Welle_logo.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Oficial DW Akamai HD', url: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8' }
+    ]
+  },
+  {
+    id: 'france24_en',
+    name: 'France 24 English HD',
+    category: 'internacionais',
+    categoryLabel: 'Canais Internacionais',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/France_24_logo.svg/1200px-France_24_logo.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Oficial France 24 HD', url: 'https://stream.france24.com/hls/live/2034033/F24_EN_LO_HLS/master_5000.m3u8' }
+    ]
+  },
+  {
+    id: 'france24_es',
+    name: 'France 24 Español HD',
+    category: 'internacionais',
+    categoryLabel: 'Canais Internacionais',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/France_24_logo.svg/1200px-France_24_logo.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Oficial France 24 Español', url: 'https://stream.france24.com/hls/live/2034035/F24_ES_LO_HLS/master_5000.m3u8' }
+    ]
+  },
+  {
+    id: 'nhk_world_japan',
+    name: 'NHK World-Japan HD',
+    category: 'internacionais',
+    categoryLabel: 'Canais Internacionais',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/NHK_World-Japan_logo.svg/1200px-NHK_World-Japan_logo.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Oficial NHK Japão HD', url: 'https://b-nhkworld.akamaized.net/hls/live/2013824/nhkworld-tv/index.m3u8' }
+    ]
+  },
+  {
+    id: 'al_jazeera_en',
+    name: 'Al Jazeera English HD',
+    category: 'internacionais',
+    categoryLabel: 'Canais Internacionais',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/94/Al_Jazeera_English_logo.svg/1200px-Al_Jazeera_English_logo.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Oficial Al Jazeera HD', url: 'https://live-hls-web-aje.getaj.net/AJE/01.m3u8' }
+    ]
+  },
+  {
+    id: 'rt_esp',
+    name: 'RT News Español HD',
+    category: 'internacionais',
+    categoryLabel: 'Canais Internacionais',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/RT_logo.svg/1200px-RT_logo.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Oficial RT Internacional HD', url: 'https://rt-esp.rttv.com/live/rtesp/playlist.m3u8' }
+    ]
   }
 ];
 
 export const CATEGORIES = [
-  { id: 'all', label: 'Todos os Canais', icon: 'FaTv' },
-  { id: 'esportes', label: '⚽ Esportes & Lutas', icon: 'FaFutbol' },
-  { id: 'abertos', label: '📡 Canais Abertos', icon: 'FaBroadcastTower' },
-  { id: 'filmes', label: '🎬 Filmes & Séries', icon: 'FaFilm' },
-  { id: 'noticias', label: '📰 Notícias', icon: 'FaNewspaper' },
-  { id: 'infantil', label: '🧒 Infantil & Desenhos', icon: 'FaChild' },
-  { id: 'variedades', label: '🌟 Variedades & Música', icon: 'FaMusic' }
+  { id: 'all', label: 'Todos os Canais', icon: '📺' },
+  { id: 'abertos', label: 'Canais Abertos (Brasil)', icon: '📡' },
+  { id: 'esportes', label: 'Esportes & Lutas', icon: '⚽' },
+  { id: 'filmes', label: 'Filmes & Séries', icon: '🎬' },
+  { id: 'noticias', label: 'Notícias 24h', icon: '📰' },
+  { id: 'infantil', label: 'Infantil & Desenhos', icon: '🧒' },
+  { id: 'documentarios', label: 'Documentários & Natureza', icon: '🦁' },
+  { id: 'variedades', label: 'Variedades & Música', icon: '🌟' },
+  { id: 'internacionais', label: 'Canais Internacionais', icon: '🌍' },
 ];

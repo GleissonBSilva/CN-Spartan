@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { FaBroadcastTower, FaSearch, FaTv, FaPlay, FaPlus, FaTrash, FaInfoCircle } from 'react-icons/fa';
 import { CHANNELS, CATEGORIES } from './channelsData';
 import LiveTvPlayer from './LiveTvPlayer';
@@ -34,9 +35,26 @@ const LiveTvPage = () => {
     return [...CHANNELS, ...customChannels];
   }, [customChannels]);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlCategory = searchParams.get('cat') || 'all';
+
   const [selectedChannelId, setSelectedChannelId] = useState(() => allChannels[0]?.id || 'fifa_plus');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState(urlCategory);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Sincronizar categoria quando a URL mudar (ex: ao clicar na barra lateral)
+  useEffect(() => {
+    setSelectedCategory(urlCategory);
+  }, [urlCategory]);
+
+  const handleSelectCategory = (catId) => {
+    setSelectedCategory(catId);
+    if (catId === 'all') {
+      setSearchParams({});
+    } else {
+      setSearchParams({ cat: catId });
+    }
+  };
 
   // Active channel object
   const activeChannel = useMemo(() => {
@@ -241,7 +259,7 @@ const LiveTvPage = () => {
             return (
               <button
                 key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
+                onClick={() => handleSelectCategory(cat.id)}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
                   isSelected
                     ? 'bg-red-600 text-white shadow-lg shadow-red-950/50 ring-1 ring-red-400'
