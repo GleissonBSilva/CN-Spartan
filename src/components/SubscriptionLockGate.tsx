@@ -1,22 +1,41 @@
 import React from 'react';
-import { FaLock, FaBan, FaCalendarTimes, FaWhatsapp, FaUserCheck, FaRedoAlt } from 'react-icons/fa';
+import { FaLock, FaBan, FaCalendarTimes, FaWhatsapp, FaUserCheck, FaRedoAlt, FaTv, FaDesktop, FaSignOutAlt } from 'react-icons/fa';
 import { useAuthProfile } from '../hooks/useAuthProfile';
 
 interface SubscriptionLockGateProps {
   onOpenAuth?: () => void;
   title?: string;
+  isScreenLimit?: boolean;
+  maxScreens?: number;
+  activeDevices?: Array<{ deviceId: string; deviceName: string; lastPing: number }>;
+  onDisconnectOthers?: () => void;
 }
 
-export default function SubscriptionLockGate({ onOpenAuth, title }: SubscriptionLockGateProps) {
+export default function SubscriptionLockGate({
+  onOpenAuth,
+  title,
+  isScreenLimit = false,
+  maxScreens = 1,
+  activeDevices = [],
+  onDisconnectOthers,
+}: SubscriptionLockGateProps) {
   const { user, profile, isExpired, isSuspended, formattedExpiration, refreshProfile, loading } = useAuthProfile();
 
   const whatsappNumber = import.meta.env.VITE_WHATSAPP_NUMBER || '5592993746740';
 
-  const handleOpenWhatsApp = () => {
+  const handleOpenWhatsApp = (customMsg?: string) => {
     const text = encodeURIComponent(
+      customMsg ||
       `Olá! Gostaria de assinar/renovar meu plano no Cine Spartan. Meu e-mail é: ${user?.email || 'novo cliente'}`
     );
     window.open(`https://wa.me/${whatsappNumber}?text=${text}`, '_blank');
+  };
+
+  const handleUpgradeScreensWhatsApp = () => {
+    const text = encodeURIComponent(
+      `Olá! Minha conta ${user?.email} atingiu o limite de ${maxScreens} tela(s). Gostaria de fazer um upgrade de plano para ter mais telas simultâneas!`
+    );
+    handleOpenWhatsApp(text);
   };
 
   const handleOpenLogin = () => {
@@ -26,6 +45,77 @@ export default function SubscriptionLockGate({ onOpenAuth, title }: Subscription
       window.dispatchEvent(new Event('openAuthModal'));
     }
   };
+
+  // CASO 0: Limite de Telas Simultâneas Atingido
+  if (isScreenLimit) {
+    return (
+      <div className="w-full aspect-video rounded-2xl bg-gradient-to-br from-[#140e1f] via-[#0d0914] to-black border border-purple-500/40 flex flex-col items-center justify-center p-6 sm:p-10 text-center shadow-2xl relative overflow-hidden">
+        {/* Glow de fundo */}
+        <div className="absolute inset-0 bg-purple-600/10 blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 max-w-lg flex flex-col items-center">
+          <div className="w-16 h-16 rounded-2xl bg-purple-600/20 border border-purple-500/40 text-purple-400 text-3xl flex items-center justify-center mb-4 shadow-lg shadow-purple-950/60 animate-bounce">
+            <FaTv />
+          </div>
+
+          <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight mb-2">
+            Limite de Telas Atingido ({maxScreens} {maxScreens > 1 ? 'Telas' : 'Tela'})
+          </h2>
+
+          <p className="text-xs sm:text-sm text-gray-300 leading-relaxed mb-4">
+            Seu plano <strong className="text-purple-400 font-bold">{profile?.plan_name || 'Spartan'}</strong> permite assistir em até <strong className="text-white">{maxScreens} {maxScreens > 1 ? 'dispositivos simultâneos' : 'dispositivo por vez'}</strong>.
+            Outra tela já está assistindo nesta conta.
+          </p>
+
+          {activeDevices.length > 0 && (
+            <div className="w-full bg-black/40 border border-white/10 rounded-xl p-3 mb-5 text-left">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-2">
+                Telas ativas conectadas agora:
+              </span>
+              <div className="space-y-1.5 max-h-24 overflow-y-auto">
+                {activeDevices.map((dev, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-xs text-gray-300 bg-white/5 px-2.5 py-1.5 rounded-lg border border-white/5">
+                    <span className="flex items-center gap-2">
+                      <FaDesktop className="text-purple-400 text-[11px]" />
+                      <strong className="text-white">{dev.deviceName}</strong>
+                    </span>
+                    <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      Em reprodução
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-center gap-3 w-full">
+            {onDisconnectOthers && (
+              <button
+                type="button"
+                onClick={onDisconnectOthers}
+                className="flex-1 min-w-[170px] py-3 px-4 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-lg shadow-purple-950/60 transition-all flex items-center justify-center gap-2 text-xs sm:text-sm"
+                title="Desconecta os outros aparelhos para você assistir nesta tela"
+              >
+                <FaSignOutAlt />
+                <span>Desconectar Outras Telas</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleUpgradeScreensWhatsApp}
+              className="flex-1 min-w-[170px] py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-950/60 transition-all flex items-center justify-center gap-2 text-xs sm:text-sm"
+              title="Solicite mais telas no WhatsApp"
+            >
+              <FaWhatsapp className="text-base" />
+              <span>Contratar + Telas</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

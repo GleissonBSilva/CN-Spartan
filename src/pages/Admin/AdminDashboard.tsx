@@ -28,6 +28,7 @@ import {
   FaTimes,
   FaBolt,
   FaSave,
+  FaEdit,
 } from 'react-icons/fa';
 import { supabase } from '../../lib/supabase';
 import { useAuthProfile } from '../../hooks/useAuthProfile';
@@ -305,6 +306,18 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     days: 30,
   });
   const [creatingUser, setCreatingUser] = useState(false);
+
+  // Modal Editar Cliente & Telas
+  const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    plan: 'SPARTAN PRO',
+    screens: 2,
+    status: 'ativo' as ProfileStatus,
+    expiresAt: '',
+    whatsapp: '',
+    isTrial: false,
+  });
+  const [savingEditProfile, setSavingEditProfile] = useState(false);
 
   // Modais Diagnóstico 360° e Churn
   const [diagModalOpen, setDiagModalOpen] = useState(false);
@@ -773,6 +786,125 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       });
     } finally {
       setSavingTrialConfig(false);
+    }
+  };
+
+  // Abrir Modal de Edição de Conta & Telas
+  const handleOpenEditModal = (p: Profile) => {
+    let expFormatted = '';
+    if (p.expires_at) {
+      try {
+        expFormatted = new Date(p.expires_at).toISOString().slice(0, 10);
+      } catch {
+        expFormatted = '';
+      }
+    }
+    setEditingProfile(p);
+    setEditFormData({
+      plan: p.plan_name || 'SPARTAN PRO',
+      screens: p.max_screens || 1,
+      status: p.status,
+      expiresAt: expFormatted,
+      whatsapp: p.whatsapp || '',
+      isTrial: !!p.is_trial,
+    });
+  };
+
+  // Salvar Alterações de Conta & Telas
+  const handleSaveEditProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProfile) return;
+    setSavingEditProfile(true);
+    try {
+      let finalExpires = editingProfile.expires_at;
+      if (editFormData.expiresAt) {
+        finalExpires = new Date(editFormData.expiresAt + 'T23:59:59Z').toISOString();
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          plan_name: editFormData.plan,
+          max_screens: editFormData.screens,
+          status: editFormData.status,
+          expires_at: finalExpires,
+          whatsapp: editFormData.whatsapp || null,
+          is_trial: editFormData.isTrial,
+        })
+        .eq('id', editingProfile.id);
+
+      if (error) throw error;
+
+      setProfiles((prev) =>
+        prev.map((item) =>
+          item.id === editingProfile.id
+            ? {
+                ...item,
+                plan_name: editFormData.plan,
+                max_screens: editFormData.screens,
+                status: editFormData.status,
+                expires_at: finalExpires,
+                whatsapp: editFormData.whatsapp || null,
+                is_trial: editFormData.isTrial,
+              }
+            : item
+        )
+      );
+
+      setNotification({
+        type: 'success',
+        message: `Conta de ${editingProfile.email} atualizada com sucesso! (${editFormData.screens} telas)`,
+      });
+      setEditingProfile(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao salvar alterações do cliente.';
+      setNotification({ type: 'error', message: msg });
+    } finally {
+      setSavingEditProfile(false);
+    }
+  };
+
+  // Desbloquear e Confirmar Pagamento Pix (+30 dias)
+  const handleConfirmPaymentAndUnlock = async (p: Profile) => {
+    setActionLoadingId(p.id);
+    try {
+      const baseDate = new Date();
+      baseDate.setDate(baseDate.getDate() + 30);
+      const newExpiryIso = baseDate.toISOString();
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          status: 'ativo',
+          is_trial: false,
+          expires_at: newExpiryIso,
+        })
+        .eq('id', p.id);
+
+      if (error) throw error;
+
+      setProfiles((prev) =>
+        prev.map((item) =>
+          item.id === p.id
+            ? {
+                ...item,
+                status: 'ativo',
+                is_trial: false,
+                expires_at: newExpiryIso,
+              }
+            : item
+        )
+      );
+
+      setNotification({
+        type: 'success',
+        message: `Pagamento confirmado! Acesso de ${p.email} desbloqueado por +30 dias!`,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao desbloquear cliente.';
+      setNotification({ type: 'error', message: msg });
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -1491,6 +1623,29 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                                   }`}
                                 >
                                   {p.status === 'ativo' ? <FaBan /> : <FaCheckCircle />}
+                                </button>
+
+                                {/* Desbloquear / Confirmar Pagamento Pix (+30d) */}
+                                {(p.status === 'vencido' || p.status === 'suspenso' || p.is_trial) && (
+                                  <button
+                                    onClick={() => handleConfirmPaymentAndUnlock(p)}
+                                    disabled={isActionBusy}
+                                    title="Desbloquear Cliente e Confirmar Pagamento Pix (+30 dias)"
+                                    className="px-2 py-1 bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 rounded-lg text-[10px] font-bold border border-emerald-500/30 transition disabled:opacity-50 flex items-center gap-1 shadow-sm"
+                                  >
+                                    <FaCheckCircle className="text-[9px]" />
+                                    <span>Desbloquear</span>
+                                  </button>
+                                )}
+
+                                {/* Editar Conta / Telas / Plano */}
+                                <button
+                                  onClick={() => handleOpenEditModal(p)}
+                                  disabled={isActionBusy}
+                                  title="Editar Conta, Telas Simultâneas e Plano"
+                                  className="p-1.5 bg-blue-500/10 hover:bg-blue-500/25 text-blue-300 rounded-lg border border-blue-500/20 transition text-xs disabled:opacity-50 flex items-center gap-1"
+                                >
+                                  <FaEdit />
                                 </button>
 
                                 {/* WhatsApp Direto */}
@@ -2240,6 +2395,213 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                 >
                   {creatingUser ? 'Criando...' : 'Salvar e Ativar Cliente'}
                 </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal: Editar Cliente & Gerenciar Telas */}
+      <AnimatePresence>
+        {editingProfile && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-[#13131e] border border-purple-900/50 rounded-2xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto"
+            >
+              <button
+                onClick={() => setEditingProfile(null)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-white"
+              >
+                <FaTimes />
+              </button>
+              <h3 className="text-lg font-bold text-white mb-1">Editar Conta do Cliente</h3>
+              <p className="text-xs text-purple-300 font-mono mb-4">{editingProfile.email}</p>
+
+              <form onSubmit={handleSaveEditProfile} className="space-y-4">
+                {/* Plano */}
+                <div>
+                  <label className="text-xs font-semibold text-gray-300 block mb-1">Plano do Cliente</label>
+                  <select
+                    value={editFormData.plan}
+                    onChange={(e) => {
+                      const pName = e.target.value;
+                      const found = plans.find((p) => p.name === pName);
+                      setEditFormData((prev) => ({
+                        ...prev,
+                        plan: pName,
+                        screens: found ? found.screens : prev.screens,
+                      }));
+                    }}
+                    className="w-full px-3 py-2 bg-black/60 border border-gray-800 focus:border-purple-500 rounded-xl text-xs text-white outline-none"
+                  >
+                    {plans.map((pl) => (
+                      <option key={pl.id} value={pl.name}>
+                        {pl.name} (Padrão: {pl.screens} {pl.screens > 1 ? 'telas' : 'tela'})
+                      </option>
+                    ))}
+                    <option value="Personalizado">Personalizado</option>
+                  </select>
+                </div>
+
+                {/* Quantidade de Telas Simultâneas */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-gray-300">Quantidade de Telas Simultâneas</label>
+                    <span className="text-xs font-bold text-purple-400">
+                      {editFormData.screens} {editFormData.screens > 1 ? 'Telas' : 'Tela'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-5 gap-1.5 mb-2">
+                    {[1, 2, 3, 4, 5].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setEditFormData((prev) => ({ ...prev, screens: num }))}
+                        className={`py-1.5 rounded-lg text-xs font-bold border transition ${
+                          editFormData.screens === num
+                            ? 'bg-purple-600 border-purple-500 text-white shadow'
+                            : 'bg-black/40 border-gray-800 text-gray-400 hover:text-white'
+                        }`}
+                      >
+                        {num} {num === 1 ? 'Tela' : 'Telas'}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={editFormData.screens}
+                    onChange={(e) =>
+                      setEditFormData((prev) => ({
+                        ...prev,
+                        screens: Math.max(1, parseInt(e.target.value) || 1),
+                      }))
+                    }
+                    className="w-full px-3 py-1.5 bg-black/60 border border-gray-800 rounded-lg text-xs text-white"
+                    placeholder="Ou digite o número de telas (ex: 1, 2, 4...)"
+                  />
+                </div>
+
+                {/* Status e Validade */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-300 block mb-1">Status da Conta</label>
+                    <select
+                      value={editFormData.status}
+                      onChange={(e) =>
+                        setEditFormData((prev) => ({
+                          ...prev,
+                          status: e.target.value as ProfileStatus,
+                        }))
+                      }
+                      className="w-full px-3 py-2 bg-black/60 border border-gray-800 focus:border-purple-500 rounded-xl text-xs text-white outline-none"
+                    >
+                      <option value="ativo">Ativo (Liberado)</option>
+                      <option value="vencido">Vencido (Bloqueado)</option>
+                      <option value="suspenso">Suspenso (Bloqueado)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-300 block mb-1">Validade (Expira Em)</label>
+                    <input
+                      type="date"
+                      value={editFormData.expiresAt}
+                      onChange={(e) =>
+                        setEditFormData((prev) => ({ ...prev, expiresAt: e.target.value }))
+                      }
+                      className="w-full px-3 py-2 bg-black/60 border border-gray-800 focus:border-purple-500 rounded-xl text-xs text-white outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Atalhos rápidos de validade */}
+                <div className="flex gap-1.5">
+                  {[7, 15, 30, 60, 365].map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => {
+                        const dt = new Date();
+                        dt.setDate(dt.getDate() + d);
+                        setEditFormData((prev) => ({
+                          ...prev,
+                          expiresAt: dt.toISOString().slice(0, 10),
+                          status: 'ativo',
+                        }));
+                      }}
+                      className="flex-1 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] text-gray-300 hover:text-white transition"
+                    >
+                      +{d}d
+                    </button>
+                  ))}
+                </div>
+
+                {/* WhatsApp */}
+                <div>
+                  <label className="text-xs font-semibold text-emerald-400 block mb-1">WhatsApp com DDD</label>
+                  <input
+                    type="tel"
+                    value={editFormData.whatsapp}
+                    onChange={(e) =>
+                      setEditFormData((prev) => ({ ...prev, whatsapp: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 bg-black/60 border border-emerald-500/30 rounded-xl text-xs text-white outline-none"
+                    placeholder="Ex: 11999999999"
+                  />
+                </div>
+
+                {/* Checkbox Teste Grátis */}
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-300 bg-black/40 p-2.5 rounded-xl border border-gray-800">
+                  <input
+                    type="checkbox"
+                    checked={editFormData.isTrial}
+                    onChange={(e) =>
+                      setEditFormData((prev) => ({ ...prev, isTrial: e.target.checked }))
+                    }
+                    className="rounded accent-purple-600"
+                  />
+                  <span>Conta em período de Teste Grátis (bloquear após vencimento)</span>
+                </label>
+
+                {/* Ação rápida Confirmar Pagamento */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const dt = new Date();
+                    dt.setDate(dt.getDate() + 30);
+                    setEditFormData((prev) => ({
+                      ...prev,
+                      status: 'ativo',
+                      isTrial: false,
+                      expiresAt: dt.toISOString().slice(0, 10),
+                    }));
+                  }}
+                  className="w-full py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5"
+                >
+                  <FaCheckCircle /> <span>Confirmar Pagamento Pix (+30 dias Ativo)</span>
+                </button>
+
+                {/* Submit */}
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingProfile(null)}
+                    className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl text-xs font-semibold transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingEditProfile}
+                    className="flex-1 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-bold text-xs rounded-xl shadow-lg transition disabled:opacity-50"
+                  >
+                    {savingEditProfile ? 'Salvando...' : 'Salvar Alterações'}
+                  </button>
+                </div>
               </form>
             </motion.div>
           </div>

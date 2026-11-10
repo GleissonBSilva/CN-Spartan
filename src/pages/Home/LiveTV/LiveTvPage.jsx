@@ -5,10 +5,12 @@ import LiveTvPlayer from './LiveTvPlayer';
 import SEO from '../SEO';
 import { useAuthProfile } from '../../../hooks/useAuthProfile';
 import SubscriptionLockGate from '../../../components/SubscriptionLockGate';
+import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
 
 const LiveTvPage = () => {
   const { isActive, isAdmin } = useAuthProfile();
   const canPlay = isAdmin || isActive;
+  const { isScreenBlocked, activeDevices, maxScreens, disconnectOtherDevices } = useScreenLimiter(canPlay);
 
   // Custom channels loaded from localStorage (M3U or custom added)
   const [customChannels, setCustomChannels] = useState(() => {
@@ -262,6 +264,14 @@ const LiveTvPage = () => {
           <div className="lg:col-span-8 flex flex-col gap-4">
             {!canPlay ? (
               <SubscriptionLockGate title={activeChannel?.name || 'Canal Ao Vivo'} />
+            ) : isScreenBlocked ? (
+              <SubscriptionLockGate
+                title={activeChannel?.name || 'Canal Ao Vivo'}
+                isScreenLimit={true}
+                maxScreens={maxScreens}
+                activeDevices={activeDevices}
+                onDisconnectOthers={disconnectOtherDevices}
+              />
             ) : (
               <LiveTvPlayer
                 channel={activeChannel}

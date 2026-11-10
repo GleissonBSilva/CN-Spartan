@@ -4,6 +4,7 @@ import { FaPlay, FaExpand, FaCompress, FaVolumeUp, FaClosedCaptioning, FaSyncAlt
 import { useLanguage } from '../../../context/LanguageContext';
 import { useAuthProfile } from '../../../hooks/useAuthProfile';
 import SubscriptionLockGate from '../../../components/SubscriptionLockGate';
+import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
 
 // Servidores separados por modalidade real de reprodução: Dublado BR e Legendado (Original HD)
 const SERVERS = {
@@ -42,6 +43,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
     const { language } = useLanguage();
     const { isActive, isAdmin } = useAuthProfile();
     const canPlay = isAdmin || isActive;
+    const { isScreenBlocked, activeDevices, maxScreens, disconnectOtherDevices } = useScreenLimiter(canPlay && hasStarted);
 
     // Resolução do modo padrão com base no Painel do Usuário (se pt-BR, começa em Dublado)
     const resolveDefaultMode = useCallback(() => {
@@ -169,6 +171,18 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
 
     if (!canPlay) {
         return <SubscriptionLockGate title={title} />;
+    }
+
+    if (isScreenBlocked) {
+        return (
+            <SubscriptionLockGate
+                title={title}
+                isScreenLimit={true}
+                maxScreens={maxScreens}
+                activeDevices={activeDevices}
+                onDisconnectOthers={disconnectOtherDevices}
+            />
+        );
     }
 
     const iframeSrc = activeServer.url(tvId, season, episode);

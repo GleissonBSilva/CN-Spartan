@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaTimes, FaGoogle, FaEnvelope, FaLock, FaUser, FaSpinner, FaExclamationCircle, FaCheckCircle, FaWhatsapp } from 'react-icons/fa';
+import { FaTimes, FaGoogle, FaEnvelope, FaLock, FaUser, FaSpinner, FaExclamationCircle, FaCheckCircle, FaWhatsapp, FaTv } from 'react-icons/fa';
 import { BiMoviePlay } from 'react-icons/bi';
 import { supabase } from '../lib/supabase';
+import { getSavedPlans } from '../constants/plans';
 import { auth, googleProvider, db } from '../firebase';
 import { 
   createUserWithEmailAndPassword, 
@@ -73,6 +74,11 @@ export default function AuthModal({ isOpen, onClose }) {
   const [pendingGoogleCred, setPendingGoogleCred] = useState(null);
 
   const [verificationSent, setVerificationSent] = useState(false);
+
+  // Planos disponíveis para assinatura
+  const plans = useMemo(() => getSavedPlans(), []);
+  const [selectedPlanId, setSelectedPlanId] = useState('pro');
+  const selectedPlan = useMemo(() => plans.find(p => p.id === selectedPlanId) || plans[0], [plans, selectedPlanId]);
 
   // Configuração Dinâmica de Teste Grátis (Trial) gerenciada pelo Admin
   const [trialDays, setTrialDays] = useState(() => {
@@ -231,8 +237,10 @@ export default function AuthModal({ isOpen, onClose }) {
           return;
         }
 
-        // Cadastro no Supabase com suporte a Trial configurável
+        // Cadastro no Supabase com suporte a Plano e Teste Grátis configurável
         const effectiveTrialDays = trialEnabled ? trialDays : 0;
+        const expiryDate = new Date(Date.now() + effectiveTrialDays * 24 * 60 * 60 * 1000).toISOString();
+
         const { data: supaData, error: supaError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
@@ -240,7 +248,10 @@ export default function AuthModal({ isOpen, onClose }) {
             data: {
               display_name: name,
               whatsapp: cleanPhone,
+              plan_name: selectedPlan.name,
+              max_screens: selectedPlan.screens,
               trial_days: effectiveTrialDays,
+              is_trial: effectiveTrialDays > 0,
             },
           },
         });
@@ -255,7 +266,15 @@ export default function AuthModal({ isOpen, onClose }) {
           try {
             await supabase
               .from('profiles')
-              .update({ whatsapp: cleanPhone })
+              .update({
+                whatsapp: cleanPhone,
+                plan_name: selectedPlan.name,
+                max_screens: selectedPlan.screens,
+                is_trial: effectiveTrialDays > 0,
+                trial_used: effectiveTrialDays > 0,
+                status: effectiveTrialDays > 0 ? 'ativo' : 'vencido',
+                expires_at: expiryDate,
+              })
               .eq('id', supaData.user.id);
           } catch {
             // Silencioso se trigger já tiver gravado
@@ -266,6 +285,8 @@ export default function AuthModal({ isOpen, onClose }) {
             email: supaData.user.email,
             displayName: name,
             whatsapp: cleanPhone,
+            plan_name: selectedPlan.name,
+            max_screens: selectedPlan.screens,
           }));
         }
 
@@ -313,7 +334,7 @@ export default function AuthModal({ isOpen, onClose }) {
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full max-w-[400px] bg-[#0b0f19]/95 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl shadow-black overflow-hidden pointer-events-auto"
+              className="w-full max-w-[460px] bg-[#0b0f19]/95 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl shadow-black overflow-hidden pointer-events-auto"
             >
               <div className="p-8">
                 {/* Header */}
@@ -506,6 +527,68 @@ export default function AuthModal({ isOpen, onClose }) {
                           * Obrigatório para envio da chave Pix e suporte.
                         </div>
                       </motion.div>
+
+                      {/* Seletor do Tipo de Plano (sempre com Teste Grátis conforme dias de teste) */}
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="space-y-2 pt-1 pb-1"
+                      >
+                        <div className="flex items-center justify-between text-xs font-bold text-gray-300">
+                          <span>Escolha seu Plano:</span>
+                          {trialEnabled && trialDays > 0 && (
+                            <span className="text-[10px] text-amber-400 font-black bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                              🎁 {trialDays} Dias de Teste Grátis
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2">
+                          {plans.map((p) => {
+                            const isSelected = p.id === selectedPlanId;
+                            return (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => setSelectedPlanId(p.id)}
+                                className={`relative p-2.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                                  isSelected
+                                    ? 'bg-red-600/20 border-red-500 ring-2 ring-red-500/50 shadow-lg shadow-red-950/60'
+                                    : 'bg-white/5 border-white/10 hover:bg-white/10 text-gray-400 hover:text-white'
+                                }`}
+                              >
+                                {p.badge && (
+                                  <span className="absolute -top-2 left-2 px-1.5 py-0.5 bg-gradient-to-r from-red-600 to-amber-600 text-white text-[8px] font-black rounded-full uppercase tracking-wider">
+                                    {p.badge}
+                                  </span>
+                                )}
+                                <div>
+                                  <div className="text-[11px] font-black text-white truncate">{p.name.replace('SPARTAN ', '')}</div>
+                                  <div className="text-[10px] text-gray-400 font-medium flex items-center gap-1 mt-0.5">
+                                    <FaTv className="text-[9px] text-red-400 shrink-0" />
+                                    <span>{p.screens} {p.screens > 1 ? 'Telas' : 'Tela'}</span>
+                                  </div>
+                                </div>
+                                <div className="text-xs font-black text-white mt-2">
+                                  R$ {p.monthlyPrice.toFixed(2).replace('.', ',')}
+                                  <span className="text-[8px] font-normal text-gray-400">/mês</span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {trialEnabled && trialDays > 0 ? (
+                          <div className="text-[11px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-xl p-2.5 font-medium leading-tight">
+                            ✨ <strong>Degustação Ativa:</strong> Você terá <strong>{trialDays} dias de teste grátis</strong> com acesso em <strong>{selectedPlan.screens} {selectedPlan.screens > 1 ? 'telas simultâneas' : 'tela individual'}</strong>. Após o teste, sua conta será bloqueada até a confirmação do pagamento.
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-gray-400 bg-white/5 border border-white/10 rounded-xl p-2 font-medium">
+                            Plano selecionado: <strong className="text-white">{selectedPlan.name}</strong> ({selectedPlan.screens} {selectedPlan.screens > 1 ? 'telas simultâneas' : 'tela individual'}).
+                          </div>
+                        )}
+                      </motion.div>
                     </>
                   )}
 
@@ -565,8 +648,8 @@ export default function AuthModal({ isOpen, onClose }) {
                       : isLogin
                         ? 'Entrar'
                         : trialEnabled && trialDays > 0
-                          ? `Criar Conta & Liberar ${trialDays} Dias Grátis`
-                          : 'Criar Minha Conta'
+                          ? `Criar Conta & Iniciar Teste (${selectedPlan.name.replace('SPARTAN ', '')})`
+                          : `Criar Conta (${selectedPlan.name.replace('SPARTAN ', '')})`
                     }
                   </button>
                 </form>
