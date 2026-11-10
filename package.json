@@ -6,10 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:apk": "vite build && cap sync && cd android && gradlew assembleDebug",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/cli": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
     "@heroicons/react": "^2.1.5",
     "@supabase/supabase-js": "^2.119.0",
     "@tanstack/react-query": "^5.60.5",

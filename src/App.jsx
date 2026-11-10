@@ -1,4 +1,6 @@
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter as Router, Route, Routes, useNavigate, useLocation } from 'react-router-dom';
+import { App as CapApp } from '@capacitor/app';
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import ParentComponent from './pages/Home/ParentComponent';
@@ -16,9 +18,50 @@ import AuthActionPage from './pages/Home/AuthActionPage';
 import LiveTvPage from './pages/Home/LiveTV/LiveTvPage';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 
+// Handles TV Remote Control (Back button, Escape, Return)
+function TvNavigationHandler() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    let backListener;
+    try {
+      backListener = CapApp.addListener('backButton', () => {
+        if (location.pathname !== '/' && location.pathname !== '') {
+          navigate(-1);
+        } else {
+          CapApp.exitApp();
+        }
+      });
+    } catch {
+      // Browser environment fallback
+    }
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' || e.key === 'BrowserBack' || e.key === 'GoBack') {
+        if (location.pathname !== '/' && location.pathname !== '') {
+          e.preventDefault();
+          navigate(-1);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      if (backListener && typeof backListener.then === 'function') {
+        backListener.then(l => l.remove());
+      }
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [location.pathname, navigate]);
+
+  return null;
+}
+
 function App() {
   return (
     <Router>
+      <TvNavigationHandler />
       <Routes>
         <Route path="/admin" element={<AdminDashboard defaultTab="overview" />} />
         <Route path="/admin/users" element={<AdminDashboard defaultTab="users" />} />

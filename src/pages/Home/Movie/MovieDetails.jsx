@@ -447,7 +447,13 @@ const MovieDetails = ({ movieId: movieIdProp }) => {
                 {pinPromptError && <p className="text-xs text-red-400 mt-3">{pinPromptError}</p>}
               </div>
             ) : (
-              <MemoizedVideoPlayer key={movieId} movieId={movieId} title={movie.title} />
+              <MemoizedVideoPlayer
+                key={movieId}
+                movieId={movieId}
+                title={movie.title}
+                backdrop={movie.backdrop_path ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}` : undefined}
+                poster={movie.poster_path ? `https://image.tmdb.org/t/p/w780${movie.poster_path}` : undefined}
+              />
             )}
           </div>
         </div>

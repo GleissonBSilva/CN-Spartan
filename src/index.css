@@ -121,3 +121,35 @@ html, body {
 .animate-fadeIn {
   animation: fadeIn 0.3s ease-out;
 }
+
+
+/* =========================================================
+   ANDROID TV / TV BOX REMOTE CONTROL (D-PAD) NAVIGATION STYLES
+   ========================================================= */
+
+:focus-visible,
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid #ef4444 !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 18px rgba(239, 68, 68, 0.8) !important;
+  transform: scale(1.03);
+  transition: transform 0.15s ease, outline 0.15s ease, box-shadow 0.15s ease;
+  z-index: 50;
+}
+
+* {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input, textarea {
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+
+html {
+  scroll-behavior: smooth;
+}

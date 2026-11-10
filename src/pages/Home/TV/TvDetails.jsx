@@ -696,7 +696,9 @@ const TvDetails = ({ tvId: tvIdProp }) => {
                 tvId={tvId}
                 season={playingSeason}
                 episode={playingEpisode}
-                title={tv.name}
+                title={`${tv.name} • T${playingSeason}:E${playingEpisode}`}
+                backdrop={tv.backdrop_path ? `https://image.tmdb.org/t/p/w1280${tv.backdrop_path}` : undefined}
+                poster={tv.poster_path ? `https://image.tmdb.org/t/p/w780${tv.poster_path}` : undefined}
                 key={`${tvId}-${playingSeason}-${playingEpisode}`}
               />
             ) : (

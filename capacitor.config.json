@@ -1,0 +1,13 @@
+{
+  "appId": "com.cinespartan.app",
+  "appName": "Cine Spartan",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true,
+    "webContentsDebuggingEnabled": true
+  }
+}

@@ -269,11 +269,28 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
   };
 
   const toggleFullscreen = () => {
-    if (!containerRef.current) return;
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen?.().catch(() => {});
+    const nextState = !isFullscreen;
+    setIsFullscreen(nextState);
+
+    const el = containerRef.current;
+    if (nextState) {
+      try {
+        if (el?.requestFullscreen) {
+          el.requestFullscreen().catch(() => {});
+        } else if (el?.webkitRequestFullscreen) {
+          el.webkitRequestFullscreen();
+        }
+      } catch (err) {}
     } else {
-      document.exitFullscreen?.().catch(() => {});
+      try {
+        if (document.fullscreenElement) {
+          if (document.exitFullscreen) {
+            document.exitFullscreen().catch(() => {});
+          } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+          }
+        }
+      } catch (err) {}
     }
   };
 
@@ -380,7 +397,7 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
       <div
         ref={containerRef}
         className={`relative w-full bg-black overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.6)] flex items-center justify-center transition-all ${
-          isFullscreen ? 'h-screen w-screen rounded-none ring-0' : 'aspect-video rounded-2xl ring-1 ring-white/10'
+          isFullscreen ? 'fixed inset-0 z-[9999] h-screen w-screen rounded-none ring-0' : 'aspect-video rounded-2xl ring-1 ring-white/10'
         }`}
       >
         {isEmbed ? (
