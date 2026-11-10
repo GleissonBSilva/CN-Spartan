@@ -42,6 +42,7 @@ const SERVERS = {
 const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster }) => {
     const { language } = useLanguage();
     const { isActive, isAdmin } = useAuthProfile();
+    const [hasStarted, setHasStarted] = useState(false);
     const canPlay = isAdmin || isActive;
     const { isScreenBlocked, activeDevices, maxScreens, disconnectOtherDevices } = useScreenLimiter(canPlay && hasStarted);
 
@@ -54,7 +55,6 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
 
     const [streamMode, setStreamMode] = useState(resolveDefaultMode);
     const [sourceIdx, setSourceIdx] = useState(0);
-    const [hasStarted, setHasStarted] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [showControls, setShowControls] = useState(true);
     const [toastMessage, setToastMessage] = useState('');
