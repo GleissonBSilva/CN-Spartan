@@ -1,148 +1,237 @@
 import { memo, useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { FaPlay, FaExpand, FaCompress, FaVolumeUp, FaClosedCaptioning, FaSyncAlt } from 'react-icons/fa';
+import { FaPlay, FaExpand, FaCompress, FaVolumeUp, FaClosedCaptioning, FaSyncAlt, FaCheck, FaChevronDown } from 'react-icons/fa';
 import { useLanguage } from '../../../context/LanguageContext';
 import { useAuthProfile } from '../../../hooks/useAuthProfile';
 import SubscriptionLockGate from '../../../components/SubscriptionLockGate';
 
-// Servidores separados por modalidade de áudio com fallback automático
-const SERVERS_BY_AUDIO = {
-  dublado: [
+// Idiomas e Legendas Principais
+export const AUDIO_OPTIONS = [
+  { code: 'pt', label: 'Português', subLabel: 'Dublado BR', flag: '🇧🇷' },
+  { code: 'en', label: 'Inglês', subLabel: 'Original', flag: '🇺🇸' },
+  { code: 'es', label: 'Espanhol', subLabel: 'Español', flag: '🇪🇸' },
+  { code: 'ko', label: 'Coreano', subLabel: '한국어', flag: '🇰🇷' },
+  { code: 'ja', label: 'Japonês', subLabel: '日本語', flag: '🇯🇵' },
+  { code: 'fr', label: 'Francês', subLabel: 'Français', flag: '🇫🇷' },
+];
+
+export const SUBTITLE_OPTIONS = [
+  { code: 'pt', label: 'Português', subLabel: 'Brasil', flag: '🇧🇷' },
+  { code: 'en', label: 'Inglês', subLabel: 'English', flag: '🇺🇸' },
+  { code: 'es', label: 'Espanhol', subLabel: 'Español', flag: '🇪🇸' },
+  { code: 'ko', label: 'Coreano', subLabel: '한국어', flag: '🇰🇷' },
+  { code: 'ja', label: 'Japonês', subLabel: '日本語', flag: '🇯🇵' },
+  { code: 'off', label: 'Desativada', subLabel: 'Sem legendas', flag: '🚫' },
+];
+
+// Gerador de rotas de transmissão dinâmicas por idioma de áudio
+const getSourcesForAudio = (audioCode) => {
+  if (audioCode === 'pt') {
+    return [
+      {
+        id: 'myembed_br',
+        name: 'MyEmbed Dublado BR (Direto)',
+        url: (id) => `https://myembed.biz/filme/${id}`
+      },
+      {
+        id: 'vidlink_direct',
+        name: 'VidLink Ultra HD (Multi-Áudio BR)',
+        url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+      },
+      {
+        id: 'superflix_br',
+        name: 'SuperFlix Dublado BR',
+        url: (id) => `https://superflixapi.bond/filme/${id}`
+      },
+      {
+        id: 'embedsu_direct',
+        name: 'Embed.su HD (Multi-Áudio)',
+        url: (id) => `https://embed.su/embed/movie/${id}`
+      }
+    ];
+  }
+  return [
     {
-      id: 'dub_superflix',
-      name: 'SuperFlix HD (Dublado BR)',
-      url: (id) => `https://superflixapi.bond/filme/${id}`
+      id: 'vidlink_direct',
+      name: `VidLink Ultra HD (${audioCode.toUpperCase()})`,
+      url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
     },
     {
-      id: 'dub_superflix_buzz',
-      name: 'SuperFlix 2 (Dublado BR)',
-      url: (id) => `https://superflixapi.buzz/filme/${id}`
-    },
-    {
-      id: 'dub_myembed',
-      name: 'MyEmbed BR (Dublado)',
-      url: (id) => `https://myembed.biz/filme/${id}`
-    },
-    {
-      id: 'dub_embedmovies',
-      name: 'EmbedMovies (Dublado)',
-      url: (id) => `https://embedmovies.org/filme/${id}`
-    }
-  ],
-  original: [
-    {
-      id: 'orig_vidlink',
-      name: 'VidLink Ultra HD (Multi-Áudio / Legendas)',
-      url: (id) => `https://vidlink.pro/movie/${id}?primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
-    },
-    {
-      id: 'orig_embedsu',
-      name: 'Embed.su (Multi-Legendas)',
+      id: 'embedsu_direct',
+      name: `Embed.su HD (${audioCode.toUpperCase()})`,
       url: (id) => `https://embed.su/embed/movie/${id}`
     },
     {
-      id: 'orig_multiembed',
-      name: 'MultiEmbed (Legendado)',
-      url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
-    },
-    {
-      id: 'orig_vidsrc',
-      name: 'VidSrc To (Original)',
+      id: 'vidsrc_direct',
+      name: 'VidSrc Player',
       url: (id) => `https://vidsrc.to/embed/movie/${id}`
     }
-  ]
+  ];
 };
 
 const VideoPlayer = ({ movieId, title, backdrop, poster }) => {
-    const { t } = useLanguage();
+    const { language } = useLanguage();
     const { isActive, isAdmin } = useAuthProfile();
     const canPlay = isAdmin || isActive;
 
-    // Preferência de áudio salva ou padrão direto (Dublado BR)
-    const [audioMode, setAudioMode] = useState(() => {
-        return localStorage.getItem('cinespartan_preferred_audio') || 'dublado';
-    });
+    // Resolução do idioma padrão com base no Painel do Usuário
+    const resolveDefaultAudio = useCallback(() => {
+        const saved = localStorage.getItem('cinespartan_preferred_audio');
+        if (saved) return saved;
+        if (language?.startsWith('en')) return 'en';
+        if (language?.startsWith('es')) return 'es';
+        if (language?.startsWith('ko')) return 'ko';
+        if (language?.startsWith('ja')) return 'ja';
+        if (language?.startsWith('fr')) return 'fr';
+        return 'pt'; // Português como padrão principal
+    }, [language]);
 
-    // O usuário precisa apenas clicar no Play direto
+    const resolveDefaultSubtitle = useCallback(() => {
+        const saved = localStorage.getItem('cinespartan_preferred_subtitle');
+        if (saved) return saved;
+        if (language?.startsWith('en')) return 'en';
+        if (language?.startsWith('es')) return 'es';
+        if (language?.startsWith('ko')) return 'ko';
+        if (language?.startsWith('ja')) return 'ja';
+        return 'pt'; // Português como legenda principal
+    }, [language]);
+
+    const [selectedAudio, setSelectedAudio] = useState(resolveDefaultAudio);
+    const [selectedSubtitle, setSelectedSubtitle] = useState(resolveDefaultSubtitle);
+
+    // Dropdowns do display
+    const [openAudioMenu, setOpenAudioMenu] = useState(false);
+    const [openSubtitleMenu, setOpenSubtitleMenu] = useState(false);
+    const [toastMessage, setToastMessage] = useState('');
+
+    // Estado da reprodução
     const [hasStarted, setHasStarted] = useState(false);
-    const [serverIdx, setServerIdx] = useState(0);
+    const [sourceIdx, setSourceIdx] = useState(0);
     const [serverStatus, setServerStatus] = useState('parado');
-    const [statusMessage, setStatusMessage] = useState('');
     const [isFullscreen, setIsFullscreen] = useState(false);
 
     const playerContainerRef = useRef(null);
     const watchdogTimerRef = useRef(null);
+    const toastTimerRef = useRef(null);
 
-    const currentServers = SERVERS_BY_AUDIO[audioMode] || SERVERS_BY_AUDIO.dublado;
-    const activeServer = currentServers[serverIdx] || currentServers[0];
+    // Fontes ativas baseadas no idioma de áudio
+    const availableSources = getSourcesForAudio(selectedAudio);
+    const activeServer = availableSources[sourceIdx] || availableSources[0];
 
-    // Detecção automática em segundo plano
-    const startServerWatchdog = useCallback((idx) => {
+    // Atualiza quando o usuário muda o idioma geral no painel
+    useEffect(() => {
+        const savedAudio = localStorage.getItem('cinespartan_preferred_audio');
+        if (!savedAudio) {
+            setSelectedAudio(resolveDefaultAudio());
+        }
+        const savedSub = localStorage.getItem('cinespartan_preferred_subtitle');
+        if (!savedSub) {
+            setSelectedSubtitle(resolveDefaultSubtitle());
+        }
+    }, [language, resolveDefaultAudio, resolveDefaultSubtitle]);
+
+    const showToast = (msg) => {
+        setToastMessage(msg);
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = setTimeout(() => {
+            setToastMessage('');
+        }, 4000);
+    };
+
+    // Watchdog para auto-recuperação de rotas se falhar
+    const startServerWatchdog = useCallback((idx, sources) => {
         if (watchdogTimerRef.current) {
             clearTimeout(watchdogTimerRef.current);
         }
         setServerStatus('conectando');
-        setStatusMessage(`Conectando...`);
 
-        // Se após 7s não carregar, troca silenciosamente para rota reserva
         watchdogTimerRef.current = setTimeout(() => {
-            const nextIdx = (idx + 1) % currentServers.length;
+            const nextIdx = (idx + 1) % sources.length;
             if (nextIdx !== idx) {
                 setServerStatus('alternando');
-                setStatusMessage(`Otimizando conexão com servidor alternativo...`);
                 setTimeout(() => {
-                    setServerIdx(nextIdx);
-                }, 400);
+                    setSourceIdx(nextIdx);
+                }, 300);
             }
-        }, 7000);
-    }, [currentServers]);
+        }, 8000);
+    }, []);
 
-    // Ao clicar em Play: inicia o filme direto sem intermediários
+    // Ao clicar em Play
     const handleStartPlay = () => {
         setHasStarted(true);
-        startServerWatchdog(serverIdx);
+        startServerWatchdog(sourceIdx, availableSources);
     };
 
-    // Troca de idioma em tempo real enquanto o filme está tocando
-    const handleAudioChange = (newMode) => {
-        if (newMode === audioMode) return;
-        setAudioMode(newMode);
-        setServerIdx(0);
-        localStorage.setItem('cinespartan_preferred_audio', newMode);
+    // Troca de Áudio
+    const handleSelectAudio = (code) => {
+        setSelectedAudio(code);
+        setSourceIdx(0);
+        setOpenAudioMenu(false);
+        localStorage.setItem('cinespartan_preferred_audio', code);
+
+        const item = AUDIO_OPTIONS.find(a => a.code === code);
+        showToast(`🔊 Áudio definido para: ${item ? item.flag + ' ' + item.label : code}`);
+
         if (hasStarted) {
-            startServerWatchdog(0);
+            const newSources = getSourcesForAudio(code);
+            startServerWatchdog(0, newSources);
         }
     };
 
-    // Alternar servidor manualmente se desejar
+    // Troca de Legenda
+    const handleSelectSubtitle = (code) => {
+        setSelectedSubtitle(code);
+        setOpenSubtitleMenu(false);
+        localStorage.setItem('cinespartan_preferred_subtitle', code);
+
+        const item = SUBTITLE_OPTIONS.find(s => s.code === code);
+        if (code === 'off') {
+            showToast(`🚫 Legendas desativadas`);
+        } else {
+            showToast(`💬 Legenda definida: ${item ? item.flag + ' ' + item.label : code} (selecionável no CC do vídeo)`);
+        }
+    };
+
+    // Alternar rota manual
     const handleNextServer = () => {
-        const next = (serverIdx + 1) % currentServers.length;
-        setServerIdx(next);
+        const next = (sourceIdx + 1) % availableSources.length;
+        setSourceIdx(next);
         if (hasStarted) {
-            startServerWatchdog(next);
+            startServerWatchdog(next, availableSources);
         }
     };
 
     useEffect(() => {
         if (hasStarted) {
-            startServerWatchdog(serverIdx);
+            startServerWatchdog(sourceIdx, availableSources);
         }
         return () => {
             if (watchdogTimerRef.current) {
                 clearTimeout(watchdogTimerRef.current);
             }
         };
-    }, [movieId, audioMode, serverIdx, hasStarted, startServerWatchdog]);
+    }, [movieId, selectedAudio, sourceIdx, hasStarted, startServerWatchdog]);
 
     const handleIframeLoad = () => {
         if (watchdogTimerRef.current) {
             clearTimeout(watchdogTimerRef.current);
         }
         setServerStatus('pronto');
-        setStatusMessage('');
     };
 
-    // Fullscreen robusto (Nativo Android + CSS Fixed Viewport)
+    // Fechar menus ao clicar fora
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (!e.target.closest('.language-control-menu')) {
+                setOpenAudioMenu(false);
+                setOpenSubtitleMenu(false);
+            }
+        };
+        window.addEventListener('click', handleClickOutside);
+        return () => window.removeEventListener('click', handleClickOutside);
+    }, []);
+
+    // Fullscreen robusto
     const toggleFullscreen = () => {
         const nextState = !isFullscreen;
         setIsFullscreen(nextState);
@@ -187,72 +276,136 @@ const VideoPlayer = ({ movieId, title, backdrop, poster }) => {
 
     const iframeSrc = activeServer.url(movieId);
     const bgImage = backdrop || poster;
+    const currentAudioObj = AUDIO_OPTIONS.find(a => a.code === selectedAudio) || AUDIO_OPTIONS[0];
+    const currentSubObj = SUBTITLE_OPTIONS.find(s => s.code === selectedSubtitle) || SUBTITLE_OPTIONS[0];
 
     return (
         <div className="w-full flex flex-col gap-2.5">
-            {/* Controles pós-play: Só aparecem quando o filme já estiver em reprodução */}
-            {hasStarted && (
-                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-black/70 border border-white/10 backdrop-blur-md animate-fadeIn">
-                    
-                    {/* Troca rápida de Áudio / Legenda durante o filme */}
-                    <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1 mr-1">
+            {/* Barra de Controles do Display: Sempre visível com Botões de Idioma e Legendas */}
+            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-black/80 border border-white/10 backdrop-blur-md shadow-lg">
+                
+                {/* Seletor de Áudio / Idioma & Legenda */}
+                <div className="flex flex-wrap items-center gap-2 language-control-menu">
+                    {/* Botão de Áudio / Idioma */}
+                    <div className="relative">
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenAudioMenu(p => !p);
+                                setOpenSubtitleMenu(false);
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white/10 hover:bg-white/20 text-white border border-white/15 transition-all shadow-sm cursor-pointer"
+                            title="Alterar idioma do áudio"
+                        >
                             <FaVolumeUp className="text-red-500 text-xs" />
-                            <span>Áudio:</span>
-                        </span>
-
-                        <button
-                            type="button"
-                            onClick={() => handleAudioChange('dublado')}
-                            className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                                audioMode === 'dublado'
-                                    ? 'bg-red-600 text-white shadow-md shadow-red-950/50'
-                                    : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
-                            }`}
-                        >
-                            🇧🇷 Dublado BR
+                            <span>{currentAudioObj.flag} {currentAudioObj.label}</span>
+                            <FaChevronDown className="text-[10px] text-gray-400 ml-0.5" />
                         </button>
 
-                        <button
-                            type="button"
-                            onClick={() => handleAudioChange('original')}
-                            className={`flex items-center gap-1 px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                                audioMode === 'original'
-                                    ? 'bg-amber-500 text-black shadow-md shadow-amber-950/50'
-                                    : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
-                            }`}
-                        >
-                            <FaClosedCaptioning className="text-xs" />
-                            <span>Original (Legendado)</span>
-                        </button>
+                        {/* Menu Suspenso de Idiomas de Áudio */}
+                        {openAudioMenu && (
+                            <div className="absolute left-0 top-full mt-1.5 w-56 rounded-xl bg-[#14161f] border border-white/20 shadow-2xl py-1.5 z-[1000] backdrop-blur-xl animate-fadeIn">
+                                <div className="px-3 py-1 border-b border-white/10 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                    Idioma do Áudio
+                                </div>
+                                {AUDIO_OPTIONS.map((opt) => (
+                                    <button
+                                        key={opt.code}
+                                        type="button"
+                                        onClick={() => handleSelectAudio(opt.code)}
+                                        className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold hover:bg-red-600/20 transition-colors text-left ${
+                                            selectedAudio === opt.code ? 'text-red-400 bg-red-600/10' : 'text-gray-200'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm">{opt.flag}</span>
+                                            <div>
+                                                <p className="font-bold">{opt.label}</p>
+                                                <p className="text-[10px] text-gray-400 font-normal">{opt.subLabel}</p>
+                                            </div>
+                                        </div>
+                                        {selectedAudio === opt.code && <FaCheck className="text-xs text-red-500" />}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
-                    {/* Controles da direita: Rota e Tela Cheia */}
-                    <div className="flex items-center gap-2 ml-auto">
+                    {/* Botão de Legendas */}
+                    <div className="relative">
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenSubtitleMenu(p => !p);
+                                setOpenAudioMenu(false);
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white/10 hover:bg-white/20 text-white border border-white/15 transition-all shadow-sm cursor-pointer"
+                            title="Alterar legendas"
+                        >
+                            <FaClosedCaptioning className="text-amber-400 text-xs" />
+                            <span>{currentSubObj.flag} {currentSubObj.label}</span>
+                            <FaChevronDown className="text-[10px] text-gray-400 ml-0.5" />
+                        </button>
+
+                        {/* Menu Suspenso de Legendas */}
+                        {openSubtitleMenu && (
+                            <div className="absolute left-0 top-full mt-1.5 w-56 rounded-xl bg-[#14161f] border border-white/20 shadow-2xl py-1.5 z-[1000] backdrop-blur-xl animate-fadeIn">
+                                <div className="px-3 py-1 border-b border-white/10 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                    Legendas
+                                </div>
+                                {SUBTITLE_OPTIONS.map((opt) => (
+                                    <button
+                                        key={opt.code}
+                                        type="button"
+                                        onClick={() => handleSelectSubtitle(opt.code)}
+                                        className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold hover:bg-amber-500/20 transition-colors text-left ${
+                                            selectedSubtitle === opt.code ? 'text-amber-400 bg-amber-500/10' : 'text-gray-200'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm">{opt.flag}</span>
+                                            <div>
+                                                <p className="font-bold">{opt.label}</p>
+                                                <p className="text-[10px] text-gray-400 font-normal">{opt.subLabel}</p>
+                                            </div>
+                                        </div>
+                                        {selectedSubtitle === opt.code && <FaCheck className="text-xs text-amber-400" />}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Controles da Direita: Rota e Tela Cheia */}
+                <div className="flex items-center gap-2 ml-auto">
+                    {hasStarted && (
                         <button
                             type="button"
                             onClick={handleNextServer}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/15 text-gray-300 hover:text-white transition-all border border-white/10"
-                            title="Alternar rota de transmissão"
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/15 text-gray-300 hover:text-white transition-all border border-white/10 cursor-pointer"
+                            title="Alternar rota de transmissão se travar"
                         >
                             <FaSyncAlt className={`text-[10px] ${serverStatus === 'alternando' ? 'animate-spin text-amber-400' : ''}`} />
-                            <span className="hidden sm:inline">Trocar Servidor</span>
+                            <span className="hidden sm:inline">Trocar Rota</span>
                         </button>
+                    )}
 
-                        <button
-                            type="button"
-                            onClick={toggleFullscreen}
-                            title={isFullscreen ? 'Sair da Tela Cheia' : 'Tela Cheia'}
-                            className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-red-600 hover:bg-red-700 text-white transition-all shadow-md shadow-red-950/50"
-                        >
-                            {isFullscreen ? <FaCompress className="text-xs" /> : <FaExpand className="text-xs" />}
-                            <span>{isFullscreen ? 'Sair' : 'Tela Cheia'}</span>
-                        </button>
-                    </div>
+                    <button
+                        type="button"
+                        onClick={toggleFullscreen}
+                        title={isFullscreen ? 'Sair da Tela Cheia' : 'Tela Cheia'}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-red-600 hover:bg-red-700 text-white transition-all shadow-md shadow-red-950/50 cursor-pointer"
+                    >
+                        {isFullscreen ? <FaCompress className="text-xs" /> : <FaExpand className="text-xs" />}
+                        <span>{isFullscreen ? 'Sair' : 'Tela Cheia'}</span>
+                    </button>
                 </div>
-            )}
+            </div>
 
-            {/* Container do Player (Capa com Play Gigante antes do clique, ou Vídeo direto) */}
+            {/* Container do Player */}
             <div
                 ref={playerContainerRef}
                 className={`relative w-full bg-black overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] flex items-center justify-center transition-all ${
@@ -261,13 +414,19 @@ const VideoPlayer = ({ movieId, title, backdrop, poster }) => {
                         : 'aspect-video rounded-2xl ring-1 ring-white/15'
                 }`}
             >
+                {/* Notificação Toast Flutuante */}
+                {toastMessage && (
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full bg-black/95 border border-white/20 text-white text-xs font-medium shadow-2xl backdrop-blur-md animate-fadeIn">
+                        <span>{toastMessage}</span>
+                    </div>
+                )}
+
                 {!hasStarted ? (
                     /* Tela Limpa: Apenas a Arte do Filme e o Botão de Play Central */
                     <div
                         onClick={handleStartPlay}
                         className="relative w-full h-full flex flex-col items-center justify-center cursor-pointer group select-none"
                     >
-                        {/* Imagem de Fundo Cinematográfica */}
                         {bgImage ? (
                             <img
                                 src={bgImage}
@@ -278,10 +437,9 @@ const VideoPlayer = ({ movieId, title, backdrop, poster }) => {
                             <div className="absolute inset-0 bg-gradient-to-br from-red-950/50 via-black to-black" />
                         )}
 
-                        {/* Vinheta Escura Estilo Cinema */}
                         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-black/70" />
 
-                        {/* Botão de Play Gigante no Centro (Focado para controle remoto da TV Box) */}
+                        {/* Botão de Play Central */}
                         <div className="relative z-10 flex flex-col items-center gap-3">
                             <button
                                 type="button"
@@ -296,24 +454,25 @@ const VideoPlayer = ({ movieId, title, backdrop, poster }) => {
                             <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-wider drop-shadow-lg text-center px-4">
                                 {title || 'Assistir Filme'}
                             </h3>
-                            <span className="text-xs text-gray-300 font-medium bg-black/60 px-3 py-1 rounded-full border border-white/10 backdrop-blur-md">
-                                Clique para Iniciar
-                            </span>
+                            <div className="flex items-center gap-2 text-xs text-gray-300 font-medium bg-black/70 px-3.5 py-1.5 rounded-full border border-white/10 backdrop-blur-md">
+                                <span>{currentAudioObj.flag} {currentAudioObj.label}</span>
+                                <span>•</span>
+                                <span>💬 {currentSubObj.label}</span>
+                            </div>
                         </div>
                     </div>
                 ) : (
-                    /* Vídeo em Reprodução Imediata */
+                    /* Vídeo em Reprodução Direta */
                     <>
-                        {/* Aviso sutil de alternância se o servidor oscilar */}
                         {serverStatus === 'alternando' && (
                             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 rounded-full bg-black/90 border border-amber-500/50 text-amber-300 text-xs shadow-2xl backdrop-blur-md animate-bounce">
                                 <FaSyncAlt className="animate-spin text-sm text-amber-400" />
-                                <span>{statusMessage}</span>
+                                <span>Otimizando conexão com servidor alternativo...</span>
                             </div>
                         )}
 
                         <iframe
-                            key={`${movieId}-${audioMode}-${activeServer.id}`}
+                            key={`${movieId}-${selectedAudio}-${activeServer.id}`}
                             src={iframeSrc}
                             onLoad={handleIframeLoad}
                             allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *"
