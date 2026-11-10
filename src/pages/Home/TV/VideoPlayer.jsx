@@ -24,46 +24,35 @@ export const SUBTITLE_OPTIONS = [
   { code: 'off', label: 'Desativada', subLabel: 'Sem legendas', flag: '🚫' },
 ];
 
-// Gerador de rotas de transmissão dinâmicas por idioma de áudio para Séries/Animes
-const getSourcesForAudio = (audioCode) => {
-  if (audioCode === 'pt') {
-    return [
-      {
-        id: 'myembed_br',
-        name: 'MyEmbed Dublado BR (Direto)',
-        url: (id, s, e) => `https://myembed.biz/serie/${id}/${s}/${e}`
-      },
-      {
-        id: 'vidlink_direct',
-        name: 'VidLink Ultra HD (Multi-Áudio BR)',
-        url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
-      },
-      {
-        id: 'superflix_br',
-        name: 'SuperFlix Dublado BR',
-        url: (id, s, e) => `https://superflixapi.bond/serie/${id}/${s}/${e}`
-      },
-      {
-        id: 'embedsu_direct',
-        name: 'Embed.su HD (Multi-Áudio)',
-        url: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}`
-      }
-    ];
-  }
+// Gerador de rotas de transmissão dinâmicas com Servidor Principal fixo para Séries/Animes
+const getSourcesForAudio = (audioCode, subtitleCode) => {
+  const dsParam = subtitleCode && subtitleCode !== 'off' 
+    ? `&ds_lang=${subtitleCode}&lang=${subtitleCode}` 
+    : '';
+
   return [
+    // ⭐ 1. SERVIDOR PRINCIPAL FIXO (Cine Spartan Ultra HD - Áudio Original/Multi-Áudio com legendas automáticas em português)
     {
-      id: 'vidlink_direct',
-      name: `VidLink Ultra HD (${audioCode.toUpperCase()})`,
-      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+      id: 'vidlink_principal',
+      name: 'Servidor Principal (Cine Spartan Ultra HD)',
+      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true${dsParam}&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
     },
+    // 🌐 2. Servidor Alternativo 1 (Embed.su)
     {
-      id: 'embedsu_direct',
-      name: `Embed.su HD (${audioCode.toUpperCase()})`,
+      id: 'embedsu_alt',
+      name: 'Servidor Alternativo 1 (Embed.su HD)',
       url: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}`
     },
+    // 🇧🇷 3. Servidor Dublado BR (MyEmbed - Dublagens Nacionais)
     {
-      id: 'vidsrc_direct',
-      name: 'VidSrc Player',
+      id: 'myembed_br',
+      name: 'Servidor Dublado BR (MyEmbed)',
+      url: (id, s, e) => `https://myembed.biz/serie/${id}/${s}/${e}`
+    },
+    // 🎬 4. Servidor Alternativo 2 (VidSrc)
+    {
+      id: 'vidsrc_alt',
+      name: 'Servidor Alternativo 2 (VidSrc)',
       url: (id, s, e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}`
     }
   ];
@@ -116,8 +105,8 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
     const toastTimerRef = useRef(null);
     const hideControlsTimerRef = useRef(null);
 
-    // Fontes ativas baseadas no idioma de áudio
-    const availableSources = getSourcesForAudio(selectedAudio);
+    // Fontes ativas baseadas no idioma de áudio e legendas selecionados
+    const availableSources = getSourcesForAudio(selectedAudio, selectedSubtitle);
     const activeServer = availableSources[sourceIdx] || availableSources[0];
 
     // Função para manter controles discretos e fazê-los sumir após 3s de inatividade
@@ -164,47 +153,23 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
         }, 4000);
     };
 
-    // Watchdog para auto-recuperação de rotas se falhar
-    const startServerWatchdog = useCallback((idx, sources) => {
-        if (watchdogTimerRef.current) {
-            clearTimeout(watchdogTimerRef.current);
-        }
-        setServerStatus('conectando');
-
-        watchdogTimerRef.current = setTimeout(() => {
-            const nextIdx = (idx + 1) % sources.length;
-            if (nextIdx !== idx) {
-                setServerStatus('alternando');
-                setTimeout(() => {
-                    setSourceIdx(nextIdx);
-                }, 300);
-            }
-        }, 8000);
-    }, []);
-
-    // Ao clicar em Play
+    // Ao clicar em Play: inicia diretamente no Servidor Principal sem troca automática
     const handleStartPlay = () => {
         setHasStarted(true);
-        startServerWatchdog(sourceIdx, availableSources);
+        setServerStatus('conectando');
     };
 
     // Troca de Áudio
     const handleSelectAudio = (code) => {
         setSelectedAudio(code);
-        setSourceIdx(0);
         setOpenAudioMenu(false);
         localStorage.setItem('cinespartan_preferred_audio', code);
 
         const item = AUDIO_OPTIONS.find(a => a.code === code);
-        showToast(`🔊 Áudio definido para: ${item ? item.flag + ' ' + item.label : code}`);
-
-        if (hasStarted) {
-            const newSources = getSourcesForAudio(code);
-            startServerWatchdog(0, newSources);
-        }
+        showToast(`🔊 Áudio: ${item ? item.flag + ' ' + item.label : code}`);
     };
 
-    // Troca de Legenda
+    // Troca de Legenda (aplica ds_lang diretamente no Servidor Principal)
     const handleSelectSubtitle = (code) => {
         setSelectedSubtitle(code);
         setOpenSubtitleMenu(false);
@@ -214,34 +179,18 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
         if (code === 'off') {
             showToast(`🚫 Legendas desativadas`);
         } else {
-            showToast(`💬 Legenda definida: ${item ? item.flag + ' ' + item.label : code} (selecionável no CC do vídeo)`);
+            showToast(`💬 Legenda: ${item ? item.flag + ' ' + item.label : code}`);
         }
     };
 
-    // Alternar rota manual
+    // Alternar rota manual (caso o usuário decida testar outro servidor explicitamente)
     const handleNextServer = () => {
         const next = (sourceIdx + 1) % availableSources.length;
         setSourceIdx(next);
-        if (hasStarted) {
-            startServerWatchdog(next, availableSources);
-        }
+        showToast(`🔄 Servidor: ${availableSources[next].name}`);
     };
 
-    useEffect(() => {
-        if (hasStarted) {
-            startServerWatchdog(sourceIdx, availableSources);
-        }
-        return () => {
-            if (watchdogTimerRef.current) {
-                clearTimeout(watchdogTimerRef.current);
-            }
-        };
-    }, [tvId, season, episode, selectedAudio, sourceIdx, hasStarted, startServerWatchdog]);
-
     const handleIframeLoad = () => {
-        if (watchdogTimerRef.current) {
-            clearTimeout(watchdogTimerRef.current);
-        }
         setServerStatus('pronto');
     };
 
@@ -496,17 +445,10 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                         </div>
                     </div>
                 ) : (
-                    /* Vídeo em Reprodução Direta */
+                    /* Vídeo em Reprodução Direta no Servidor Principal */
                     <>
-                        {serverStatus === 'alternando' && (
-                            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 rounded-full bg-black/90 border border-amber-500/50 text-amber-300 text-xs shadow-2xl backdrop-blur-md animate-bounce">
-                                <FaSyncAlt className="animate-spin text-sm text-amber-400" />
-                                <span>Otimizando conexão com servidor alternativo...</span>
-                            </div>
-                        )}
-
                         <iframe
-                            key={`${tvId}-${season}-${episode}-${selectedAudio}-${activeServer.id}`}
+                            key={`${tvId}-${season}-${episode}-${selectedAudio}-${selectedSubtitle}-${activeServer.id}`}
                             src={iframeSrc}
                             onLoad={handleIframeLoad}
                             allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *"
