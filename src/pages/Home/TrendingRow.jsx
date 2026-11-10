@@ -5,7 +5,7 @@ import ContentCard from './ContentCard';
 import { useLanguage } from '../../context/LanguageContext';
 import { useFamilyMode } from '../../context/FamilyModeContext';
 
-const API_KEY = import.meta.env.VITE_TMDB_API || '';
+const API_KEY = import.meta.env.VITE_TMDB_API || '5f7f80e39e460ebace782d8aa6cfe1f2';
 const BASE_URL = import.meta.env.VITE_BASE_URL || 'https://api.themoviedb.org/3';
 const POSTER = 'https://image.tmdb.org/t/p/w500';
 

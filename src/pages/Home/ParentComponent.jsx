@@ -208,11 +208,6 @@ function ParentComponent() {
 
       {/* Page content */}
       <div className="md:pl-[84px] pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
-        {!import.meta.env.VITE_TMDB_API && (
-          <div className="bg-amber-950/80 border-b border-amber-600/30 px-4 py-2.5 text-center text-xs text-amber-200 sticky top-0 z-40 backdrop-blur-md">
-            ⚠️ <strong>Configuração do TMDB:</strong> Chave de API não detectada no ambiente. Adicione sua chave <code className="bg-black/40 px-1.5 py-0.5 rounded text-amber-300 font-mono">VITE_TMDB_API</code> no arquivo <code className="bg-black/40 px-1.5 py-0.5 rounded text-amber-300 font-mono">.env</code> para carregar os títulos ao vivo.
-          </div>
-        )}
         <Outlet />
 
         {/* Footer — home page only */}

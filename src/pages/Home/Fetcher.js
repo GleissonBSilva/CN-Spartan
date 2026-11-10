@@ -1,4 +1,4 @@
-const API_KEY = import.meta.env.VITE_TMDB_API || '';
+const API_KEY = import.meta.env.VITE_TMDB_API || '5f7f80e39e460ebace782d8aa6cfe1f2';
 const BASE_URL = import.meta.env.VITE_BASE_URL || 'https://api.themoviedb.org/3';
 
 export const getCurrentLanguage = () => {

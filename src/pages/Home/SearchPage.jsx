@@ -16,7 +16,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useFamilyMode } from '../../context/FamilyModeContext';
 
 const CONFIG = {
-  API_KEY: import.meta.env.VITE_TMDB_API || '',
+  API_KEY: import.meta.env.VITE_TMDB_API || '5f7f80e39e460ebace782d8aa6cfe1f2',
   BASE_URL: import.meta.env.VITE_BASE_URL || 'https://api.themoviedb.org/3',
   IMAGE_BASE_URL: 'https://image.tmdb.org/t/p/w500',
   DEBOUNCE_DELAY: 350,

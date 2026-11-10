@@ -160,7 +160,7 @@ const ContentGrid = ({
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
-        const apiKey = import.meta.env.VITE_TMDB_API || '';
+        const apiKey = import.meta.env.VITE_TMDB_API || '5f7f80e39e460ebace782d8aa6cfe1f2';
         const baseUrl = import.meta.env.VITE_BASE_URL || 'https://api.themoviedb.org/3';
         const url = new URL(`${baseUrl}/search/${type}`);
         url.searchParams.append('api_key', apiKey);
