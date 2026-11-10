@@ -26,28 +26,24 @@ export const SUBTITLE_OPTIONS = [
 
 // Gerador de rotas de transmissão dinâmicas com Servidor Principal fixo
 const getSourcesForAudio = (audioCode, subtitleCode) => {
-  const dsParam = subtitleCode && subtitleCode !== 'off' 
-    ? `&ds_lang=${subtitleCode}&lang=${subtitleCode}` 
-    : '';
-
   return [
-    // ⭐ 1. SERVIDOR PRINCIPAL FIXO (Cine Spartan Ultra HD - Com áudio original/multi-áudio e legendas automáticas)
+    // ⭐ 1. SERVIDOR PRINCIPAL FIXO (Cine Spartan Ultra HD - Direto sem anúncios, com CC no player)
     {
       id: 'vidlink_principal',
-      name: 'Servidor Principal (Cine Spartan Ultra HD)',
-      url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true${dsParam}&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+      name: 'Servidor Principal (Ultra HD)',
+      url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
     },
-    // 🌐 2. Servidor Alternativo 1 (Embed.su)
+    // 🇧🇷 2. SERVIDOR DUBLADO BR (SuperFlix - Com áudio dublado em português)
+    {
+      id: 'superflix_dublado',
+      name: 'Servidor Dublado BR (Português)',
+      url: (id) => `https://superflixapi.bond/filme/${id}`
+    },
+    // 🌐 3. Servidor Alternativo (Embed.su)
     {
       id: 'embedsu_alt',
-      name: 'Servidor Alternativo 1 (Embed.su HD)',
+      name: 'Servidor Alternativo 1 (Embed.su)',
       url: (id) => `https://embed.su/embed/movie/${id}`
-    },
-    // 🇧🇷 3. Servidor Dublado BR (MyEmbed - Para dublagens nacionais)
-    {
-      id: 'myembed_br',
-      name: 'Servidor Dublado BR (MyEmbed)',
-      url: (id) => `https://myembed.biz/filme/${id}`
     },
     // 🎬 4. Servidor Alternativo 2 (VidSrc)
     {
@@ -159,17 +155,25 @@ const VideoPlayer = ({ movieId, title, backdrop, poster }) => {
         setServerStatus('conectando');
     };
 
-    // Troca de Áudio
+    // Troca de Áudio: alterna automaticamente entre Dublado BR e Áudio Original no Servidor Principal
     const handleSelectAudio = (code) => {
         setSelectedAudio(code);
         setOpenAudioMenu(false);
         localStorage.setItem('cinespartan_preferred_audio', code);
 
         const item = AUDIO_OPTIONS.find(a => a.code === code);
-        showToast(`🔊 Áudio: ${item ? item.flag + ' ' + item.label : code}`);
+        if (code === 'pt') {
+            // Seleciona o servidor com dublagem brasileira gravada
+            setSourceIdx(1);
+            showToast(`🇧🇷 Áudio Dublado BR selecionado (Servidor Dublado)`);
+        } else {
+            // Seleciona o Servidor Principal Ultra HD com áudio original
+            setSourceIdx(0);
+            showToast(`🔊 Áudio ${item ? item.label : code} no Servidor Principal`);
+        }
     };
 
-    // Troca de Legenda (aplica ds_lang diretamente no Servidor Principal)
+    // Troca de Legenda: orienta o uso do botão nativo [CC] no player
     const handleSelectSubtitle = (code) => {
         setSelectedSubtitle(code);
         setOpenSubtitleMenu(false);
@@ -177,9 +181,9 @@ const VideoPlayer = ({ movieId, title, backdrop, poster }) => {
 
         const item = SUBTITLE_OPTIONS.find(s => s.code === code);
         if (code === 'off') {
-            showToast(`🚫 Legendas desativadas`);
+            showToast(`🚫 Legendas desativadas (desative no ícone CC do vídeo)`);
         } else {
-            showToast(`💬 Legenda: ${item ? item.flag + ' ' + item.label : code}`);
+            showToast(`💬 Legenda ${item ? item.label : code}: ative no ícone [CC] no canto inferior do vídeo`);
         }
     };
 
