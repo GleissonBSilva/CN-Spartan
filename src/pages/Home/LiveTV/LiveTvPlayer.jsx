@@ -24,7 +24,11 @@ const resolveStreamUrl = (url) => {
     url.includes('64.31.23.207') ||
     url.includes('acaidopt.org') ||
     url.includes(':8000') ||
-    url.includes(':2082')
+    url.includes(':2082') ||
+    url.includes(':8080') ||
+    url.includes(':8083') ||
+    url.includes('170.83.') ||
+    url.includes('138.204.')
   ) {
     return `/api/proxy-stream?url=${encodeURIComponent(url)}`;
   }
@@ -98,7 +102,7 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
     if (isLoading && !hasError && !isEmbed) {
       timer = setTimeout(() => {
         if (isLoading && !isPlaying) {
-          console.warn('[LiveTvPlayer] Stream load timeout (5s) for:', currentSource?.url);
+          console.warn('[LiveTvPlayer] Stream load timeout (8s) for:', currentSource?.url);
           // If there is another route available, automatically attempt the next route
           if (sources.length > 1 && sourceIdx < sources.length - 1) {
             setSourceIdx(prev => prev + 1);
@@ -108,7 +112,7 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
             setErrorMessage('O sinal deste canal está demorando para responder ou em intervalo. Clique em "Rota Alternativa" ou escolha outro canal.');
           }
         }
-      }, 5000);
+      }, 8000);
     }
     return () => clearTimeout(timer);
   }, [isLoading, isPlaying, hasError, isEmbed, sourceIdx, sources.length, currentSource?.url]);

@@ -191,6 +191,11 @@ public class MainActivity extends BridgeActivity {
                             conn.setInstanceFollowRedirects(true);
                             conn.connect();
 
+                            int responseCode = conn.getResponseCode();
+                            if (responseCode >= 400) {
+                                return new WebResourceResponse("text/plain", "UTF-8", responseCode, "Error", null, new ByteArrayInputStream(new byte[0]));
+                            }
+
                             String contentType = conn.getContentType();
                             if (contentType == null) contentType = "video/MP2T";
                             InputStream in = conn.getInputStream();
@@ -204,13 +209,17 @@ public class MainActivity extends BridgeActivity {
                             if (isM3u8) {
                                 byte[] rawBytes = readStreamBytes(in);
                                 String text = new String(rawBytes, StandardCharsets.UTF_8);
-                                String baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1);
 
                                 StringBuilder sb = new StringBuilder();
                                 for (String line : text.split("\n")) {
                                     String trimmed = line.trim();
                                     if (!trimmed.isEmpty() && !trimmed.startsWith("#")) {
-                                        String full = trimmed.startsWith("http") ? trimmed : baseUrl + trimmed;
+                                        String full;
+                                        try {
+                                            full = trimmed.startsWith("http") ? trimmed : new URL(url, trimmed).toString();
+                                        } catch (Exception ex) {
+                                            full = trimmed;
+                                        }
                                         sb.append("/api/proxy-stream?url=").append(Uri.encode(full)).append("\n");
                                     } else if (trimmed.startsWith("#EXT") && trimmed.contains("URI=\"")) {
                                         sb.append(trimmed.replaceAll("URI=\"([^\"]+)\"", "URI=\"/api/proxy-stream?url=$1\"")).append("\n");
