@@ -222,7 +222,7 @@ function ParentComponent() {
               />
               <span className="text-white font-black text-sm">Cine<span className="text-red-500">Spartan</span></span>
               <span>·</span>
-              <span>Developed by <span className="text-gray-400 font-semibold">Phyo Min Thein</span></span>
+              <span>Developed by <span className="text-gray-400 font-semibold">A&G Spartan</span></span>
             </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-3">
@@ -230,9 +230,9 @@ function ParentComponent() {
                 <span>·</span>
                 <span>
                   Data by{' '}
-                  <a href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-white underline underline-offset-2 transition-colors">
-                    TMDB
-                  </a>
+                  <span className="text-gray-500">
+                    T..DB
+                  </span>
                 </span>
               </div>
               <a href="//www.dmca.com/Protection/Status.aspx?ID=204cd8cc-b62c-4f4a-aa8b-939824095655" title="DMCA.com Protection Status" className="dmca-badge"> <img src="https://images.dmca.com/Badges/dmca_protected_sml_120m.png?ID=204cd8cc-b62c-4f4a-aa8b-939824095655" alt="DMCA.com Protection Status" /></a>
