@@ -43,7 +43,8 @@ function streamProxyPlugin() {
           }
 
           const contentType = response.headers.get('content-type') || '';
-          const isM3u8 = target.includes('.m3u8') || contentType.includes('mpegurl') || contentType.includes('application/x-mpegURL');
+          const actualUrl = response.url || target;
+          const isM3u8 = target.includes('.m3u8') || actualUrl.includes('.m3u8') || contentType.includes('mpegurl') || contentType.includes('application/x-mpegURL');
 
           if (isM3u8) {
             res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
@@ -54,7 +55,7 @@ function streamProxyPlugin() {
               if (trimmed && !trimmed.startsWith('#')) {
                 let fullUrl;
                 try {
-                  fullUrl = trimmed.startsWith('http') ? trimmed : new URL(trimmed, target).href;
+                  fullUrl = trimmed.startsWith('http') ? trimmed : new URL(trimmed, actualUrl).href;
                 } catch {
                   fullUrl = trimmed;
                 }
@@ -64,7 +65,7 @@ function streamProxyPlugin() {
                 return trimmed.replace(/URI="([^"]+)"/g, (match, p1) => {
                   let fullUrl;
                   try {
-                    fullUrl = p1.startsWith('http') ? p1 : new URL(p1, target).href;
+                    fullUrl = p1.startsWith('http') ? p1 : new URL(p1, actualUrl).href;
                   } catch {
                     fullUrl = p1;
                   }

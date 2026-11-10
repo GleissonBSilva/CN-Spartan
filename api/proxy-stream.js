@@ -21,22 +21,32 @@ export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Headers', '*');
 
     const contentType = response.headers.get('content-type') || '';
-    const isM3u8 = target.includes('.m3u8') || contentType.includes('mpegurl') || contentType.includes('application/x-mpegURL');
+    const actualUrl = response.url || target;
+    const isM3u8 = target.includes('.m3u8') || actualUrl.includes('.m3u8') || contentType.includes('mpegurl') || contentType.includes('application/x-mpegURL');
 
     if (isM3u8) {
       res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
       const text = await response.text();
-      const baseUrl = target.substring(0, target.lastIndexOf('/') + 1);
 
       const rewritten = text.split('\n').map(line => {
         const trimmed = line.trim();
         if (trimmed && !trimmed.startsWith('#')) {
-          const fullUrl = trimmed.startsWith('http') ? trimmed : (baseUrl + trimmed);
+          let fullUrl;
+          try {
+            fullUrl = trimmed.startsWith('http') ? trimmed : new URL(trimmed, actualUrl).href;
+          } catch {
+            fullUrl = trimmed;
+          }
           return `/api/proxy-stream?url=${encodeURIComponent(fullUrl)}`;
         }
         if (trimmed.startsWith('#EXT') && trimmed.includes('URI="')) {
           return trimmed.replace(/URI="([^"]+)"/g, (match, p1) => {
-            const fullUrl = p1.startsWith('http') ? p1 : (baseUrl + p1);
+            let fullUrl;
+            try {
+              fullUrl = p1.startsWith('http') ? p1 : new URL(p1, actualUrl).href;
+            } catch {
+              fullUrl = p1;
+            }
             return `URI="/api/proxy-stream?url=${encodeURIComponent(fullUrl)}"`;
           });
         }

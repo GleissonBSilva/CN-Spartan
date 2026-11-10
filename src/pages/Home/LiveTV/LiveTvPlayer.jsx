@@ -19,18 +19,38 @@ import {
 // Helper to route external streams without CORS through our same-origin stream proxy
 const resolveStreamUrl = (url) => {
   if (!url) return '';
+  // Se for embed (iframe / youtube / multiembed), mantém direto
   if (
-    url.includes('45.185.11.126') ||
-    url.includes('64.31.23.207') ||
-    url.includes('acaidopt.org') ||
-    url.includes(':8000') ||
-    url.includes(':2082') ||
-    url.includes(':8080') ||
-    url.includes(':8083') ||
-    url.includes('170.83.') ||
-    url.includes('138.204.')
+    url.includes('youtube.com') ||
+    url.includes('embed') ||
+    url.includes('multiembed') ||
+    url.includes('/api/proxy-stream')
   ) {
-    return `/api/proxy-stream?url=${encodeURIComponent(url)}`;
+    return url;
+  }
+
+  // Em navegadores web (localhost / browser), streams de terceiros sem CORS
+  // são direcionados para o proxy CORS local / Vercel
+  const isWebBrowser = typeof window !== 'undefined' && !window.Capacitor?.isNativePlatform();
+  if (isWebBrowser) {
+    if (
+      url.includes('jmp2.uk') ||
+      url.includes('pluto.tv') ||
+      url.includes('45.185.') ||
+      url.includes('64.31.') ||
+      url.includes('170.83.') ||
+      url.includes('138.204.') ||
+      url.includes('acaidopt.org') ||
+      url.includes('tvcultura') ||
+      url.includes('zoeweb.tv') ||
+      url.includes(':8000') ||
+      url.includes(':2082') ||
+      url.includes(':8080') ||
+      url.includes(':8083') ||
+      url.startsWith('http://')
+    ) {
+      return `/api/proxy-stream?url=${encodeURIComponent(url)}`;
+    }
   }
   return url;
 };
@@ -195,6 +215,43 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
               hls.destroy();
+              // Se falhou por CORS ou rede e ainda não tentou o proxy, tenta via proxy CORS
+              if (!streamUrl.includes('/api/proxy-stream')) {
+                const proxiedRetryUrl = `/api/proxy-stream?url=${encodeURIComponent(currentSource.url)}`;
+                const retryHls = new Hls({
+                  enableWorker: true,
+                  lowLatencyMode: false,
+                  backBufferLength: 30,
+                  maxBufferLength: 30,
+                  manifestLoadingTimeOut: 10000,
+                  levelLoadingTimeOut: 10000,
+                  fragLoadingTimeOut: 15000,
+                });
+                hlsRef.current = retryHls;
+                retryHls.loadSource(proxiedRetryUrl);
+                retryHls.attachMedia(video);
+                retryHls.on(Hls.Events.MANIFEST_PARSED, () => {
+                  setIsLoading(false);
+                  setHasError(false);
+                  video.muted = true;
+                  setIsMuted(true);
+                  video.play().catch(() => {});
+                });
+                retryHls.on(Hls.Events.ERROR, (_evt, retryErr) => {
+                  if (retryErr.fatal) {
+                    retryHls.destroy();
+                    if (sources.length > 1 && sourceIdx < sources.length - 1) {
+                      setSourceIdx(prev => prev + 1);
+                    } else {
+                      setIsLoading(false);
+                      setHasError(true);
+                      setErrorMessage('Não foi possível conectar ao servidor de streaming deste canal.');
+                    }
+                  }
+                });
+                return;
+              }
+
               if (sources.length > 1 && sourceIdx < sources.length - 1) {
                 setSourceIdx(prev => prev + 1);
               } else {
