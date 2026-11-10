@@ -104,19 +104,45 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
     const [openSubtitleMenu, setOpenSubtitleMenu] = useState(false);
     const [toastMessage, setToastMessage] = useState('');
 
-    // Estado da reprodução
+    // Estado da reprodução e auto-hide dos controles
     const [hasStarted, setHasStarted] = useState(false);
     const [sourceIdx, setSourceIdx] = useState(0);
     const [serverStatus, setServerStatus] = useState('parado');
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [showControls, setShowControls] = useState(true);
 
     const playerContainerRef = useRef(null);
     const watchdogTimerRef = useRef(null);
     const toastTimerRef = useRef(null);
+    const hideControlsTimerRef = useRef(null);
 
     // Fontes ativas baseadas no idioma de áudio
     const availableSources = getSourcesForAudio(selectedAudio);
     const activeServer = availableSources[sourceIdx] || availableSources[0];
+
+    // Função para manter controles discretos e fazê-los sumir após 3s de inatividade
+    const resetControlsTimer = useCallback(() => {
+        setShowControls(true);
+        if (hideControlsTimerRef.current) {
+            clearTimeout(hideControlsTimerRef.current);
+        }
+        // Só agenda o auto-hide se os menus suspensos estiverem fechados e o vídeo já tiver iniciado
+        if (!openAudioMenu && !openSubtitleMenu && hasStarted) {
+            hideControlsTimerRef.current = setTimeout(() => {
+                setShowControls(false);
+            }, 3000);
+        }
+    }, [openAudioMenu, openSubtitleMenu, hasStarted]);
+
+    // Dispara a recontagem sempre que o status de início ou menus mudarem
+    useEffect(() => {
+        resetControlsTimer();
+        return () => {
+            if (hideControlsTimerRef.current) {
+                clearTimeout(hideControlsTimerRef.current);
+            }
+        };
+    }, [resetControlsTimer]);
 
     // Atualiza quando o usuário muda o idioma geral no painel
     useEffect(() => {
@@ -280,143 +306,151 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
     const currentSubObj = SUBTITLE_OPTIONS.find(s => s.code === selectedSubtitle) || SUBTITLE_OPTIONS[0];
 
     return (
-        <div className="w-full flex flex-col gap-2.5">
-            {/* Barra de Controles do Display: Sempre visível com Botões de Idioma e Legendas */}
-            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-black/80 border border-white/10 backdrop-blur-md shadow-lg">
-                
-                {/* Seletor de Áudio / Idioma & Legenda */}
-                <div className="flex flex-wrap items-center gap-2 language-control-menu">
-                    {/* Botão de Áudio / Idioma */}
-                    <div className="relative">
-                        <button
-                            type="button"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenAudioMenu(p => !p);
-                                setOpenSubtitleMenu(false);
-                            }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white/10 hover:bg-white/20 text-white border border-white/15 transition-all shadow-sm cursor-pointer"
-                            title="Alterar idioma do áudio"
-                        >
-                            <FaVolumeUp className="text-red-500 text-xs" />
-                            <span>{currentAudioObj.flag} {currentAudioObj.label}</span>
-                            <FaChevronDown className="text-[10px] text-gray-400 ml-0.5" />
-                        </button>
-
-                        {/* Menu Suspenso de Idiomas de Áudio */}
-                        {openAudioMenu && (
-                            <div className="absolute left-0 top-full mt-1.5 w-56 rounded-xl bg-[#14161f] border border-white/20 shadow-2xl py-1.5 z-[1000] backdrop-blur-xl animate-fadeIn">
-                                <div className="px-3 py-1 border-b border-white/10 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                    Idioma do Áudio
-                                </div>
-                                {AUDIO_OPTIONS.map((opt) => (
-                                    <button
-                                        key={opt.code}
-                                        type="button"
-                                        onClick={() => handleSelectAudio(opt.code)}
-                                        className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold hover:bg-red-600/20 transition-colors text-left ${
-                                            selectedAudio === opt.code ? 'text-red-400 bg-red-600/10' : 'text-gray-200'
-                                        }`}
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-sm">{opt.flag}</span>
-                                            <div>
-                                                <p className="font-bold">{opt.label}</p>
-                                                <p className="text-[10px] text-gray-400 font-normal">{opt.subLabel}</p>
-                                            </div>
-                                        </div>
-                                        {selectedAudio === opt.code && <FaCheck className="text-xs text-red-500" />}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Botão de Legendas */}
-                    <div className="relative">
-                        <button
-                            type="button"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenSubtitleMenu(p => !p);
-                                setOpenAudioMenu(false);
-                            }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white/10 hover:bg-white/20 text-white border border-white/15 transition-all shadow-sm cursor-pointer"
-                            title="Alterar legendas"
-                        >
-                            <FaClosedCaptioning className="text-amber-400 text-xs" />
-                            <span>{currentSubObj.flag} {currentSubObj.label}</span>
-                            <FaChevronDown className="text-[10px] text-gray-400 ml-0.5" />
-                        </button>
-
-                        {/* Menu Suspenso de Legendas */}
-                        {openSubtitleMenu && (
-                            <div className="absolute left-0 top-full mt-1.5 w-56 rounded-xl bg-[#14161f] border border-white/20 shadow-2xl py-1.5 z-[1000] backdrop-blur-xl animate-fadeIn">
-                                <div className="px-3 py-1 border-b border-white/10 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                    Legendas
-                                </div>
-                                {SUBTITLE_OPTIONS.map((opt) => (
-                                    <button
-                                        key={opt.code}
-                                        type="button"
-                                        onClick={() => handleSelectSubtitle(opt.code)}
-                                        className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold hover:bg-amber-500/20 transition-colors text-left ${
-                                            selectedSubtitle === opt.code ? 'text-amber-400 bg-amber-500/10' : 'text-gray-200'
-                                        }`}
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-sm">{opt.flag}</span>
-                                            <div>
-                                                <p className="font-bold">{opt.label}</p>
-                                                <p className="text-[10px] text-gray-400 font-normal">{opt.subLabel}</p>
-                                            </div>
-                                        </div>
-                                        {selectedSubtitle === opt.code && <FaCheck className="text-xs text-amber-400" />}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Controles da Direita: Rota e Tela Cheia */}
-                <div className="flex items-center gap-2 ml-auto">
-                    {hasStarted && (
-                        <button
-                            type="button"
-                            onClick={handleNextServer}
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/15 text-gray-300 hover:text-white transition-all border border-white/10 cursor-pointer"
-                            title="Alternar rota de transmissão se travar"
-                        >
-                            <FaSyncAlt className={`text-[10px] ${serverStatus === 'alternando' ? 'animate-spin text-amber-400' : ''}`} />
-                            <span className="hidden sm:inline">Trocar Rota</span>
-                        </button>
-                    )}
-
-                    <button
-                        type="button"
-                        onClick={toggleFullscreen}
-                        title={isFullscreen ? 'Sair da Tela Cheia' : 'Tela Cheia'}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-red-600 hover:bg-red-700 text-white transition-all shadow-md shadow-red-950/50 cursor-pointer"
-                    >
-                        {isFullscreen ? <FaCompress className="text-xs" /> : <FaExpand className="text-xs" />}
-                        <span>{isFullscreen ? 'Sair' : 'Tela Cheia'}</span>
-                    </button>
-                </div>
-            </div>
-
-            {/* Container do Player */}
+        <div className="w-full flex flex-col">
+            {/* Container do Player com detecção de movimento para auto-hide */}
             <div
                 ref={playerContainerRef}
+                onMouseMove={resetControlsTimer}
+                onTouchStart={resetControlsTimer}
+                onClick={resetControlsTimer}
                 className={`relative w-full bg-black overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] flex items-center justify-center transition-all ${
                     isFullscreen 
                         ? 'fixed inset-0 z-[9999] h-screen w-screen rounded-none ring-0' 
                         : 'aspect-video rounded-2xl ring-1 ring-white/15'
                 }`}
             >
+                {/* Barra de Controles Discreta Flutuante (Some automaticamente após 3s) */}
+                <div
+                    className={`absolute top-0 left-0 right-0 z-40 p-3 sm:p-4 flex flex-wrap items-center justify-between gap-2 bg-gradient-to-b from-black/90 via-black/50 to-transparent transition-all duration-500 ease-in-out ${
+                        (showControls || !hasStarted || openAudioMenu || openSubtitleMenu)
+                            ? 'opacity-100 pointer-events-auto translate-y-0'
+                            : 'opacity-0 pointer-events-none -translate-y-2'
+                    }`}
+                >
+                    {/* Seletor de Áudio / Idioma & Legenda */}
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 language-control-menu">
+                        {/* Botão de Áudio / Idioma */}
+                        <div className="relative">
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenAudioMenu(p => !p);
+                                    setOpenSubtitleMenu(false);
+                                }}
+                                className="flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold bg-black/60 hover:bg-black/90 text-gray-200 hover:text-white border border-white/15 backdrop-blur-md transition-all shadow-md cursor-pointer"
+                                title="Alterar idioma do áudio"
+                            >
+                                <FaVolumeUp className="text-red-500 text-[11px]" />
+                                <span>{currentAudioObj.flag} {currentAudioObj.label}</span>
+                                <FaChevronDown className="text-[9px] text-gray-400 ml-0.5" />
+                            </button>
+
+                            {/* Menu Suspenso de Idiomas de Áudio */}
+                            {openAudioMenu && (
+                                <div className="absolute left-0 top-full mt-1.5 w-52 rounded-xl bg-[#12141c]/95 border border-white/20 shadow-2xl py-1 z-[1000] backdrop-blur-xl animate-fadeIn">
+                                    <div className="px-3 py-1 border-b border-white/10 text-[9px] font-bold text-gray-400 uppercase tracking-wider">
+                                        Idioma do Áudio
+                                    </div>
+                                    {AUDIO_OPTIONS.map((opt) => (
+                                        <button
+                                            key={opt.code}
+                                            type="button"
+                                            onClick={() => handleSelectAudio(opt.code)}
+                                            className={`w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold hover:bg-red-600/20 transition-colors text-left ${
+                                                selectedAudio === opt.code ? 'text-red-400 bg-red-600/10' : 'text-gray-200'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm">{opt.flag}</span>
+                                                <div>
+                                                    <p className="font-bold text-[11px] sm:text-xs">{opt.label}</p>
+                                                    <p className="text-[9px] text-gray-400 font-normal">{opt.subLabel}</p>
+                                                </div>
+                                            </div>
+                                            {selectedAudio === opt.code && <FaCheck className="text-[10px] text-red-500" />}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Botão de Legendas */}
+                        <div className="relative">
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenSubtitleMenu(p => !p);
+                                    setOpenAudioMenu(false);
+                                }}
+                                className="flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold bg-black/60 hover:bg-black/90 text-gray-200 hover:text-white border border-white/15 backdrop-blur-md transition-all shadow-md cursor-pointer"
+                                title="Alterar legendas"
+                            >
+                                <FaClosedCaptioning className="text-amber-400 text-[11px]" />
+                                <span>{currentSubObj.flag} {currentSubObj.label}</span>
+                                <FaChevronDown className="text-[9px] text-gray-400 ml-0.5" />
+                            </button>
+
+                            {/* Menu Suspenso de Legendas */}
+                            {openSubtitleMenu && (
+                                <div className="absolute left-0 top-full mt-1.5 w-52 rounded-xl bg-[#12141c]/95 border border-white/20 shadow-2xl py-1 z-[1000] backdrop-blur-xl animate-fadeIn">
+                                    <div className="px-3 py-1 border-b border-white/10 text-[9px] font-bold text-gray-400 uppercase tracking-wider">
+                                        Legendas
+                                    </div>
+                                    {SUBTITLE_OPTIONS.map((opt) => (
+                                        <button
+                                            key={opt.code}
+                                            type="button"
+                                            onClick={() => handleSelectSubtitle(opt.code)}
+                                            className={`w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold hover:bg-amber-500/20 transition-colors text-left ${
+                                                selectedSubtitle === opt.code ? 'text-amber-400 bg-amber-500/10' : 'text-gray-200'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm">{opt.flag}</span>
+                                                <div>
+                                                    <p className="font-bold text-[11px] sm:text-xs">{opt.label}</p>
+                                                    <p className="text-[9px] text-gray-400 font-normal">{opt.subLabel}</p>
+                                                </div>
+                                            </div>
+                                            {selectedSubtitle === opt.code && <FaCheck className="text-[10px] text-amber-400" />}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Controles da Direita: Rota e Tela Cheia */}
+                    <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
+                        {hasStarted && (
+                            <button
+                                type="button"
+                                onClick={handleNextServer}
+                                className="flex items-center gap-1 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold bg-black/60 hover:bg-black/90 text-gray-300 hover:text-white border border-white/15 backdrop-blur-md transition-all shadow-md cursor-pointer"
+                                title="Alternar rota de transmissão se travar"
+                            >
+                                <FaSyncAlt className={`text-[9px] ${serverStatus === 'alternando' ? 'animate-spin text-amber-400' : ''}`} />
+                                <span className="hidden sm:inline">Trocar Rota</span>
+                            </button>
+                        )}
+
+                        <button
+                            type="button"
+                            onClick={toggleFullscreen}
+                            title={isFullscreen ? 'Sair da Tela Cheia' : 'Tela Cheia'}
+                            className="flex items-center gap-1 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold bg-red-600/90 hover:bg-red-600 text-white transition-all shadow-md shadow-red-950/50 cursor-pointer backdrop-blur-md"
+                        >
+                            {isFullscreen ? <FaCompress className="text-[11px]" /> : <FaExpand className="text-[11px]" />}
+                            <span>{isFullscreen ? 'Sair' : 'Tela Cheia'}</span>
+                        </button>
+                    </div>
+                </div>
+
                 {/* Notificação Toast Flutuante */}
                 {toastMessage && (
-                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full bg-black/95 border border-white/20 text-white text-xs font-medium shadow-2xl backdrop-blur-md animate-fadeIn">
+                    <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/95 border border-white/20 text-white text-xs font-medium shadow-2xl backdrop-blur-md animate-fadeIn">
                         <span>{toastMessage}</span>
                     </div>
                 )}
