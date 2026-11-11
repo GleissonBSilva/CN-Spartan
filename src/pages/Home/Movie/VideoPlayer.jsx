@@ -184,41 +184,79 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
         showToast(`🔄 Servidor alternativo: ${currentSources[next].name}`);
     };
 
-    // Fullscreen robusto (Nativo Android + CSS Fixed Viewport)
-    const toggleFullscreen = () => {
-        const nextState = !isFullscreen;
-        setIsFullscreen(nextState);
-
+    // Fullscreen robusto (Nativo Android/PC + CSS Fixed Viewport Fallback)
+    const toggleFullscreen = async () => {
         const el = playerContainerRef.current;
-        if (nextState) {
+        const isCurrentlyFullscreen = Boolean(
+            document.fullscreenElement ||
+            document.webkitFullscreenElement ||
+            document.mozFullScreenElement ||
+            document.msFullscreenElement ||
+            isFullscreen
+        );
+
+        if (!isCurrentlyFullscreen) {
             try {
                 if (el?.requestFullscreen) {
-                    el.requestFullscreen().catch(() => {});
+                    await el.requestFullscreen();
                 } else if (el?.webkitRequestFullscreen) {
-                    el.webkitRequestFullscreen();
+                    await el.webkitRequestFullscreen();
+                } else if (el?.mozRequestFullScreen) {
+                    await el.mozRequestFullScreen();
+                } else if (el?.msRequestFullscreen) {
+                    await el.msRequestFullscreen();
                 }
-            } catch (err) {}
+            } catch (err) {
+                // Fallback para CSS Fullscreen se a API for bloqueada
+            }
+            setIsFullscreen(true);
         } else {
             try {
-                if (document.fullscreenElement) {
-                    if (document.exitFullscreen) {
-                        document.exitFullscreen().catch(() => {});
-                    } else if (document.webkitExitFullscreen) {
-                        document.webkitExitFullscreen();
-                    }
+                if (document.exitFullscreen) {
+                    await document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    await document.webkitExitFullscreen();
+                } else if (document.mozCancelFullScreen) {
+                    await document.mozCancelFullScreen();
+                } else if (document.msExitFullscreen) {
+                    await document.msExitFullscreen();
                 }
             } catch (err) {}
+            setIsFullscreen(false);
         }
     };
 
+    // Sincronização automática com eventos de tela cheia do navegador/player
     useEffect(() => {
+        const handleFullscreenChange = () => {
+            const isFs = Boolean(
+                document.fullscreenElement ||
+                document.webkitFullscreenElement ||
+                document.mozFullScreenElement ||
+                document.msFullscreenElement
+            );
+            setIsFullscreen(isFs);
+        };
+
         const handleKeyDown = (e) => {
             if (e.key === 'Escape' && isFullscreen) {
                 setIsFullscreen(false);
             }
         };
+
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+        document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+        document.addEventListener('MSFullscreenChange', handleFullscreenChange);
         window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+
+        return () => {
+            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+            document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+            document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+            document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+            window.removeEventListener('keydown', handleKeyDown);
+        };
     }, [isFullscreen]);
 
     if (!movieId) return null;
@@ -278,9 +316,10 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                 onMouseMove={resetControlsTimer}
                 onTouchStart={resetControlsTimer}
                 onClick={resetControlsTimer}
+                style={isFullscreen ? { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 999999, margin: 0, borderRadius: 0 } : {}}
                 className={`relative w-full bg-black overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] flex items-center justify-center transition-all ${
                     isFullscreen 
-                        ? 'fixed inset-0 z-[9999] h-screen w-screen rounded-none ring-0' 
+                        ? '!fixed !inset-0 !z-[999999] !h-screen !w-screen !rounded-none !ring-0' 
                         : 'aspect-video rounded-2xl ring-1 ring-white/15'
                 }`}
             >
@@ -489,6 +528,9 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                             key={`${movieId}-${isPlayingTrailer ? 'trailer' : streamMode}-${activeServer.id}`}
                             src={iframeSrc}
                             allow="autoplay; fullscreen; encrypted-media; picture-in-picture; screen-wake-lock; clipboard-write"
+                            allowFullScreen={true}
+                            webkitallowfullscreen="true"
+                            mozallowfullscreen="true"
                             title={title || 'Player de Filme'}
                             referrerPolicy="origin"
                             className="w-full h-full border-0"
