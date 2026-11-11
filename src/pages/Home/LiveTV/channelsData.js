@@ -42,6 +42,18 @@ export const CHANNELS = [
     ]
   },
   {
+    id: 'combate_global',
+    name: 'Combate Global / MMA 24h HD',
+    category: 'esportes',
+    categoryLabel: 'Esportes & Lutas',
+    logo: 'https://i.imgur.com/ZPYK5jr.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Transmissão Oficial Combate Global', url: 'https://www.youtube.com/embed/live_stream?channel=UCGI-Me8tUeogSdeuW_vfbPQ' },
+      { name: 'Sinal PFL MMA Lutas 24h HD', url: 'https://jmp2.uk/plu-64f6180130ab3300083d896b.m3u8' }
+    ]
+  },
+  {
     id: 'tnt_sports',
     name: 'TNT Sports / TNT HD',
     category: 'esportes',
