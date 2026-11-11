@@ -13,7 +13,8 @@ import {
   FaInfoCircle,
   FaStepForward,
   FaStepBackward,
-  FaExternalLinkAlt
+  FaExternalLinkAlt,
+  FaTrash
 } from 'react-icons/fa';
 
 // Helper to route external streams without CORS through our same-origin stream proxy
@@ -81,7 +82,7 @@ const resolveStreamUrl = (url, forceProxy = false) => {
   return url;
 };
 
-const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
+const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel, onDeleteChannel }) => {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
   const hlsRef = useRef(null);
@@ -581,6 +582,16 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
                 >
                   <FaStepForward />
                   <span>Próximo Canal</span>
+                </button>
+              )}
+              {channel?.isCustom && onDeleteChannel && (
+                <button
+                  onClick={() => onDeleteChannel(channel.id)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600/30 hover:bg-red-600 text-red-300 hover:text-white font-bold text-xs transition-all border border-red-500/40"
+                  title="Remover canal quebrado da lista"
+                >
+                  <FaTrash className="text-xs" />
+                  <span>Remover Canal</span>
                 </button>
               )}
             </div>

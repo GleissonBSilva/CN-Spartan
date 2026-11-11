@@ -38,13 +38,19 @@ const LiveTvPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlCategory = searchParams.get('cat') || 'all';
 
-  const [selectedChannelId, setSelectedChannelId] = useState(() => allChannels[0]?.id || 'fifa_plus');
+  const [selectedChannelId, setSelectedChannelId] = useState(() => allChannels[0]?.id || 'caze_tv');
   const [selectedCategory, setSelectedCategory] = useState(urlCategory);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Sincronizar categoria quando a URL mudar (ex: ao clicar na barra lateral)
   useEffect(() => {
     setSelectedCategory(urlCategory);
+    if (urlCategory && urlCategory !== 'all') {
+      const firstInCat = allChannels.find(c => c.category === urlCategory);
+      if (firstInCat && activeChannel?.category !== urlCategory) {
+        setSelectedChannelId(firstInCat.id);
+      }
+    }
   }, [urlCategory]);
 
   const handleSelectCategory = (catId) => {
@@ -54,6 +60,20 @@ const LiveTvPage = () => {
     } else {
       setSearchParams({ cat: catId });
     }
+    const firstInCat = catId === 'all' ? allChannels[0] : allChannels.find(c => c.category === catId);
+    if (firstInCat) {
+      setSelectedChannelId(firstInCat.id);
+    }
+  };
+
+  const handleDeleteCustomChannel = (channelId) => {
+    const updated = customChannels.filter(c => c.id !== channelId);
+    setCustomChannels(updated);
+    try {
+      localStorage.setItem('cinespartan_custom_channels', JSON.stringify(updated));
+    } catch {}
+    const remaining = [...CHANNELS, ...updated];
+    setSelectedChannelId(remaining[0]?.id || 'caze_tv');
   };
 
   // Active channel object
@@ -295,6 +315,7 @@ const LiveTvPage = () => {
                 channel={activeChannel}
                 onNextChannel={handleNextChannel}
                 onPrevChannel={handlePrevChannel}
+                onDeleteChannel={handleDeleteCustomChannel}
               />
             )}
           </div>
@@ -386,6 +407,21 @@ const LiveTvPage = () => {
                         <div className="shrink-0 p-1.5 rounded-lg bg-red-600 text-white shadow-sm">
                           <FaPlay className="text-[9px]" />
                         </div>
+                      )}
+
+                      {/* Delete individual custom channel */}
+                      {channel.isCustom && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteCustomChannel(channel.id);
+                          }}
+                          className="shrink-0 p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-white/10 transition-colors"
+                          title="Remover canal da lista"
+                        >
+                          <FaTrash className="text-[10px]" />
+                        </button>
                       )}
                     </button>
                   );
