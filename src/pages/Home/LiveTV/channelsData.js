@@ -15,8 +15,52 @@ export const CHANNELS = [
     logo: 'https://yt3.googleusercontent.com/9R8rEZZ0D3Qj9X04J53fCj3x2_iY7e9A1M6Y1T2g=s900-c-k-c0x00ffffff-no-rj',
     resolution: '1080p',
     sources: [
-      { name: 'Transmissão Oficial (Zero Travas)', url: 'https://www.youtube.com/embed/live_stream?channel=UCjc5E1o_kL3Gf97Q9qZ_Z4w' },
-      { name: 'Sinal HLS Alternativo', url: 'http://138.204.86.4:8080/CAZE_TV/playlist.m3u8' }
+      { name: 'Sinal Direto 1080p (Principal)', url: 'http://138.204.86.4:8080/CAZE_TV/playlist.m3u8' },
+      { name: 'Transmissão Oficial YouTube (Alternativo)', url: 'https://www.youtube.com/embed/live_stream?channel=UCjc5E1o_kL3Gf97Q9qZ_Z4w' }
+    ]
+  },
+  {
+    id: 'espn_hd',
+    name: 'ESPN HD (Futebol Internacional & Lutas)',
+    category: 'esportes',
+    categoryLabel: 'Esportes & Lutas',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ESPN_wordmark.svg/1200px-ESPN_wordmark.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Ao Vivo 1080p (Principal)', url: 'http://138.204.86.4:8080/ESPN_HD/playlist.m3u8' }
+    ]
+  },
+  {
+    id: 'espn_2_hd',
+    name: 'ESPN 2 HD',
+    category: 'esportes',
+    categoryLabel: 'Esportes & Lutas',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/ESPN2_logo.svg/1200px-ESPN2_logo.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Ao Vivo 1080p (Principal)', url: 'http://138.204.86.4:8080/ESPN2_HD/playlist.m3u8' }
+    ]
+  },
+  {
+    id: 'espn_4_hd',
+    name: 'ESPN 4 HD (Premier League & Champions)',
+    category: 'esportes',
+    categoryLabel: 'Esportes & Lutas',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/ESPN_4_logo.svg/1200px-ESPN_4_logo.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Ao Vivo 1080p (Principal)', url: 'http://138.204.86.4:8080/ESPN4_HD/playlist.m3u8' }
+    ]
+  },
+  {
+    id: 'globo_futebol_hd',
+    name: 'Globo HD (Futebol Ao Vivo & Rodadas)',
+    category: 'esportes',
+    categoryLabel: 'Esportes & Lutas',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/TV_Globo_logo_2021.svg/1200px-TV_Globo_logo_2021.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Ao Vivo 1080p (Principal)', url: 'http://138.204.86.4:8080/GLOBO_HD/playlist.m3u8' }
     ]
   },
   {
@@ -43,14 +87,14 @@ export const CHANNELS = [
   },
   {
     id: 'combate_global',
-    name: 'Combate Global / MMA 24h HD',
+    name: 'PFL MMA / Lutas 24h HD',
     category: 'esportes',
     categoryLabel: 'Esportes & Lutas',
     logo: 'https://i.imgur.com/ZPYK5jr.png',
     resolution: '1080p',
     sources: [
-      { name: 'Transmissão Oficial Combate Global', url: 'https://www.youtube.com/embed/live_stream?channel=UCGI-Me8tUeogSdeuW_vfbPQ' },
-      { name: 'Sinal PFL MMA Lutas 24h HD', url: 'https://jmp2.uk/plu-64f6180130ab3300083d896b.m3u8' }
+      { name: 'Sinal PFL MMA Lutas 24h HD (Principal)', url: 'https://jmp2.uk/plu-64f6180130ab3300083d896b.m3u8' },
+      { name: 'Transmissão Oficial Combate Global', url: 'https://www.youtube.com/embed/live_stream?channel=UCGI-Me8tUeogSdeuW_vfbPQ' }
     ]
   },
   {
@@ -241,6 +285,50 @@ export const CHANNELS = [
   // ==========================================
   // 🎬 FILMES & SÉRIES 24H
   // ==========================================
+  {
+    id: 'hbo_hd',
+    name: 'HBO HD (Filmes & Séries)',
+    category: 'filmes',
+    categoryLabel: 'Filmes & Séries',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/HBO_logo.svg/1200px-HBO_logo.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Ao Vivo 1080p (Principal)', url: 'http://138.204.86.4:8080/HBO/playlist.m3u8' }
+    ]
+  },
+  {
+    id: 'hbo_2_hd',
+    name: 'HBO 2 HD',
+    category: 'filmes',
+    categoryLabel: 'Filmes & Séries',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/HBO_logo.svg/1200px-HBO_logo.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Ao Vivo 1080p (Principal)', url: 'http://138.204.86.4:8080/HBO2/playlist.m3u8' }
+    ]
+  },
+  {
+    id: 'warner_hd',
+    name: 'Warner Channel HD',
+    category: 'filmes',
+    categoryLabel: 'Filmes & Séries',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3d/Warner_Channel_logo_2023.svg/1200px-Warner_Channel_logo_2023.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Ao Vivo 1080p (Principal)', url: 'http://138.204.86.4:8080/WARNER_HD/playlist.m3u8' }
+    ]
+  },
+  {
+    id: 'cinemax_hd',
+    name: 'Cinemax HD',
+    category: 'filmes',
+    categoryLabel: 'Filmes & Séries',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/Cinemax_2020.svg/1200px-Cinemax_2020.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Ao Vivo 1080p (Principal)', url: 'http://138.204.86.4:8080/CINEMAX/playlist.m3u8' }
+    ]
+  },
   {
     id: 'pluto_cine_sucessos',
     name: 'Pluto TV Cine Sucessos HD',
