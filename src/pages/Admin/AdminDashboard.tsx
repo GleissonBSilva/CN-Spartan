@@ -310,6 +310,8 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   // Modal Editar Cliente & Telas
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
   const [editFormData, setEditFormData] = useState({
+    fullName: '',
+    email: '',
     plan: 'SPARTAN PRO',
     screens: 2,
     status: 'ativo' as ProfileStatus,
@@ -329,22 +331,80 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Carregar perfis do Supabase
+  // Sincroniza a lista de perfis no registro local compartilhado com AuthModal e AuthProfileContext
+  const saveProfilesRegistry = useCallback((list: Profile[]) => {
+    try {
+      localStorage.setItem('spartan_registered_profiles', JSON.stringify(list));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Persiste alterações no Supabase de forma resiliente (ignora IDs mock/locais e faz fallback se colunas novas ainda não existirem no banco)
+  const persistProfileToSupabase = useCallback(async (profileId: string, fullPayload: Record<string, any>) => {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profileId);
+    if (!isUuid) return;
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update(fullPayload)
+        .eq('id', profileId);
+
+      if (error) {
+        // Fallback para colunas originais da tabela profiles caso full_name/whatsapp/is_trial ainda não tenham sido migradas no banco
+        const basePayload: Record<string, any> = {};
+        if (fullPayload.plan_name !== undefined) basePayload.plan_name = fullPayload.plan_name;
+        if (fullPayload.max_screens !== undefined) basePayload.max_screens = fullPayload.max_screens;
+        if (fullPayload.status !== undefined) basePayload.status = fullPayload.status;
+        if (fullPayload.expires_at !== undefined) basePayload.expires_at = fullPayload.expires_at;
+        if (fullPayload.role !== undefined) basePayload.role = fullPayload.role;
+
+        if (Object.keys(basePayload).length > 0) {
+          await supabase.from('profiles').update(basePayload).eq('id', profileId);
+        }
+      }
+    } catch (err) {
+      console.warn('Aviso ao sincronizar alteração no Supabase (mantido localmente):', err);
+    }
+  }, []);
+
+  // Carregar perfis do Supabase + sincronizar novos cadastros e preservar edições feitas pelo Admin
   const loadProfiles = useCallback(async () => {
     setLoading(true);
     try {
+      let localList: Profile[] = [];
+      try {
+        const rawLocal = JSON.parse(localStorage.getItem('spartan_registered_profiles') || '[]');
+        if (Array.isArray(rawLocal)) localList = rawLocal;
+      } catch {
+        localList = [];
+      }
+
+      let deletedList: string[] = [];
+      try {
+        const rawDeleted = JSON.parse(localStorage.getItem('spartan_deleted_profiles') || '[]');
+        if (Array.isArray(rawDeleted)) deletedList = rawDeleted;
+      } catch {
+        deletedList = [];
+      }
+
+      const isDeletedProfile = (p: { id?: string; email?: string }) =>
+        deletedList.includes(p.id || '') ||
+        (p.email ? deletedList.includes(p.email.toLowerCase()) : false);
+
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) {
-        // Se a tabela ainda não existir, fornecemos perfis mockados coerentes
         console.warn('Profiles não encontrados no Supabase, usando fallback local:', error.message);
-        setProfiles([
+        const fallbackMocks: Profile[] = [
           {
             id: 'mock-1',
             email: 'gleisson1984@gmail.com',
+            full_name: 'Gleisson Silva (Admin)',
             whatsapp: '(92) 99374-6740',
             role: 'admin',
             status: 'ativo',
@@ -356,6 +416,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           {
             id: 'mock-2',
             email: 'carlos.spartan@gmail.com',
+            full_name: 'Carlos Eduardo',
             whatsapp: '(92) 98122-3344',
             role: 'client',
             status: 'ativo',
@@ -367,6 +428,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           {
             id: 'mock-3',
             email: 'mariana.costa@hotmail.com',
+            full_name: 'Mariana Costa',
             whatsapp: '(92) 99188-7766',
             role: 'client',
             status: 'ativo',
@@ -375,22 +437,180 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             max_screens: 1,
             created_at: new Date().toISOString(),
           },
-        ]);
+        ];
+        const combined = localList.filter((c) => !isDeletedProfile(c));
+        for (const m of fallbackMocks) {
+          if (
+            !isDeletedProfile(m) &&
+            !combined.some((c) => c.id === m.id || c.email.toLowerCase() === m.email.toLowerCase())
+          ) {
+            combined.push(m);
+          }
+        }
+        saveProfilesRegistry(combined);
+        setProfiles(combined);
         return;
       }
-      setProfiles((data as Profile[]) || []);
+
+      const dbProfiles = ((data as Profile[]) || [])
+        .filter((dbP) => !isDeletedProfile(dbP))
+        .map((dbP) => {
+          const localMatch = localList.find(
+            (lp) => lp.id === dbP.id || lp.email?.toLowerCase() === dbP.email?.toLowerCase()
+          );
+
+          // Se o Admin já editou este cliente, preserva integralmente os dados salvos pelo Admin
+          const hasAdminEdit = Boolean(localMatch?.admin_updated_at);
+
+          const needsPlanSync =
+            localMatch &&
+            localMatch.plan_name &&
+            (dbP.plan_name?.toLowerCase().startsWith('teste grátis') || dbP.plan_name === 'Mensal');
+
+          const mergedEmail = hasAdminEdit && localMatch?.email ? localMatch.email : dbP.email;
+          const mergedPlan =
+            hasAdminEdit && localMatch?.plan_name
+              ? localMatch.plan_name
+              : needsPlanSync
+              ? localMatch!.plan_name
+              : dbP.plan_name;
+          const mergedScreens =
+            hasAdminEdit && localMatch?.max_screens
+              ? Number(localMatch.max_screens)
+              : dbP.max_screens && dbP.max_screens > 1
+              ? dbP.max_screens
+              : localMatch?.max_screens || dbP.max_screens || 1;
+          const mergedWhatsapp =
+            hasAdminEdit && localMatch
+              ? localMatch.whatsapp
+              : dbP.whatsapp || localMatch?.whatsapp || undefined;
+          const mergedName =
+            hasAdminEdit && localMatch?.full_name
+              ? localMatch.full_name
+              : dbP.full_name || localMatch?.full_name || undefined;
+          const mergedIsTrial =
+            hasAdminEdit && localMatch?.is_trial !== undefined
+              ? localMatch.is_trial
+              : dbP.is_trial !== undefined
+              ? dbP.is_trial
+              : localMatch?.is_trial ?? Boolean(dbP.plan_name?.toLowerCase().includes('teste'));
+          const mergedExpiresAt =
+            hasAdminEdit && localMatch?.expires_at ? localMatch.expires_at : dbP.expires_at;
+          const baseStatus: ProfileStatus =
+            hasAdminEdit && localMatch?.status ? localMatch.status : dbP.status;
+
+          // Bloqueio automático imediato ao finalizar o período de teste ou expirar a assinatura
+          const isExpiredNow = dbP.role !== 'admin' && new Date(mergedExpiresAt).getTime() <= Date.now();
+          const finalStatus: ProfileStatus =
+            isExpiredNow && baseStatus === 'ativo' ? 'vencido' : baseStatus;
+
+          // Sincroniza no banco caso haja divergência
+          if (
+            mergedPlan !== dbP.plan_name ||
+            mergedScreens !== dbP.max_screens ||
+            mergedExpiresAt !== dbP.expires_at ||
+            finalStatus !== dbP.status
+          ) {
+            persistProfileToSupabase(dbP.id, {
+              plan_name: mergedPlan,
+              max_screens: mergedScreens,
+              whatsapp: mergedWhatsapp || null,
+              is_trial: mergedIsTrial,
+              expires_at: mergedExpiresAt,
+              status: finalStatus,
+            });
+          }
+
+          return {
+            ...dbP,
+            email: mergedEmail,
+            full_name: mergedName,
+            whatsapp: mergedWhatsapp,
+            plan_name: mergedPlan,
+            max_screens: mergedScreens,
+            is_trial: mergedIsTrial,
+            expires_at: mergedExpiresAt,
+            status: finalStatus,
+            admin_updated_at: localMatch?.admin_updated_at,
+          };
+        });
+
+      // Inclui cadastros recentes ou clientes locais que não estão na tabela do Supabase
+      for (const lp of localList) {
+        if (
+          !isDeletedProfile(lp) &&
+          !dbProfiles.some((dp) => dp.id === lp.id || dp.email.toLowerCase() === lp.email.toLowerCase())
+        ) {
+          const isExp = lp.role !== 'admin' && new Date(lp.expires_at).getTime() <= Date.now();
+          dbProfiles.unshift({
+            ...lp,
+            status: isExp && lp.status === 'ativo' ? 'vencido' : lp.status,
+          });
+        }
+      }
+
+      saveProfilesRegistry(dbProfiles);
+      setProfiles(dbProfiles);
     } catch (err: unknown) {
       console.error('Erro ao listar perfis:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [saveProfilesRegistry, persistProfileToSupabase]);
 
   useEffect(() => {
     if (isAdmin) {
       loadProfiles();
     }
   }, [isAdmin, loadProfiles]);
+
+  // Monitora novos cadastros, cobranças Pix e bloqueia automaticamente clientes cujo teste acabou
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const handleStorageUpdate = (e: StorageEvent) => {
+      if (e.key === 'spartan_registered_profiles') {
+        loadProfiles();
+      } else if (e.key === 'spartan_pix_charges' && e.newValue) {
+        try {
+          setPixCharges(JSON.parse(e.newValue));
+        } catch {
+          // ignore
+        }
+      } else if (e.key === 'spartan_used_trials' && e.newValue) {
+        try {
+          setUsedTrials(JSON.parse(e.newValue));
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    const expiryInterval = setInterval(() => {
+      setProfiles((prev) => {
+        let changed = false;
+        const next = prev.map((p) => {
+          if (p.role !== 'admin' && p.status === 'ativo' && new Date(p.expires_at).getTime() <= Date.now()) {
+            changed = true;
+            supabase.from('profiles').update({ status: 'vencido' }).eq('id', p.id).then(() => {});
+            return { ...p, status: 'vencido' as ProfileStatus };
+          }
+          return p;
+        });
+        if (changed) {
+          saveProfilesRegistry(next);
+          return next;
+        }
+        return prev;
+      });
+    }, 15000);
+
+    window.addEventListener('storage', handleStorageUpdate);
+    return () => {
+      window.removeEventListener('storage', handleStorageUpdate);
+      clearInterval(expiryInterval);
+    };
+  }, [isAdmin, loadProfiles, saveProfilesRegistry]);
 
   // Toast automático
   useEffect(() => {
@@ -403,21 +623,34 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   // Ações de Clientes
   const handleToggleStatus = async (profile: Profile) => {
     const newStatus: ProfileStatus = profile.status === 'ativo' ? 'suspenso' : 'ativo';
+    // Se estiver reativando um cliente cuja validade já estava vencida, estende +30 dias para não bloquear de novo em 15s
+    let newExpiresAt = profile.expires_at;
+    if (newStatus === 'ativo' && new Date(profile.expires_at).getTime() <= Date.now()) {
+      const dt = new Date();
+      dt.setDate(dt.getDate() + 30);
+      newExpiresAt = dt.toISOString();
+    }
+    const nowStamp = new Date().toISOString();
+
     setActionLoadingId(profile.id);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ status: newStatus })
-        .eq('id', profile.id);
+      await persistProfileToSupabase(profile.id, {
+        status: newStatus,
+        expires_at: newExpiresAt,
+      });
 
-      if (error) throw error;
-
-      setProfiles((prev) =>
-        prev.map((p) => (p.id === profile.id ? { ...p, status: newStatus } : p))
-      );
+      setProfiles((prev) => {
+        const next = prev.map((p) =>
+          p.id === profile.id
+            ? { ...p, status: newStatus, expires_at: newExpiresAt, admin_updated_at: nowStamp }
+            : p
+        );
+        saveProfilesRegistry(next);
+        return next;
+      });
       setNotification({
         type: 'success',
-        message: `Status de ${profile.email} alterado para "${newStatus}".`,
+        message: `Status de ${profile.full_name || profile.email} alterado para "${newStatus}".`,
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao atualizar status';
@@ -434,22 +667,32 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
       baseDate.setDate(baseDate.getDate() + daysToAdd);
       const newExpiryIso = baseDate.toISOString();
+      const nowStamp = new Date().toISOString();
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({ expires_at: newExpiryIso, status: 'ativo' })
-        .eq('id', profile.id);
+      await persistProfileToSupabase(profile.id, {
+        expires_at: newExpiryIso,
+        status: 'ativo',
+        is_trial: false,
+      });
 
-      if (error) throw error;
-
-      setProfiles((prev) =>
-        prev.map((p) =>
-          p.id === profile.id ? { ...p, expires_at: newExpiryIso, status: 'ativo' } : p
-        )
-      );
+      setProfiles((prev) => {
+        const next = prev.map((p) =>
+          p.id === profile.id
+            ? {
+                ...p,
+                expires_at: newExpiryIso,
+                status: 'ativo' as ProfileStatus,
+                is_trial: false,
+                admin_updated_at: nowStamp,
+              }
+            : p
+        );
+        saveProfilesRegistry(next);
+        return next;
+      });
       setNotification({
         type: 'success',
-        message: `Assinatura de ${profile.email} estendida em +${daysToAdd} dias!`,
+        message: `Assinatura de ${profile.full_name || profile.email} estendida em +${daysToAdd} dias!`,
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao estender assinatura';
@@ -494,10 +737,31 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         // Ignora caso offline ou fallback local
       }
 
-      // 2. Remove da lista de perfis
-      const { error } = await supabase.from('profiles').delete().eq('id', profile.id);
-      if (error) throw error;
-      setProfiles((prev) => prev.filter((p) => p.id !== profile.id));
+      // 2. Registra exclusão permanente local para não reaparecer no reload
+      try {
+        const rawDeleted = JSON.parse(localStorage.getItem('spartan_deleted_profiles') || '[]');
+        const deletedArr = Array.isArray(rawDeleted) ? rawDeleted : [];
+        const updatedDeleted = Array.from(new Set([...deletedArr, profile.id, profile.email.toLowerCase()]));
+        localStorage.setItem('spartan_deleted_profiles', JSON.stringify(updatedDeleted));
+      } catch {
+        // ignore
+      }
+
+      // 3. Remove da lista de perfis no Supabase (se UUID válido) e localmente
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profile.id);
+      if (isUuid) {
+        try {
+          await supabase.from('profiles').delete().eq('id', profile.id);
+        } catch {
+          // ignore
+        }
+      }
+
+      setProfiles((prev) => {
+        const next = prev.filter((p) => p.id !== profile.id);
+        saveProfilesRegistry(next);
+        return next;
+      });
       setNotification({
         type: 'success',
         message: `Cliente ${profile.email} excluído. Anti-fraude ativado: direito a teste grátis revogado permanentemente.`,
@@ -587,10 +851,13 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       const newProf: Profile = {
         id: dummyId,
         email: newUserData.email.trim().toLowerCase(),
+        full_name: newUserData.name.trim() || undefined,
         whatsapp: newUserData.whatsapp.trim() || undefined,
         role: 'client',
         status: 'ativo',
         plan_name: newUserData.plan,
+        is_trial: trialConfig.enabled && newUserData.days <= (trialConfig.days || 7),
+        trial_used: true,
         max_screens: Number(newUserData.screens),
         expires_at: expiry.toISOString(),
         created_at: new Date().toISOString(),
@@ -606,6 +873,8 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             role: newProf.role,
             status: newProf.status,
             plan_name: newProf.plan_name,
+            is_trial: newProf.is_trial,
+            trial_used: newProf.trial_used,
             max_screens: newProf.max_screens,
             expires_at: newProf.expires_at,
           },
@@ -614,7 +883,11 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         // Fallback local
       }
 
-      setProfiles((prev) => [newProf, ...prev]);
+      setProfiles((prev) => {
+        const next = [newProf, ...prev];
+        saveProfilesRegistry(next);
+        return next;
+      });
       setNewUserModalOpen(false);
       setNewUserData({ name: '', email: '', whatsapp: '', plan: 'SPARTAN PRO', screens: 2, days: 30 });
       setNotification({
@@ -719,37 +992,40 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       const baseDate = new Date();
       baseDate.setDate(baseDate.getDate() + days);
       const newExpiryIso = baseDate.toISOString();
+      const nowStamp = new Date().toISOString();
+      const preservedPlan =
+        profile.plan_name && !profile.plan_name.toLowerCase().startsWith('teste grátis')
+          ? profile.plan_name
+          : 'SPARTAN PRO';
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          expires_at: newExpiryIso,
-          status: 'ativo',
-          is_trial: true,
-          trial_used: true,
-          plan_name: `Teste Grátis (${days}d)`,
-        })
-        .eq('id', profile.id);
+      await persistProfileToSupabase(profile.id, {
+        expires_at: newExpiryIso,
+        status: 'ativo',
+        is_trial: true,
+        trial_used: true,
+        plan_name: preservedPlan,
+      });
 
-      if (error) throw error;
-
-      setProfiles((prev) =>
-        prev.map((p) =>
+      setProfiles((prev) => {
+        const next = prev.map((p) =>
           p.id === profile.id
             ? {
                 ...p,
                 expires_at: newExpiryIso,
-                status: 'ativo',
+                status: 'ativo' as ProfileStatus,
                 is_trial: true,
                 trial_used: true,
-                plan_name: `Teste Grátis (${days}d)`,
+                plan_name: preservedPlan,
+                admin_updated_at: nowStamp,
               }
             : p
-        )
-      );
+        );
+        saveProfilesRegistry(next);
+        return next;
+      });
       setNotification({
         type: 'success',
-        message: `Teste grátis de ${days} dias liberado para ${profile.email}!`,
+        message: `Teste grátis de ${days} dias liberado para ${profile.full_name || profile.email}!`,
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao conceder teste';
@@ -801,6 +1077,8 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     }
     setEditingProfile(p);
     setEditFormData({
+      fullName: p.full_name || '',
+      email: p.email || '',
       plan: p.plan_name || 'SPARTAN PRO',
       screens: p.max_screens || 1,
       status: p.status,
@@ -820,40 +1098,53 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       if (editFormData.expiresAt) {
         finalExpires = new Date(editFormData.expiresAt + 'T23:59:59Z').toISOString();
       }
+      // Se o Admin colocou status "ativo", mas a data de expiração estava no passado, estende automaticamente (+30 dias ou +dias de teste)
+      if (editFormData.status === 'ativo' && new Date(finalExpires).getTime() <= Date.now()) {
+        const dt = new Date();
+        dt.setDate(dt.getDate() + (editFormData.isTrial ? trialConfig.days || 3 : 30));
+        finalExpires = dt.toISOString();
+      }
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          plan_name: editFormData.plan,
-          max_screens: editFormData.screens,
-          status: editFormData.status,
-          expires_at: finalExpires,
-          whatsapp: editFormData.whatsapp || null,
-          is_trial: editFormData.isTrial,
-        })
-        .eq('id', editingProfile.id);
+      const nowStamp = new Date().toISOString();
+      const updatedFullName = editFormData.fullName.trim() || undefined;
+      const updatedEmail = editFormData.email.trim().toLowerCase() || editingProfile.email;
+      const updatedWhatsapp = editFormData.whatsapp.trim() || undefined;
 
-      if (error) throw error;
+      await persistProfileToSupabase(editingProfile.id, {
+        full_name: updatedFullName || null,
+        email: updatedEmail,
+        plan_name: editFormData.plan,
+        max_screens: Number(editFormData.screens),
+        status: editFormData.status,
+        expires_at: finalExpires,
+        whatsapp: updatedWhatsapp || null,
+        is_trial: editFormData.isTrial,
+      });
 
-      setProfiles((prev) =>
-        prev.map((item) =>
+      setProfiles((prev) => {
+        const next = prev.map((item) =>
           item.id === editingProfile.id
             ? {
                 ...item,
+                full_name: updatedFullName,
+                email: updatedEmail,
                 plan_name: editFormData.plan,
-                max_screens: editFormData.screens,
+                max_screens: Number(editFormData.screens),
                 status: editFormData.status,
                 expires_at: finalExpires,
-                whatsapp: editFormData.whatsapp || null,
+                whatsapp: updatedWhatsapp,
                 is_trial: editFormData.isTrial,
+                admin_updated_at: nowStamp,
               }
             : item
-        )
-      );
+        );
+        saveProfilesRegistry(next);
+        return next;
+      });
 
       setNotification({
         type: 'success',
-        message: `Conta de ${editingProfile.email} atualizada com sucesso! (${editFormData.screens} telas)`,
+        message: `Dados de ${updatedFullName || updatedEmail} salvos com sucesso! (${editFormData.plan} • ${editFormData.screens} telas)`,
       });
       setEditingProfile(null);
     } catch (err: unknown) {
@@ -864,41 +1155,88 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     }
   };
 
-  // Desbloquear e Confirmar Pagamento Pix (+30 dias)
+  // Desbloquear e Confirmar Pagamento Pix (+30 dias), encerrando o modo de teste e liquidando a cobrança Pix
   const handleConfirmPaymentAndUnlock = async (p: Profile) => {
     setActionLoadingId(p.id);
     try {
-      const baseDate = new Date();
+      const currentExpiry = new Date(p.expires_at);
+      const baseDate = currentExpiry > new Date() && !p.is_trial ? currentExpiry : new Date();
       baseDate.setDate(baseDate.getDate() + 30);
       const newExpiryIso = baseDate.toISOString();
+      const nowStamp = new Date().toISOString();
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          status: 'ativo',
-          is_trial: false,
-          expires_at: newExpiryIso,
-        })
-        .eq('id', p.id);
+      // Mantém o plano escolhido pelo cliente (ou SPARTAN PRO se estava com label genérico de teste)
+      const unlockedPlan =
+        p.plan_name && !p.plan_name.toLowerCase().startsWith('teste grátis') && p.plan_name !== 'Assinatura Necessária'
+          ? p.plan_name
+          : 'SPARTAN PRO';
 
-      if (error) throw error;
+      const foundPlanObj = plans.find((pl) => pl.name.toUpperCase() === unlockedPlan.toUpperCase());
+      const unlockedScreens = p.max_screens > 1 ? p.max_screens : foundPlanObj?.screens || 1;
+      const planAmount = foundPlanObj?.monthlyPrice || 59.9;
 
-      setProfiles((prev) =>
-        prev.map((item) =>
+      await persistProfileToSupabase(p.id, {
+        status: 'ativo',
+        is_trial: false,
+        trial_used: true,
+        plan_name: unlockedPlan,
+        max_screens: unlockedScreens,
+        expires_at: newExpiryIso,
+      });
+
+      setProfiles((prev) => {
+        const next = prev.map((item) =>
           item.id === p.id
             ? {
                 ...item,
-                status: 'ativo',
+                status: 'ativo' as ProfileStatus,
                 is_trial: false,
+                trial_used: true,
+                plan_name: unlockedPlan,
+                max_screens: unlockedScreens,
                 expires_at: newExpiryIso,
+                admin_updated_at: nowStamp,
               }
             : item
-        )
-      );
+        );
+        saveProfilesRegistry(next);
+        return next;
+      });
+
+      // Liquida cobrança Pix pendente desse cliente ou registra o pagamento liquidado
+      setPixCharges((prevCharges) => {
+        const hasPending = prevCharges.some(
+          (c) => c.customerEmail.toLowerCase() === p.email.toLowerCase() && c.status === 'pendente'
+        );
+        let updatedCharges: PixCharge[];
+        if (hasPending) {
+          updatedCharges = prevCharges.map((c) =>
+            c.customerEmail.toLowerCase() === p.email.toLowerCase() && c.status === 'pendente'
+              ? { ...c, status: 'liquidado' as const, dueDate: new Date().toLocaleDateString('pt-BR') }
+              : c
+          );
+        } else {
+          const paidEntry: PixCharge = {
+            id: 'pix-' + Date.now(),
+            hash: 'PIX-' + Math.random().toString(36).substring(2, 7).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase(),
+            customerName: p.full_name || p.email.split('@')[0],
+            customerEmail: p.email,
+            customerWhatsapp: p.whatsapp,
+            amount: planAmount,
+            method: `Pix (${unlockedPlan})`,
+            dueDate: new Date().toLocaleDateString('pt-BR'),
+            status: 'liquidado',
+            createdAt: new Date().toLocaleString('pt-BR'),
+          };
+          updatedCharges = [paidEntry, ...prevCharges];
+        }
+        localStorage.setItem('spartan_pix_charges', JSON.stringify(updatedCharges));
+        return updatedCharges;
+      });
 
       setNotification({
         type: 'success',
-        message: `Pagamento confirmado! Acesso de ${p.email} desbloqueado por +30 dias!`,
+        message: `Pagamento confirmado! Acesso de ${p.full_name || p.email} (${unlockedPlan}) desbloqueado por +30 dias!`,
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao desbloquear cliente.';
@@ -908,19 +1246,114 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     }
   };
 
+  // Confirmar pagamento Pix diretamente pela aba Financeiro & Pix e desbloquear o cliente automaticamente
+  const handleConfirmPixCharge = async (charge: PixCharge) => {
+    const matchingProfile = profiles.find(
+      (p) => p.email.toLowerCase() === charge.customerEmail.toLowerCase()
+    );
+    if (matchingProfile) {
+      await handleConfirmPaymentAndUnlock(matchingProfile);
+    } else {
+      const updated = pixCharges.map((c) =>
+        c.id === charge.id ? { ...c, status: 'liquidado' as const } : c
+      );
+      setPixCharges(updated);
+      localStorage.setItem('spartan_pix_charges', JSON.stringify(updated));
+      setNotification({
+        type: 'success',
+        message: `Pagamento Pix de ${charge.customerName} (${charge.customerEmail}) confirmado e liquidado!`,
+      });
+    }
+  };
+
+  // Métricas Dinâmicas do Painel Admin (atualizadas conforme cadastros, planos escolhidos, período de teste e pagamentos)
+  const dashboardStats = useMemo(() => {
+    const now = Date.now();
+    const activeClients = profiles.filter(
+      (p) => p.status === 'ativo' && new Date(p.expires_at).getTime() > now
+    );
+    const paidActiveClients = activeClients.filter(
+      (p) => !p.is_trial && !p.plan_name?.toLowerCase().includes('teste')
+    );
+    const trialActiveClients = activeClients.filter(
+      (p) => p.is_trial || p.plan_name?.toLowerCase().includes('teste')
+    );
+    const expiredOrBlockedClients = profiles.filter(
+      (p) => p.status === 'vencido' || (p.role !== 'admin' && new Date(p.expires_at).getTime() <= now)
+    );
+    const suspendedClients = profiles.filter((p) => p.status === 'suspenso');
+
+    const getPlanPrice = (planName?: string) => {
+      const upper = (planName || '').toUpperCase();
+      const matched = plans.find((pl) => upper.includes(pl.name.toUpperCase()));
+      if (matched) return matched.monthlyPrice;
+      if (upper.includes('BUSINESS')) return 119.9;
+      if (upper.includes('START')) return 29.9;
+      return 59.9;
+    };
+
+    const estimatedMrr = activeClients.reduce((acc, p) => acc + getPlanPrice(p.plan_name), 0);
+    const totalLiquidado = pixCharges
+      .filter((c) => c.status === 'liquidado')
+      .reduce((acc, c) => acc + Number(c.amount || 0), 0);
+    const totalPendente = pixCharges
+      .filter((c) => c.status === 'pendente')
+      .reduce((acc, c) => acc + Number(c.amount || 0), 0);
+
+    const proCount = profiles.filter((p) => (p.plan_name || '').toUpperCase().includes('PRO')).length;
+    const businessCount = profiles.filter(
+      (p) => (p.plan_name || '').toUpperCase().includes('BUSINESS') || p.role === 'admin'
+    ).length;
+    const startCount = profiles.filter((p) => (p.plan_name || '').toUpperCase().includes('START')).length;
+    const totalForDist = Math.max(1, proCount + businessCount + startCount);
+
+    const proPct = Math.round((proCount / totalForDist) * 100);
+    const businessPct = Math.round((businessCount / totalForDist) * 100);
+    const startPct = Math.max(0, 100 - proPct - businessPct);
+
+    return {
+      totalClients: profiles.length,
+      activeCount: activeClients.length,
+      paidActiveCount: paidActiveClients.length,
+      trialActiveCount: trialActiveClients.length,
+      expiredCount: expiredOrBlockedClients.length,
+      suspendedCount: suspendedClients.length,
+      estimatedMrr,
+      totalLiquidado,
+      totalPendente,
+      proCount,
+      businessCount,
+      startCount,
+      proPct,
+      businessPct,
+      startPct,
+      getPlanPrice,
+    };
+  }, [profiles, pixCharges, plans]);
+
   // Clientes filtrados
   const filteredProfiles = useMemo(() => {
+    const now = Date.now();
     return profiles.filter((p) => {
+      const isExp = p.role !== 'admin' && new Date(p.expires_at).getTime() <= now;
+      const effectiveStatus: ProfileStatus = isExp && p.status === 'ativo' ? 'vencido' : p.status;
+      const isTrialUser = Boolean(p.is_trial || p.plan_name?.toLowerCase().includes('teste'));
+
       const matchSearch =
         p.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.full_name && p.full_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
         p.plan_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (p.whatsapp && p.whatsapp.includes(searchTerm));
+
       const matchStatus =
         statusFilter === 'all'
           ? true
           : statusFilter === 'trial'
-          ? p.is_trial || p.plan_name?.toLowerCase().includes('teste')
-          : p.status === statusFilter;
+          ? isTrialUser && effectiveStatus === 'ativo'
+          : statusFilter === 'ativo'
+          ? effectiveStatus === 'ativo' && !isTrialUser
+          : effectiveStatus === statusFilter;
+
       return matchSearch && matchStatus;
     });
   }, [profiles, searchTerm, statusFilter]);
@@ -1127,10 +1560,12 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                     <FaChartLine />
                   </div>
                 </div>
-                <div className="text-2xl font-black text-white tracking-tight">R$ 621,44</div>
+                <div className="text-2xl font-black text-white tracking-tight">
+                  R$ {dashboardStats.estimatedMrr.toFixed(2).replace('.', ',')}
+                </div>
                 <div className="mt-3 flex items-center justify-between">
                   <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-                    ↑ +14.8% este mês
+                    ↑ {dashboardStats.activeCount} assinaturas em vigor
                   </span>
                   <button
                     onClick={() => setChurnModalOpen(true)}
@@ -1141,30 +1576,36 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                 </div>
               </div>
 
-              {/* Card 2: Inadimplência */}
+              {/* Card 2: Inadimplência / Bloqueados */}
               <div className="bg-[#12121c] border border-purple-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden group hover:border-purple-600/50 transition">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Inadimplência</span>
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Testes / Vencidos</span>
                   <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
                     <FaCheckCircle />
                   </div>
                 </div>
-                <div className="text-2xl font-black text-emerald-400 tracking-tight">R$ 0,00</div>
-                <p className="text-[11px] text-gray-400 mt-3">Lucro por churn protegido (0.0% risco)</p>
+                <div className="text-2xl font-black text-emerald-400 tracking-tight">
+                  {dashboardStats.trialActiveCount} em Teste • {dashboardStats.expiredCount} Bloq.
+                </div>
+                <p className="text-[11px] text-gray-400 mt-3">
+                  Bloqueio automático após fim do período de teste
+                </p>
               </div>
 
               {/* Card 3: Caixa Recuperado (PIX) */}
               <div className="bg-[#12121c] border border-purple-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden group hover:border-purple-600/50 transition">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Caixa Recuperado (PIX)</span>
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Caixa Liquidado (PIX)</span>
                   <div className="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
                     <FaBolt />
                   </div>
                 </div>
-                <div className="text-2xl font-black text-cyan-300 tracking-tight">R$ 99,00</div>
+                <div className="text-2xl font-black text-cyan-300 tracking-tight">
+                  R$ {dashboardStats.totalLiquidado.toFixed(2).replace('.', ',')}
+                </div>
                 <div className="mt-3 flex items-center justify-between text-[11px] text-gray-400">
-                  <span>A receber: R$ 99,00</span>
-                  <span className="text-cyan-400 font-bold">Taxa: 100%</span>
+                  <span>A receber: R$ {dashboardStats.totalPendente.toFixed(2).replace('.', ',')}</span>
+                  <span className="text-cyan-400 font-bold">Pix Direto</span>
                 </div>
               </div>
 
@@ -1177,9 +1618,11 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                   </div>
                 </div>
                 <div className="text-2xl font-black text-white tracking-tight">
-                  {profiles.filter((p) => p.status === 'ativo').length || 3} Clientes
+                  {dashboardStats.totalClients} Clientes
                 </div>
-                <p className="text-[11px] text-emerald-400 mt-3 font-semibold">3 ativos cadastrados na base</p>
+                <p className="text-[11px] text-emerald-400 mt-3 font-semibold">
+                  {dashboardStats.activeCount} ativos ({dashboardStats.trialActiveCount} em período de teste)
+                </p>
               </div>
             </div>
 
@@ -1334,21 +1777,21 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                       <div className="w-3 h-3 rounded-full bg-emerald-500" />
                       <span className="text-gray-300">SPARTAN PRO</span>
                     </div>
-                    <span className="font-bold text-white">50% (2)</span>
+                    <span className="font-bold text-white">{dashboardStats.proPct}% ({dashboardStats.proCount})</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-purple-500" />
                       <span className="text-gray-300">SPARTAN BUSINESS</span>
                     </div>
-                    <span className="font-bold text-white">35% (1)</span>
+                    <span className="font-bold text-white">{dashboardStats.businessPct}% ({dashboardStats.businessCount})</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-cyan-500" />
                       <span className="text-gray-300">SPARTAN START</span>
                     </div>
-                    <span className="font-bold text-white">15% (0)</span>
+                    <span className="font-bold text-white">{dashboardStats.startPct}% ({dashboardStats.startCount})</span>
                   </div>
                 </div>
               </div>
@@ -1414,11 +1857,11 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
                 {(
                   [
-                    { key: 'all', label: 'Todos', count: profiles.length },
-                    { key: 'ativo', label: 'Ativos', count: profiles.filter((p) => p.status === 'ativo' && !p.is_trial && !p.plan_name?.toLowerCase().includes('teste')).length },
-                    { key: 'trial', label: '⚡ Em Teste', count: profiles.filter((p) => p.is_trial || p.plan_name?.toLowerCase().includes('teste')).length },
-                    { key: 'vencido', label: 'Vencidos / Bloqueados', count: profiles.filter((p) => p.status === 'vencido').length },
-                    { key: 'suspenso', label: 'Suspensos', count: profiles.filter((p) => p.status === 'suspenso').length },
+                    { key: 'all', label: 'Todos', count: dashboardStats.totalClients },
+                    { key: 'ativo', label: 'Ativos (Pagos)', count: dashboardStats.paidActiveCount },
+                    { key: 'trial', label: '⚡ Em Teste', count: dashboardStats.trialActiveCount },
+                    { key: 'vencido', label: 'Vencidos / Bloqueados', count: dashboardStats.expiredCount },
+                    { key: 'suspenso', label: 'Suspensos', count: dashboardStats.suspendedCount },
                   ] as const
                 ).map((st) => (
                   <button
@@ -1473,12 +1916,13 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                       </tr>
                     ) : (
                       filteredProfiles.map((p) => {
-                        const isExpired = new Date(p.expires_at) < new Date();
+                        const isExpired = p.role !== 'admin' && new Date(p.expires_at).getTime() <= Date.now();
                         const daysLeft = Math.ceil(
                           (new Date(p.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
                         );
                         const isActionBusy = actionLoadingId === p.id;
                         const cleanPhone = p.whatsapp ? p.whatsapp.replace(/\D/g, '') : '';
+                        const planPriceFormatted = dashboardStats.getPlanPrice(p.plan_name).toFixed(2).replace('.', ',');
 
                         return (
                           <tr key={p.id} className="hover:bg-white/[0.02] transition">
@@ -1486,10 +1930,13 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                             <td className="py-3.5 px-4">
                               <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-700 to-indigo-600 flex items-center justify-center font-bold text-white text-xs">
-                                  {p.email.charAt(0).toUpperCase()}
+                                  {(p.full_name || p.email).charAt(0).toUpperCase()}
                                 </div>
                                 <div>
-                                  <div className="font-semibold text-white flex items-center gap-1.5">
+                                  {p.full_name && (
+                                    <div className="font-bold text-white text-xs leading-tight">{p.full_name}</div>
+                                  )}
+                                  <div className="font-semibold text-gray-200 flex items-center gap-1.5">
                                     <span>{p.email}</span>
                                     {p.role === 'admin' && (
                                       <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30">
@@ -1507,7 +1954,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                               {cleanPhone ? (
                                 <a
                                   href={`https://wa.me/55${cleanPhone}?text=${encodeURIComponent(
-                                    `Olá! Mensagem Cine Spartan para a conta ${p.email}:\n\n${pixConfig.customMessage}\n\n🔑 Chave Pix (${pixConfig.keyType}): ${pixConfig.key}\n👤 Titular: ${pixConfig.recipientName}\n💰 Valor: R$ 59,90 (Plano ${p.plan_name})\n\nAssim que realizar o pagamento, responda com o comprovante aqui para liberação imediata!`
+                                    `Olá ${p.full_name || ''}! Mensagem Cine Spartan para a conta ${p.email}:\n\n${pixConfig.customMessage}\n\n🔑 Chave Pix (${pixConfig.keyType}): ${pixConfig.key}\n👤 Titular: ${pixConfig.recipientName}\n💰 Valor: R$ ${planPriceFormatted} (Plano ${p.plan_name})\n\nAssim que realizar o pagamento, responda com o comprovante aqui para liberação imediata!`
                                   )}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
@@ -1524,9 +1971,14 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
                             {/* Plano */}
                             <td className="py-3.5 px-4">
-                              <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
-                                {p.plan_name || 'SPARTAN PRO'}
-                              </span>
+                              <div className="flex flex-col items-start gap-1">
+                                <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                                  {p.plan_name || 'SPARTAN PRO'}
+                                </span>
+                                <span className="text-[10px] text-gray-400 font-semibold">
+                                  R$ {planPriceFormatted}/mês
+                                </span>
+                              </div>
                             </td>
 
                             {/* Telas / Máquinas */}
@@ -1543,10 +1995,10 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                                 !isExpired && p.status === 'ativo' ? (
                                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-500/15 text-amber-300 border border-amber-500/30">
                                     <FaBolt className="text-[9px] text-amber-400" />
-                                    Teste Grátis ({daysLeft > 0 ? `${daysLeft}d restantes` : 'Último dia'})
+                                    Em Teste ({daysLeft > 0 ? `${daysLeft}d restantes` : 'Último dia'})
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-red-500/15 text-red-400 border border-red-500/30" title="Teste expirado - Acesso bloqueado">
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-red-500/15 text-red-400 border border-red-500/30" title="Teste finalizado - Usuário bloqueado automaticamente aguardando pagamento">
                                     <FaLock className="text-[9px]" /> Teste Expirado (Bloqueado)
                                   </span>
                                 )
@@ -1561,7 +2013,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/30">
-                                  <FaExclamationTriangle className="text-[9px]" /> Vencido
+                                  <FaLock className="text-[9px]" /> Bloqueado / Vencido
                                 </span>
                               )}
                             </td>
@@ -1626,15 +2078,15 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                                 </button>
 
                                 {/* Desbloquear / Confirmar Pagamento Pix (+30d) */}
-                                {(p.status === 'vencido' || p.status === 'suspenso' || p.is_trial) && (
+                                {(isExpired || p.status === 'vencido' || p.status === 'suspenso' || p.is_trial) && (
                                   <button
                                     onClick={() => handleConfirmPaymentAndUnlock(p)}
                                     disabled={isActionBusy}
-                                    title="Desbloquear Cliente e Confirmar Pagamento Pix (+30 dias)"
-                                    className="px-2 py-1 bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 rounded-lg text-[10px] font-bold border border-emerald-500/30 transition disabled:opacity-50 flex items-center gap-1 shadow-sm"
+                                    title="Confirmar Pagamento Pix e Desbloquear Cliente (+30 dias)"
+                                    className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 rounded-lg text-[10px] font-bold border border-emerald-500/40 transition disabled:opacity-50 flex items-center gap-1 shadow-sm"
                                   >
                                     <FaCheckCircle className="text-[9px]" />
-                                    <span>Desbloquear</span>
+                                    <span>Desbloquear (Pago)</span>
                                   </button>
                                 )}
 
@@ -1692,18 +2144,24 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               <div className="bg-[#12121c] border border-purple-900/30 rounded-2xl p-5 shadow-lg">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                  Total Faturado
+                  Total Faturado (Liquidado)
                 </span>
-                <div className="text-2xl font-black text-emerald-400">R$ 99,00</div>
-                <p className="text-[11px] text-gray-400 mt-2">Pagamento liquidado via Pix instantâneo</p>
+                <div className="text-2xl font-black text-emerald-400">
+                  R$ {dashboardStats.totalLiquidado.toFixed(2).replace('.', ',')}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-2">Pagamentos confirmados via Pix instantâneo</p>
               </div>
 
               <div className="bg-[#12121c] border border-purple-900/30 rounded-2xl p-5 shadow-lg">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                  Inadimplência
+                  Aguardando Pagamento (Em Teste / Vencidos)
                 </span>
-                <div className="text-2xl font-black text-white">R$ 0,00</div>
-                <p className="text-[11px] text-gray-400 mt-2">0 cobranças em atraso registradas</p>
+                <div className="text-2xl font-black text-amber-400">
+                  R$ {dashboardStats.totalPendente.toFixed(2).replace('.', ',')}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-2">
+                  {pixCharges.filter((c) => c.status === 'pendente').length} cobranças aguardando confirmação Pix
+                </p>
               </div>
 
               <div className="bg-[#12121c] border border-purple-900/30 rounded-2xl p-5 shadow-lg">
@@ -1711,7 +2169,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                   Cobranças Pix Geradas
                 </span>
                 <div className="text-2xl font-black text-cyan-300">{pixCharges.length} Registros</div>
-                <p className="text-[11px] text-gray-400 mt-2">Taxa de conversão: 100% de sucesso</p>
+                <p className="text-[11px] text-gray-400 mt-2">Geradas automaticamente no cadastro do cliente</p>
               </div>
             </div>
 
@@ -1850,6 +2308,16 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                         {/* Ações */}
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {charge.status !== 'liquidado' && (
+                              <button
+                                onClick={() => handleConfirmPixCharge(charge)}
+                                className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 rounded-lg text-[10px] font-bold border border-emerald-500/40 transition flex items-center gap-1 shadow-sm"
+                                title="Confirmar pagamento Pix recebido e desbloquear o cliente automaticamente (+30 dias)"
+                              >
+                                <FaCheckCircle className="text-[10px] text-emerald-400" />
+                                <span>Confirmar & Desbloquear</span>
+                              </button>
+                            )}
                             <a
                               href={`https://wa.me/55${(charge.customerWhatsapp || '92993746740').replace(/\D/g, '')}?text=${encodeURIComponent(
                                 `Olá ${charge.customerName}! ${pixConfig.customMessage}\n\n🔑 Chave Pix (${pixConfig.keyType}): ${pixConfig.key}\n👤 Titular: ${pixConfig.recipientName}\n💰 Valor: R$ ${charge.amount.toFixed(2).replace('.', ',')}\n📋 Código Pix:\n${charge.hash}\n\nApós o pagamento, envie o comprovante para liberação imediata!`
@@ -2421,6 +2889,31 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
               <p className="text-xs text-purple-300 font-mono mb-4">{editingProfile.email}</p>
 
               <form onSubmit={handleSaveEditProfile} className="space-y-4">
+                {/* Nome e E-mail */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-300 block mb-1">Nome do Cliente</label>
+                    <input
+                      type="text"
+                      value={editFormData.fullName}
+                      onChange={(e) => setEditFormData((prev) => ({ ...prev, fullName: e.target.value }))}
+                      className="w-full px-3 py-2 bg-black/60 border border-gray-800 focus:border-purple-500 rounded-xl text-xs text-white outline-none"
+                      placeholder="Ex: João Silva"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-300 block mb-1">E-mail de Acesso</label>
+                    <input
+                      type="email"
+                      value={editFormData.email}
+                      onChange={(e) => setEditFormData((prev) => ({ ...prev, email: e.target.value }))}
+                      required
+                      className="w-full px-3 py-2 bg-black/60 border border-gray-800 focus:border-purple-500 rounded-xl text-xs text-white outline-none"
+                      placeholder="cliente@email.com"
+                    />
+                  </div>
+                </div>
+
                 {/* Plano */}
                 <div>
                   <label className="text-xs font-semibold text-gray-300 block mb-1">Plano do Cliente</label>

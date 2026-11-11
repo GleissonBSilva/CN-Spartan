@@ -11,60 +11,30 @@ const SERVERS = {
   dublado: [
     {
       id: 'superflix_dub',
-      name: 'SuperFlix (Dublado BR - Principal)',
+      name: 'SuperFlix (Dublado BR)',
       url: (id, s, e) => `https://superflixapi.bond/serie/${id}/${s}/${e}`
     },
     {
       id: 'vidlink_direct',
       name: 'VidLink Ultra HD (Multi-Áudio)',
-      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
-    },
-    {
-      id: 'multiembed_dub',
-      name: 'MultiEmbed Ultra (Multi-Áudio / Dublado BR)',
-      url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
-    },
-    {
-      id: 'autoembed_co',
-      name: 'AutoEmbed HD (Multi-Áudio)',
-      url: (id, s, e) => `https://autoembed.co/tv/tmdb/${id}-${s}-${e}`
-    },
-    {
-      id: 'embedder_net',
-      name: 'Embedder HD',
-      url: (id, s, e) => `https://embedder.net/e/series?tmdb=${id}&sea=${s}&epi=${e}`
+      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
     }
   ],
   legendado: [
     {
       id: 'vidlink_orig',
-      name: 'VidLink Ultra HD (Áudio Original - Principal)',
-      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
-    },
-    {
-      id: 'multiembed_orig',
-      name: 'MultiEmbed Ultra HD (Original)',
-      url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
-    },
-    {
-      id: 'vidsrc_pm',
-      name: 'VidSrc PM (Áudio Original Estéreo)',
-      url: (id, s, e) => `https://vidsrc.pm/embed/tv/${id}/${s}/${e}`
-    },
-    {
-      id: 'autoembed_orig',
-      name: 'AutoEmbed HD (Original)',
-      url: (id, s, e) => `https://autoembed.co/tv/tmdb/${id}-${s}-${e}`
-    },
-    {
-      id: 'embedder_orig',
-      name: 'Embedder HD (Original)',
-      url: (id, s, e) => `https://embedder.net/e/series?tmdb=${id}&sea=${s}&epi=${e}`
+      name: 'VidLink Ultra HD (Áudio Original)',
+      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
     },
     {
       id: 'embedsu_orig',
       name: 'Embed.su (Legendado HD)',
       url: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}`
+    },
+    {
+      id: 'vidsrc_orig',
+      name: 'VidSrc To (Original)',
+      url: (id, s, e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}`
     }
   ]
 };
@@ -77,16 +47,15 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
     const canPlay = isAdmin || isActive;
     const { isScreenBlocked, activeDevices, maxScreens, disconnectOtherDevices } = useScreenLimiter(canPlay && hasStarted);
 
-    // Resolução do modo padrão com base no Painel do Usuário (se pt-BR, começa em Dublado)
+    // Sempre inicia no servidor principal Dublado BR por padrão
     const resolveDefaultMode = useCallback(() => {
-        const saved = localStorage.getItem('cinespartan_preferred_stream_mode');
-        if (saved === 'dublado' || saved === 'legendado') return saved;
-        return language?.startsWith('pt') ? 'dublado' : 'legendado';
+        return language && !language.startsWith('pt') ? 'legendado' : 'dublado';
     }, [language]);
 
-    const [streamMode, setStreamMode] = useState(resolveDefaultMode);
+    const [streamMode, setStreamMode] = useState('dublado');
     const [sourceIdx, setSourceIdx] = useState(0);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isCssFullscreen, setIsCssFullscreen] = useState(false);
     const [showControls, setShowControls] = useState(true);
     const [toastMessage, setToastMessage] = useState('');
 
@@ -99,10 +68,8 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
 
     // Atualiza quando o usuário muda o idioma geral no painel
     useEffect(() => {
-        const saved = localStorage.getItem('cinespartan_preferred_stream_mode');
-        if (!saved) {
-            setStreamMode(resolveDefaultMode());
-        }
+        localStorage.removeItem('cinespartan_preferred_stream_mode');
+        setStreamMode(resolveDefaultMode());
     }, [language, resolveDefaultMode]);
 
     const showToast = (msg) => {
@@ -148,7 +115,6 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
         if (newMode === streamMode) return;
         setStreamMode(newMode);
         setSourceIdx(0);
-        localStorage.setItem('cinespartan_preferred_stream_mode', newMode);
 
         if (newMode === 'dublado') {
             showToast('🇧🇷 Áudio Dublado em Português ativado');
@@ -165,48 +131,72 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
     };
 
     // Fullscreen robusto (Nativo Android/PC + CSS Fixed Viewport Fallback)
-    const toggleFullscreen = async () => {
+    const toggleFullscreen = async (e) => {
+        if (e) e.stopPropagation();
         const el = playerContainerRef.current;
-        const isCurrentlyFullscreen = Boolean(
+        const hasNativeFs = Boolean(
             document.fullscreenElement ||
             document.webkitFullscreenElement ||
             document.mozFullScreenElement ||
-            document.msFullscreenElement ||
-            isFullscreen
+            document.msFullscreenElement
         );
+        const isCurrentlyFullscreen = hasNativeFs || isFullscreen || isCssFullscreen;
 
         if (!isCurrentlyFullscreen) {
+            if (hideControlsTimerRef.current) clearTimeout(hideControlsTimerRef.current);
+            setShowControls(false);
             try {
                 if (el?.requestFullscreen) {
                     await el.requestFullscreen();
+                    setIsFullscreen(true);
                 } else if (el?.webkitRequestFullscreen) {
                     await el.webkitRequestFullscreen();
+                    setIsFullscreen(true);
                 } else if (el?.mozRequestFullScreen) {
                     await el.mozRequestFullScreen();
+                    setIsFullscreen(true);
                 } else if (el?.msRequestFullscreen) {
                     await el.msRequestFullscreen();
+                    setIsFullscreen(true);
+                } else {
+                    setIsCssFullscreen(true);
+                    setIsFullscreen(true);
                 }
-            } catch (err) {
-                // Fallback para CSS Fullscreen se a API for bloqueada
+            } catch {
+                // Fallback para CSS Fullscreen apenas se a API nativa for bloqueada
+                setIsCssFullscreen(true);
+                setIsFullscreen(true);
             }
-            setIsFullscreen(true);
         } else {
             try {
-                if (document.exitFullscreen) {
-                    await document.exitFullscreen();
-                } else if (document.webkitExitFullscreen) {
-                    await document.webkitExitFullscreen();
-                } else if (document.mozCancelFullScreen) {
-                    await document.mozCancelFullScreen();
-                } else if (document.msExitFullscreen) {
-                    await document.msExitFullscreen();
+                if (hasNativeFs) {
+                    if (document.exitFullscreen) {
+                        await document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) {
+                        await document.webkitExitFullscreen();
+                    } else if (document.mozCancelFullScreen) {
+                        await document.mozCancelFullScreen();
+                    } else if (document.msExitFullscreen) {
+                        await document.msExitFullscreen();
+                    }
                 }
-            } catch (err) {}
+            } catch {}
+            setIsCssFullscreen(false);
             setIsFullscreen(false);
         }
     };
 
     // Sincronização automática com eventos de tela cheia do navegador/player
+    useEffect(() => {
+        document.body.classList.toggle('cinespartan-fullscreen', isFullscreen);
+        if (isFullscreen) {
+            setShowControls(false);
+        }
+        return () => {
+            document.body.classList.remove('cinespartan-fullscreen');
+        };
+    }, [isFullscreen]);
+
     useEffect(() => {
         const handleFullscreenChange = () => {
             const isFs = Boolean(
@@ -216,10 +206,16 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                 document.msFullscreenElement
             );
             setIsFullscreen(isFs);
+            if (!isFs) {
+                setIsCssFullscreen(false);
+            } else {
+                setShowControls(false);
+            }
         };
 
         const handleKeyDown = (e) => {
-            if (e.key === 'Escape' && isFullscreen) {
+            if (e.key === 'Escape' && (isFullscreen || isCssFullscreen)) {
+                setIsCssFullscreen(false);
                 setIsFullscreen(false);
             }
         };
@@ -237,7 +233,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
             document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [isFullscreen]);
+    }, [isFullscreen, isCssFullscreen]);
 
     if (!tvId) return null;
 
@@ -265,61 +261,74 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
             {/* Container do Player com detecção de movimento para auto-hide */}
             <div
                 ref={playerContainerRef}
-                onMouseMove={resetControlsTimer}
-                onTouchStart={resetControlsTimer}
-                onClick={resetControlsTimer}
-                style={isFullscreen ? { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 999999, margin: 0, borderRadius: 0 } : {}}
-                className={`relative w-full bg-black overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] flex items-center justify-center transition-all ${
-                    isFullscreen 
-                        ? '!fixed !inset-0 !z-[999999] !h-screen !w-screen !rounded-none !ring-0' 
-                        : 'aspect-video rounded-2xl ring-1 ring-white/15'
+                onMouseMove={!isFullscreen ? resetControlsTimer : undefined}
+                onTouchStart={!isFullscreen ? resetControlsTimer : undefined}
+                onClick={!isFullscreen ? resetControlsTimer : undefined}
+                style={isCssFullscreen ? { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', zIndex: 999999, margin: 0, borderRadius: 0 } : {}}
+                className={`cinespartan-player-container relative w-full bg-black overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] flex items-center justify-center ${
+                    isCssFullscreen 
+                        ? 'is-css-fullscreen !fixed !inset-0 !z-[999999] !h-[100dvh] !w-screen !rounded-none !ring-0' 
+                        : 'aspect-video min-h-[235px] sm:min-h-0 rounded-xl sm:rounded-2xl ring-1 ring-white/15'
                 }`}
             >
-                {/* Barra de Controles Discreta Flutuante (Some automaticamente após 3s) */}
+                {/* Sensor de topo (apenas fora da tela cheia) para reexibir os botões ao passar o mouse sobre o iframe */}
+                {!isFullscreen && hasStarted && !showControls && (
+                    <div
+                        onMouseEnter={resetControlsTimer}
+                        onMouseMove={resetControlsTimer}
+                        onTouchStart={resetControlsTimer}
+                        className="absolute top-0 left-0 right-0 h-14 z-30"
+                    />
+                )}
+
+                {/* Barra de Controles Discreta Flutuante (Fica 100% oculta ao maximizar) */}
                 <div
-                    className={`absolute top-0 left-0 right-0 z-40 p-3 sm:p-4 flex flex-wrap items-center justify-between gap-2 bg-gradient-to-b from-black/90 via-black/50 to-transparent transition-all duration-500 ease-in-out ${
-                        (showControls || !hasStarted)
-                            ? 'opacity-100 pointer-events-auto translate-y-0'
-                            : 'opacity-0 pointer-events-none -translate-y-2'
+                    className={`absolute top-0 left-0 right-0 z-40 p-2 sm:p-4 flex items-center justify-between gap-1 sm:gap-2 bg-gradient-to-b from-black/90 via-black/50 to-transparent transition-all duration-500 ease-in-out ${
+                        isFullscreen
+                            ? 'hidden opacity-0 pointer-events-none -translate-y-4'
+                            : (showControls || !hasStarted)
+                                ? 'opacity-100 pointer-events-auto translate-y-0'
+                                : 'opacity-0 pointer-events-none -translate-y-2'
                     }`}
                 >
                     {/* Botões Reais de Áudio: Dublado BR vs Legendado */}
-                    <div className="flex items-center gap-1.5 sm:gap-2">
+                    <div className="flex items-center gap-1 sm:gap-2 min-w-0">
                         <button
                             type="button"
                             onClick={() => handleModeChange('dublado')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-md cursor-pointer ${
+                            className={`flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold transition-all shadow-md cursor-pointer shrink-0 ${
                                 streamMode === 'dublado'
                                     ? 'bg-red-600 text-white shadow-red-900/50 ring-2 ring-white/20'
                                     : 'bg-black/60 hover:bg-black/90 text-gray-300 hover:text-white border border-white/15 backdrop-blur-md'
                             }`}
                             title="Assistir Dublado em Português"
                         >
-                            <FaVolumeUp className="text-xs" />
+                            <FaVolumeUp className="text-[10px] sm:text-xs" />
                             <span>🇧🇷 Dublado</span>
                         </button>
 
                         <button
                             type="button"
                             onClick={() => handleModeChange('legendado')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-md cursor-pointer ${
+                            className={`flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold transition-all shadow-md cursor-pointer shrink-0 ${
                                 streamMode === 'legendado'
                                     ? 'bg-amber-500 text-black shadow-amber-900/50 ring-2 ring-white/20 font-black'
                                     : 'bg-black/60 hover:bg-black/90 text-gray-300 hover:text-white border border-white/15 backdrop-blur-md'
                             }`}
                             title="Assistir com Áudio Original e Legendas"
                         >
-                            <FaClosedCaptioning className="text-xs" />
-                            <span>Original (Legendado)</span>
+                            <FaClosedCaptioning className="text-[10px] sm:text-xs" />
+                            <span className="sm:hidden">Legendado</span>
+                            <span className="hidden sm:inline">Original (Legendado)</span>
                         </button>
                     </div>
 
                     {/* Controles da Direita: Ajuda de Áudio, Troca de Rota e Tela Cheia */}
-                    <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
+                    <div className="flex items-center gap-1 sm:gap-2 ml-auto shrink-0">
                         <button
                             type="button"
                             onClick={() => setShowAudioHelp(prev => !prev)}
-                            className="flex items-center gap-1 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold bg-blue-600/70 hover:bg-blue-600 text-white border border-blue-400/30 backdrop-blur-md transition-all shadow-md cursor-pointer"
+                            className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-semibold bg-blue-600/70 hover:bg-blue-600 text-white border border-blue-400/30 backdrop-blur-md transition-all shadow-md cursor-pointer"
                             title="Ajuda com som mudo ou legendas"
                         >
                             <FaQuestionCircle className="text-[10px]" />
@@ -330,7 +339,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                             <button
                                 type="button"
                                 onClick={handleNextServer}
-                                className="flex items-center gap-1 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold bg-black/60 hover:bg-black/90 text-gray-300 hover:text-white border border-white/15 backdrop-blur-md transition-all shadow-md cursor-pointer"
+                                className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-semibold bg-black/60 hover:bg-black/90 text-gray-300 hover:text-white border border-white/15 backdrop-blur-md transition-all shadow-md cursor-pointer"
                                 title="Alternar servidor de transmissão se necessário"
                             >
                                 <FaSyncAlt className="text-[10px]" />
@@ -342,9 +351,9 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                             type="button"
                             onClick={toggleFullscreen}
                             title={isFullscreen ? 'Sair da Tela Cheia' : 'Tela Cheia'}
-                            className="flex items-center gap-1 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold bg-red-600/90 hover:bg-red-600 text-white transition-all shadow-md shadow-red-950/50 cursor-pointer backdrop-blur-md"
+                            className="flex items-center gap-1 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-bold bg-red-600/90 hover:bg-red-600 text-white transition-all shadow-md shadow-red-950/50 cursor-pointer backdrop-blur-md"
                         >
-                            {isFullscreen ? <FaCompress className="text-[11px]" /> : <FaExpand className="text-[11px]" />}
+                            {isFullscreen ? <FaCompress className="text-[10px] sm:text-[11px]" /> : <FaExpand className="text-[10px] sm:text-[11px]" />}
                             <span>{isFullscreen ? 'Sair' : 'Tela Cheia'}</span>
                         </button>
                     </div>
@@ -352,15 +361,15 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
 
                 {/* Notificação Toast Flutuante */}
                 {toastMessage && (
-                    <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/95 border border-white/20 text-white text-xs font-medium shadow-2xl backdrop-blur-md animate-fadeIn text-center">
-                        <span>{toastMessage}</span>
+                    <div className="absolute top-12 sm:top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-full bg-black/95 border border-white/20 text-white text-[11px] sm:text-xs font-medium shadow-2xl backdrop-blur-md animate-fadeIn text-center max-w-[90%]">
+                        <span className="truncate">{toastMessage}</span>
                     </div>
                 )}
 
                 {/* Modal / Painel de Ajuda de Áudio */}
                 {showAudioHelp && (
-                    <div className="absolute inset-0 z-50 bg-black/85 backdrop-blur-md p-6 flex flex-col items-center justify-center animate-fadeIn text-left">
-                        <div className="max-w-md w-full bg-[#111319] border border-white/20 rounded-2xl p-5 shadow-2xl relative text-gray-200">
+                    <div className="absolute inset-0 z-50 bg-black/90 backdrop-blur-md p-3 sm:p-6 flex flex-col items-center justify-center animate-fadeIn text-left overflow-y-auto">
+                        <div className="max-w-md w-full bg-[#111319] border border-white/20 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-2xl relative text-gray-200">
                             <button
                                 type="button"
                                 onClick={() => setShowAudioHelp(false)}
@@ -369,12 +378,12 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                                 <FaTimes className="text-base" />
                             </button>
 
-                            <div className="flex items-center gap-2.5 mb-3 text-blue-400 font-bold text-base">
-                                <FaVolumeUp className="text-lg" />
+                            <div className="flex items-center gap-2 mb-2.5 sm:mb-3 text-blue-400 font-bold text-sm sm:text-base">
+                                <FaVolumeUp className="text-base sm:text-lg" />
                                 <h3>Como resolver som mudo ou sem voz</h3>
                             </div>
 
-                            <ul className="space-y-2.5 text-xs sm:text-sm leading-relaxed text-gray-300">
+                            <ul className="space-y-2 text-[11px] sm:text-sm leading-relaxed text-gray-300">
                                 <li className="flex items-start gap-2">
                                     <span className="font-bold text-amber-400">1.</span>
                                     <span><strong>Desmutar o Player:</strong> Por padrão de segurança de navegadores (Chrome, Edge, Safari, TV Box), vídeos externos iniciam sem som. Toque no vídeo e clique no <strong>ícone de alto-falante (🔊)</strong> para desmutar.</span>
@@ -392,7 +401,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                             <button
                                 type="button"
                                 onClick={() => setShowAudioHelp(false)}
-                                className="mt-4 w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-all shadow-md"
+                                className="mt-3 sm:mt-4 w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-all shadow-md"
                             >
                                 Entendi, voltar ao episódio
                             </button>
@@ -404,13 +413,13 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                     /* Tela Limpa Pré-Play: Apenas a Arte e o Botão Central */
                     <div
                         onClick={handleStartPlay}
-                        className="relative w-full h-full flex flex-col items-center justify-center cursor-pointer group select-none"
+                        className="relative w-full h-full flex flex-col items-center justify-center pt-7 sm:pt-4 px-3 cursor-pointer group select-none"
                     >
                         {bgImage ? (
                             <img
                                 src={bgImage}
                                 alt={title || 'Série'}
-                                className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-75 transition-all duration-700 group-hover:scale-105"
+                                className="absolute inset-0 w-full h-full object-cover object-center opacity-60 group-hover:opacity-75 transition-all duration-700 group-hover:scale-105"
                             />
                         ) : (
                             <div className="absolute inset-0 bg-gradient-to-br from-red-950/50 via-black to-black" />
@@ -419,21 +428,21 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-black/70" />
 
                         {/* Botão de Play Central */}
-                        <div className="relative z-10 flex flex-col items-center gap-3">
+                        <div className="relative z-10 flex flex-col items-center gap-2 sm:gap-3 max-w-full">
                             <button
                                 type="button"
                                 autoFocus
                                 onClick={handleStartPlay}
-                                className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center shadow-[0_0_40px_rgba(239,68,68,0.85)] group-hover:shadow-[0_0_60px_rgba(239,68,68,1)] group-hover:scale-110 active:scale-95 transition-all duration-300 ring-4 ring-white/20 cursor-pointer"
+                                className="w-14 h-14 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center shadow-[0_0_40px_rgba(239,68,68,0.85)] group-hover:shadow-[0_0_60px_rgba(239,68,68,1)] group-hover:scale-110 active:scale-95 transition-all duration-300 ring-4 ring-white/20 cursor-pointer"
                                 title="Clique para Assistir"
                             >
-                                <FaPlay className="text-2xl sm:text-3xl translate-x-1" />
+                                <FaPlay className="text-lg sm:text-2xl md:text-3xl translate-x-0.5 sm:translate-x-1" />
                             </button>
 
-                            <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-wider drop-shadow-lg text-center px-4">
+                            <h3 className="text-xs sm:text-base md:text-lg font-black text-white uppercase tracking-wider drop-shadow-lg text-center px-3 line-clamp-1 sm:line-clamp-2 max-w-[92vw]">
                                 {title ? `${title} • T${season}:E${episode}` : `Temporada ${season} • Episódio ${episode}`}
                             </h3>
-                            <div className="flex items-center gap-2 text-xs text-gray-300 font-medium bg-black/70 px-3.5 py-1.5 rounded-full border border-white/10 backdrop-blur-md">
+                            <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-gray-300 font-medium bg-black/70 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full border border-white/10 backdrop-blur-md">
                                 <span>{streamMode === 'dublado' ? '🇧🇷 Dublado em Português' : '🌐 Áudio Original (Legendado)'}</span>
                             </div>
                         </div>
@@ -444,7 +453,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                         <iframe
                             key={`${tvId}-${season}-${episode}-${streamMode}-${activeServer.id}`}
                             src={iframeSrc}
-                            allow="autoplay; fullscreen; encrypted-media; picture-in-picture; screen-wake-lock; clipboard-write"
+                            allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *; clipboard-write *"
                             allowFullScreen={true}
                             webkitallowfullscreen="true"
                             mozallowfullscreen="true"
@@ -453,18 +462,6 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                             className="w-full h-full border-0"
                             style={{ userSelect: 'none' }}
                         />
-
-                        {/* Botão de Fechar Tela Cheia quando em Fullscreen */}
-                        {isFullscreen && (
-                            <button
-                                onClick={toggleFullscreen}
-                                className="absolute top-4 right-4 z-[10000] flex items-center gap-2 px-3.5 py-2 rounded-full bg-black/85 hover:bg-black text-white backdrop-blur-md transition-all shadow-2xl border border-white/30 text-xs font-bold"
-                                title="Sair da Tela Cheia"
-                            >
-                                <FaCompress className="text-sm text-red-500" />
-                                <span>Sair da Tela Cheia</span>
-                            </button>
-                        )}
                     </>
                 )}
             </div>

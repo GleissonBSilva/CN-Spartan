@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { BiUpArrowAlt, BiHomeAlt, BiMoviePlay, BiTv, BiSearch, BiBookmark } from 'react-icons/bi';
+import { BiUpArrowAlt, BiHomeAlt, BiMoviePlay, BiTv, BiSearch, BiBookmark, BiMenu } from 'react-icons/bi';
 import { FaUserCircle, FaSignOutAlt, FaBroadcastTower } from 'react-icons/fa';
 import Sidebar from './Sidebar';
 import { buildBrowsePath, getCategoryBySlug } from './urlFilters';
@@ -22,6 +22,7 @@ function ParentComponent() {
   const [user, setUser] = useState(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const { t } = useLanguage();
 
@@ -159,7 +160,23 @@ function ParentComponent() {
         onGenreSelect={handleGenreSelect}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onOpenAccountModal={() => setIsAccountModalOpen(true)}
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
+
+      {/* Botão Menu Lateral no Celular (Canto Superior Esquerdo nas telas sem botão Voltar) */}
+      {!location.pathname.includes('/watch/') && !location.pathname.startsWith('/movie/') && !location.pathname.startsWith('/tv/') && (
+        <button
+          type="button"
+          onClick={() => setIsMobileSidebarOpen(true)}
+          className="cinespartan-top-controls md:hidden fixed top-3 left-3 z-40 flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-black/75 hover:bg-black/90 border border-white/15 text-white backdrop-blur-md shadow-lg transition-all active:scale-95"
+          aria-label="Abrir Menu Lateral"
+          title="Menu Lateral & Categorias"
+        >
+          <BiMenu className="text-xl text-red-500" />
+          <span className="text-[11px] font-extrabold tracking-wide">Menu</span>
+        </button>
+      )}
 
       {scrollPosition > 300 && (
         <button
@@ -172,12 +189,23 @@ function ParentComponent() {
       )}
 
       {/* Global Top Controls (Account / Plan Badge, Family Mode & Language) */}
-      <div className="fixed top-4 right-4 z-40 flex items-center gap-2">
+      <div className="cinespartan-top-controls fixed top-3 right-3 sm:top-4 sm:right-4 z-40 flex items-center gap-1.5 sm:gap-2">
+        {(location.pathname.includes('/watch/') || location.pathname.startsWith('/movie/') || location.pathname.startsWith('/tv/')) && (
+          <button
+            type="button"
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="md:hidden flex items-center justify-center p-1.5 rounded-full bg-black/75 hover:bg-black/90 border border-white/15 text-white backdrop-blur-md shadow-lg transition-all active:scale-95"
+            aria-label="Abrir Menu Lateral"
+            title="Abrir Menu Lateral"
+          >
+            <BiMenu className="text-lg text-red-400" />
+          </button>
+        )}
         {isUserLoggedIn ? (
           <button
             onClick={() => setIsAccountModalOpen(true)}
             title="Minha Conta, Vencimento & Plano"
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/70 hover:bg-purple-950/70 border border-purple-500/40 text-white text-xs font-semibold backdrop-blur-md shadow-lg transition-all hover:scale-105 active:scale-95"
+            className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 rounded-full bg-black/70 hover:bg-purple-950/70 border border-purple-500/40 text-white text-xs font-semibold backdrop-blur-md shadow-lg transition-all hover:scale-105 active:scale-95"
           >
             <FaUserCircle className="text-purple-400 text-sm" />
             <span className="hidden sm:inline font-bold text-[11px] max-w-[130px] truncate">
@@ -196,10 +224,11 @@ function ParentComponent() {
         ) : (
           <button
             onClick={() => setIsAuthModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-600 to-red-600 hover:from-purple-500 hover:to-red-500 text-white text-xs font-bold shadow-lg shadow-purple-950/50 transition-all hover:scale-105"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 rounded-full bg-gradient-to-r from-purple-600 to-red-600 hover:from-purple-500 hover:to-red-500 text-white text-[11px] sm:text-xs font-bold shadow-lg shadow-purple-950/50 transition-all hover:scale-105"
           >
             <FaUserCircle className="text-xs" />
-            <span>Entrar / Teste Grátis</span>
+            <span className="sm:hidden">Entrar</span>
+            <span className="hidden sm:inline">Entrar / Teste Grátis</span>
           </button>
         )}
         <FamilyModeControl />
@@ -242,7 +271,7 @@ function ParentComponent() {
       </div>
 
       {/* Mobile bottom navigation */}
-      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#070b14] border-t border-white/[0.08] shadow-[0_-10px_30px_rgba(0,0,0,0.55)] items-center justify-around px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.45rem)] ${keyboardOpen ? 'hidden' : 'flex'}`}>
+      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#070b14] border-t border-white/[0.08] shadow-[0_-10px_30px_rgba(0,0,0,0.55)] items-center justify-between px-1 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] ${keyboardOpen ? 'hidden' : 'flex'}`}>
         {[
           { id: 'home',   icon: BiHomeAlt,   label: t('home') },
           { id: 'movies', icon: BiMoviePlay, label: t('movies') },
@@ -256,12 +285,12 @@ function ParentComponent() {
             <button
               key={id}
               onClick={() => handleNavigation(id)}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors ${
+              className={`flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 px-0.5 py-1 rounded-xl transition-colors ${
                 isActive ? 'text-red-400' : 'text-gray-500 hover:text-gray-300'
               }`}
             >
-              <Icon className="text-2xl" />
-              <span className="text-[10px] font-medium">{label}</span>
+              <Icon className="text-xl sm:text-2xl shrink-0" />
+              <span className="text-[9px] sm:text-[10px] font-medium truncate max-w-full leading-tight">{label}</span>
             </button>
           );
         })}
@@ -269,19 +298,19 @@ function ParentComponent() {
         {isUserLoggedIn ? (
           <button
             onClick={() => setIsAccountModalOpen(true)}
-            className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors text-purple-400 hover:text-purple-300"
+            className="flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 px-0.5 py-1 rounded-xl transition-colors text-purple-400 hover:text-purple-300"
             title="Minha Conta"
           >
-            <FaUserCircle className="text-2xl" />
-            <span className="text-[10px] font-bold">Conta</span>
+            <FaUserCircle className="text-xl sm:text-2xl shrink-0" />
+            <span className="text-[9px] sm:text-[10px] font-bold truncate max-w-full leading-tight">Conta</span>
           </button>
         ) : (
           <button
             onClick={() => setIsAuthModalOpen(true)}
-            className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors text-gray-500 hover:text-gray-300"
+            className="flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 px-0.5 py-1 rounded-xl transition-colors text-gray-500 hover:text-gray-300"
           >
-            <FaUserCircle className="text-2xl" />
-            <span className="text-[10px] font-medium">{t('sign_in')}</span>
+            <FaUserCircle className="text-xl sm:text-2xl shrink-0" />
+            <span className="text-[9px] sm:text-[10px] font-medium truncate max-w-full leading-tight">{t('sign_in')}</span>
           </button>
         )}
       </nav>

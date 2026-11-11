@@ -70,9 +70,16 @@ export const AccountModal: React.FC<AccountModalProps> = ({
 
   // Carregar dados iniciais do perfil
   useEffect(() => {
-    if (user) {
-      setFullName(user.user_metadata?.full_name || profile?.email?.split('@')[0] || '');
-      setWhatsapp(profile?.whatsapp || user.user_metadata?.whatsapp || '');
+    if (user || profile) {
+      setFullName(
+        profile?.full_name ||
+          user?.user_metadata?.full_name ||
+          user?.user_metadata?.display_name ||
+          profile?.email?.split('@')[0] ||
+          user?.email?.split('@')[0] ||
+          ''
+      );
+      setWhatsapp(profile?.whatsapp || user?.user_metadata?.whatsapp || '');
     }
     if (isOpen) {
       setActiveTab(defaultTab);
@@ -103,27 +110,70 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   // Salvar Informações de Contato / Nome
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user && !profile) return;
     setSavingData(true);
     setMessage(null);
 
     try {
-      // 1. Atualizar user_metadata no Supabase Auth
-      const { error: authErr } = await supabase.auth.updateUser({
-        data: { full_name: fullName, whatsapp: whatsapp },
-      });
-      if (authErr) throw authErr;
+      const targetId = profile?.id || user?.id || '';
+      const targetEmail = (profile?.email || user?.email || '').toLowerCase();
+      const nowIso = new Date().toISOString();
 
-      // 2. Atualizar tabela profiles
-      const { error: profErr } = await supabase
-        .from('profiles')
-        .update({ whatsapp: whatsapp || null })
-        .eq('id', user.id);
-
-      if (profErr) {
-        console.warn('Aviso ao salvar whatsapp no profile:', profErr.message);
+      // 1. Atualiza registro local sincronizado com o Painel Admin
+      try {
+        const regList = JSON.parse(localStorage.getItem('spartan_registered_profiles') || '[]');
+        if (Array.isArray(regList)) {
+          const updatedList = regList.map((item) =>
+            item.id === targetId || item.email?.toLowerCase() === targetEmail
+              ? {
+                  ...item,
+                  full_name: fullName.trim() || item.full_name,
+                  whatsapp: whatsapp.trim() || item.whatsapp,
+                  admin_updated_at: nowIso,
+                }
+              : item
+          );
+          localStorage.setItem('spartan_registered_profiles', JSON.stringify(updatedList));
+        }
+        const rawWeflix = localStorage.getItem('weflix_user');
+        if (rawWeflix) {
+          const parsedWeflix = JSON.parse(rawWeflix);
+          localStorage.setItem(
+            'weflix_user',
+            JSON.stringify({
+              ...parsedWeflix,
+              displayName: fullName.trim() || parsedWeflix.displayName,
+              full_name: fullName.trim() || parsedWeflix.full_name,
+              whatsapp: whatsapp.trim() || parsedWeflix.whatsapp,
+            })
+          );
+        }
+      } catch {
+        // ignore
       }
 
+      // 2. Atualizar user_metadata no Supabase Auth (se houver sessão ativa)
+      try {
+        await supabase.auth.updateUser({
+          data: { full_name: fullName.trim(), whatsapp: whatsapp.trim() },
+        });
+      } catch {
+        // ignore
+      }
+
+      // 3. Atualizar tabela profiles no Supabase
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId)) {
+        try {
+          await supabase
+            .from('profiles')
+            .update({ full_name: fullName.trim() || null, whatsapp: whatsapp.trim() || null })
+            .eq('id', targetId);
+        } catch {
+          // ignore
+        }
+      }
+
+      window.dispatchEvent(new Event('spartan_auth_updated'));
       await refreshProfile();
       setMessage({ type: 'success', text: 'Seus dados foram atualizados com sucesso!' });
     } catch (err: unknown) {
@@ -167,17 +217,59 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   const handleRequestPlanChange = async (plan: PlanTier) => {
     setMessage(null);
     try {
-      // Registrar preferência no perfil
-      if (user) {
-        await supabase
-          .from('profiles')
-          .update({
-            plan_name: plan.name,
-            max_screens: plan.screens,
-          })
-          .eq('id', user.id);
-        await refreshProfile();
+      const targetId = profile?.id || user?.id || '';
+      const targetEmail = (profile?.email || user?.email || '').toLowerCase();
+      const nowIso = new Date().toISOString();
+
+      // 1. Atualiza imediatamente no registro compartilhado com o Painel Admin e na sessão local
+      try {
+        const regList = JSON.parse(localStorage.getItem('spartan_registered_profiles') || '[]');
+        if (Array.isArray(regList)) {
+          const updatedList = regList.map((item) =>
+            item.id === targetId || item.email?.toLowerCase() === targetEmail
+              ? {
+                  ...item,
+                  plan_name: plan.name,
+                  max_screens: Number(plan.screens),
+                  admin_updated_at: nowIso,
+                }
+              : item
+          );
+          localStorage.setItem('spartan_registered_profiles', JSON.stringify(updatedList));
+        }
+        const rawWeflix = localStorage.getItem('weflix_user');
+        if (rawWeflix) {
+          const parsedWeflix = JSON.parse(rawWeflix);
+          localStorage.setItem(
+            'weflix_user',
+            JSON.stringify({
+              ...parsedWeflix,
+              plan_name: plan.name,
+              max_screens: Number(plan.screens),
+            })
+          );
+        }
+      } catch {
+        // ignore
       }
+
+      // 2. Registrar preferência no perfil do Supabase
+      if (targetId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId)) {
+        try {
+          await supabase
+            .from('profiles')
+            .update({
+              plan_name: plan.name,
+              max_screens: plan.screens,
+            })
+            .eq('id', targetId);
+        } catch {
+          // ignore
+        }
+      }
+
+      window.dispatchEvent(new Event('spartan_auth_updated'));
+      await refreshProfile();
 
       // Montar mensagem para o WhatsApp do suporte
       const textMsg = encodeURIComponent(

@@ -6,9 +6,10 @@ import {
   BiHomeAlt,
   BiMoviePlay,
   BiTv,
-  BiBookmark
+  BiBookmark,
+  BiX
 } from 'react-icons/bi';
-import { FaPlay, FaSignOutAlt, FaUserCircle, FaShieldAlt, FaBroadcastTower } from 'react-icons/fa';
+import { FaSignOutAlt, FaUserCircle, FaShieldAlt, FaBroadcastTower } from 'react-icons/fa';
 import { GENRES, SPECIAL_CATEGORIES } from './tmdb';
 import { CATEGORIES as TV_CATEGORIES } from './LiveTV/channelsData';
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -31,11 +32,19 @@ const getCachedUser = () => {
   try { return JSON.parse(localStorage.getItem('weflix_user')) ?? null; } catch { return null; }
 };
 
-function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpenAuthModal, onOpenAccountModal }) {
+function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpenAuthModal, onOpenAccountModal, isMobileOpen = false, onCloseMobile }) {
   const navigate = useNavigate();
-  const { isAdmin, profile, daysRemaining, isActive } = useAuthProfile();
-  const [user, setUser] = useState(getCachedUser);
+  const { user: supaUser, isAdmin, profile, daysRemaining, isActive, signOut: supaSignOut } = useAuthProfile();
+  const [fbUser, setFbUser] = useState(getCachedUser);
   const { t, getGenreName } = useLanguage();
+
+  const user = supaUser
+    ? {
+        uid: supaUser.id,
+        email: supaUser.email,
+        displayName: supaUser.user_metadata?.display_name || supaUser.email?.split('@')[0],
+      }
+    : fbUser;
 
   const getNavLabel = (id, fallback) => {
     if (id === 'home') return t('home');
@@ -52,20 +61,33 @@ function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpe
       if (currentUser) {
         const cached = { uid: currentUser.uid, displayName: currentUser.displayName, email: currentUser.email };
         localStorage.setItem('weflix_user', JSON.stringify(cached));
+        setFbUser(currentUser);
       } else {
-        localStorage.removeItem('weflix_user');
+        setFbUser(null);
       }
-      setUser(currentUser);
     });
     return () => unsubscribe();
   }, []);
 
   const handleLogout = async () => {
     try {
+      await supaSignOut();
       await signOut(auth);
+      setFbUser(null);
+      if (onCloseMobile) onCloseMobile();
     } catch (error) {
       console.error('Logout error:', error);
     }
+  };
+
+  const handleNavClick = (id) => {
+    onNavigate(id);
+    if (onCloseMobile) onCloseMobile();
+  };
+
+  const handleCategoryClick = (genreId) => {
+    if (onGenreSelect) onGenreSelect(genreId);
+    if (onCloseMobile) onCloseMobile();
   };
 
   const ACTIVE_MAP = { search: 'search', movies: 'movies', series: 'series', livetv: 'livetv', watchlist: 'watchlist', home: 'home' };
@@ -80,211 +102,248 @@ function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpe
     : [];
 
   return (
-    <aside className="
-      group fixed top-0 left-0 h-full z-50
-      hidden md:flex flex-col
-      w-[84px] hover:w-[260px]
-      bg-gray-900/95 backdrop-blur-xl
-      border-r border-white/10
-      shadow-2xl shadow-black/30
-      overflow-hidden
-      transition-[width] duration-300 ease-in-out
-      select-none
-    ">
-
-      <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-red-500/10 to-transparent pointer-events-none" />
-
-      {/* Logo */}
-      <button 
-        onClick={() => onNavigate('home')} 
-        className="relative flex items-center justify-center group-hover:justify-start w-full px-1.5 pt-5 pb-5 shrink-0 text-left hover:opacity-95 transition-all duration-300"
-      >
-        <div className="w-[74px] h-[60px] flex items-center justify-center shrink-0 rounded-2xl overflow-hidden bg-black/60 border border-white/10 shadow-lg shadow-black/40 group-hover:border-red-500/40 group-hover:shadow-red-950/60 transition-all duration-300">
-          <img
-            src="/logo-cinespartan.png"
-            alt="CineSpartan"
-            className="w-full h-full object-contain rounded-2xl filter drop-shadow-[0_2px_12px_rgba(220,38,38,0.5)] transition-transform duration-300 group-hover:scale-105"
-          />
-        </div>
-        <div className="flex flex-col leading-tight whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-100 min-w-0 pr-2">
-          <span className="text-white font-black text-[22px] tracking-tight uppercase">
-            Cine<span className="text-red-500 drop-shadow-[0_0_12px_rgba(239,68,68,0.6)]">Spartan</span>
-          </span>
-          <span className="text-red-400/80 text-[11px] font-semibold tracking-[0.22em] uppercase mt-0.5">Streaming</span>
-        </div>
-      </button>
-
-      {/* Nav section label */}
-      <div className="px-[18px] mb-1 shrink-0">
-        <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-75 text-[11px] font-bold tracking-[0.22em] uppercase text-gray-500 whitespace-nowrap">
-          {t('menu')}
-        </span>
-      </div>
-
-      {/* Nav items */}
-      <nav className={`flex flex-col gap-1 px-[10px] ${showCategories ? 'shrink-0 pb-3' : 'flex-1 pb-6'}`}>
-        {NAV_ITEMS.map(({ id, icon: Icon, action, label }) => {
-          const isActive = activeId === id;
-          const displayLabel = getNavLabel(id, label);
-          return (
-            <button
-              key={id}
-              onClick={() => onNavigate(id)}
-              title={displayLabel}
-              className={`
-                relative flex items-center gap-4 px-4 py-3.5 rounded-2xl
-                w-full text-[14px] font-medium whitespace-nowrap
-                border-2 transition-colors duration-200 focus:outline-none
-                ${isActive
-                  ? 'border-red-500/35 bg-red-500/15 text-white shadow-sm shadow-red-950/30'
-                  : 'border-transparent text-gray-400 hover:text-white hover:bg-white/5 hover:border-transparent'
-                }
-              `}
-            >
-              <Icon className={`text-[24px] shrink-0 transition-colors duration-200 ${isActive ? 'text-red-400' : ''}`} />
-              <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-75">
-                {displayLabel}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* Categories section — only on movies / series */}
-      {showCategories && (
-        <>
-          <div className="mx-[18px] h-px bg-gradient-to-r from-transparent via-white/10 to-transparent shrink-0" />
-          <div className="flex-1 flex flex-col min-h-0 pt-4 pb-4">
-            {/* Section label */}
-            <div className="px-[18px] mb-2 shrink-0">
-              <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-75 text-[11px] font-bold tracking-[0.22em] uppercase text-gray-500 whitespace-nowrap">
-                {activePage === 'livetv' ? 'Canais & Categorias' : t('genres')}
-              </span>
-            </div>
-            {/* Scrollable genre list */}
-            <div className="flex-1 overflow-y-auto hide-scrollbar px-[10px] pt-1 flex flex-col gap-0.5">
-              {allCategories.map((genre) => {
-                const isActiveGenre = String(selectedGenreId) === String(genre.id);
-                const localizedGenreName = activePage === 'livetv' ? genre.name : getGenreName(genre.id, genre.name);
-                return (
-                  <button
-                    key={genre.id}
-                    onClick={() => onGenreSelect && onGenreSelect(genre.id)}
-                    title={localizedGenreName}
-                    className={`
-                      relative flex items-center gap-4 px-4 py-2.5 rounded-2xl
-                      w-full text-[13px] font-medium whitespace-nowrap
-                      border-2 transition-colors duration-200 focus:outline-none text-left
-                      ${isActiveGenre
-                        ? 'border-red-500/30 bg-red-500/15 text-white'
-                        : 'border-transparent text-gray-500 hover:text-gray-200 hover:bg-white/5 hover:border-transparent'
-                      }
-                    `}
-                  >
-                    <span className={`
-                      w-2 h-2 rounded-full shrink-0 transition-all duration-200
-                      ${isActiveGenre ? 'bg-red-400' : 'bg-gray-700'}
-                    `} />
-                    <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-75">
-                      {localizedGenreName}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </>
+    <>
+      {/* Backdrop escuro ao abrir a barra lateral no celular */}
+      {isMobileOpen && (
+        <div
+          onClick={onCloseMobile}
+          className="md:hidden fixed inset-0 z-[55] bg-black/75 backdrop-blur-sm animate-fadeIn"
+          aria-hidden="true"
+        />
       )}
 
-      {/* Bottom spacer */}
-      {!showCategories && <div className="h-6 shrink-0" />}
+      <aside
+        className={`
+          group fixed top-0 left-0 h-[100dvh] z-[60]
+          flex flex-col
+          w-[265px] max-w-[82vw] md:w-[80px] lg:w-[84px] md:hover:w-[260px]
+          bg-gray-900/98 backdrop-blur-xl
+          border-r border-white/10
+          shadow-2xl shadow-black/60
+          overflow-hidden
+          transition-all duration-300 ease-in-out
+          select-none
+          ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        `}
+      >
+        <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-red-500/10 to-transparent pointer-events-none" />
 
-      {/* Language Selector + User profile / Logout */}
-      <div className="mt-auto pt-3 pb-6 px-[10px] shrink-0 border-t border-white/5 relative z-10 bg-gray-900/95 flex flex-col gap-2">
-        <div className="flex items-center justify-center group-hover:justify-start px-2 py-1 transition-all">
-          <LanguageSelector compact />
-          <div className="hidden group-hover:flex flex-col ml-2.5 text-left text-xs leading-tight">
-            <span className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">{t('language')}</span>
-            <span className="text-gray-300 font-medium text-[11px]">Clique p/ alternar</span>
-          </div>
-        </div>
-        {isAdmin && (
+        {/* Topo: Logo + Botão Fechar (Mobile) */}
+        <div className="relative flex items-center justify-between md:justify-center md:group-hover:justify-start w-full px-3 md:px-2 pt-3.5 pb-3 shrink-0 border-b border-white/5 md:border-b-0">
           <button
-            onClick={() => navigate('/admin')}
-            title="Painel de Clientes & Assinaturas"
-            className="
-              relative flex items-center gap-4 px-4 py-2.5 rounded-2xl
-              w-full whitespace-nowrap
-              bg-red-600/20 border border-red-500/40 text-red-400 hover:bg-red-600/30 hover:text-white transition-all duration-200 focus:outline-none shadow-md shadow-red-950/40
-            "
+            onClick={() => handleNavClick('home')}
+            className="flex items-center gap-3 min-w-0 text-left hover:opacity-95 transition-all duration-300"
           >
-            <FaShieldAlt className="text-[20px] shrink-0" />
-            <div className="flex flex-col text-left opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-75">
-              <span className="text-white text-[12px] font-bold">Painel Master</span>
-              <span className="text-red-400 text-[9px] font-black uppercase tracking-wider">Gestão Clientes</span>
+            <div className="w-12 h-11 md:w-[58px] md:h-[50px] flex items-center justify-center shrink-0 rounded-2xl overflow-hidden bg-black/60 border border-white/10 shadow-lg shadow-black/40 group-hover:border-red-500/40 group-hover:shadow-red-950/60 transition-all duration-300">
+              <img
+                src="/logo-cinespartan.png"
+                alt="CineSpartan"
+                className="w-full h-full object-contain rounded-2xl filter drop-shadow-[0_2px_12px_rgba(220,38,38,0.5)] transition-transform duration-300 group-hover:scale-105"
+              />
+            </div>
+            <div className="flex md:hidden md:group-hover:flex flex-col leading-tight whitespace-nowrap min-w-0 pr-1">
+              <span className="text-white font-black text-lg md:text-[20px] tracking-tight uppercase truncate">
+                Cine<span className="text-red-500 drop-shadow-[0_0_12px_rgba(239,68,68,0.6)]">Spartan</span>
+              </span>
+              <span className="text-red-400/80 text-[10px] font-semibold tracking-[0.2em] uppercase mt-0.5">
+                Streaming
+              </span>
             </div>
           </button>
-        )}
-        {user ? (
-          <>
-            <button
-              onClick={onOpenAccountModal}
-              title="Minha Conta, Vencimento & Trocar Plano"
-              className="
-                relative flex items-center gap-4 px-4 py-2.5 rounded-2xl
-                w-full whitespace-nowrap
-                bg-purple-950/30 border border-purple-500/30 text-gray-200 hover:bg-purple-600/25 hover:border-purple-500/50 hover:text-white transition-all duration-200 focus:outline-none shadow-md group/acc
-              "
-            >
-              <FaUserCircle className="text-[22px] text-purple-400 shrink-0 group-hover/acc:scale-110 transition-transform" />
-              <div className="flex flex-col text-left opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-75">
-                <span className="text-white text-[12px] font-bold line-clamp-1">
-                  {profile?.plan_name || 'Minha Conta'}
-                </span>
-                <span
-                  className={`text-[10px] font-black ${
-                    isActive ? 'text-emerald-400' : 'text-red-400'
-                  }`}
-                >
-                  {isActive ? `${daysRemaining}d restantes` : 'Assinatura Vencida'}
-                </span>
-              </div>
-            </button>
 
+          {/* Botão fechar gaveta no celular */}
+          <button
+            type="button"
+            onClick={onCloseMobile}
+            className="md:hidden p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white border border-white/10 transition-colors"
+            aria-label="Fechar menu lateral"
+          >
+            <BiX className="text-2xl" />
+          </button>
+        </div>
+
+        {/* Área central rolável (Menu + Categorias) para perfeito enquadramento em qualquer altura de tela */}
+        <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar flex flex-col py-2">
+          {/* Nav section label */}
+          <div className="px-4 mb-1.5 shrink-0 flex md:hidden md:group-hover:flex">
+            <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-gray-500 whitespace-nowrap">
+              {t('menu')}
+            </span>
+          </div>
+
+          {/* Nav items */}
+          <nav className="flex flex-col gap-1 px-2.5 shrink-0">
+            {NAV_ITEMS.map(({ id, icon: Icon, label }) => {
+              const isActiveItem = activeId === id;
+              const displayLabel = getNavLabel(id, label);
+              return (
+                <button
+                  key={id}
+                  onClick={() => handleNavClick(id)}
+                  title={displayLabel}
+                  className={`
+                    relative flex items-center justify-start md:justify-center md:group-hover:justify-start gap-3.5 px-3.5 py-2.5 rounded-2xl
+                    w-full text-[13px] sm:text-[14px] font-medium whitespace-nowrap
+                    border transition-colors duration-200 focus:outline-none
+                    ${isActiveItem
+                      ? 'border-red-500/40 bg-red-500/15 text-white shadow-sm shadow-red-950/30'
+                      : 'border-transparent text-gray-400 hover:text-white hover:bg-white/5'
+                    }
+                  `}
+                >
+                  <Icon className={`text-[22px] shrink-0 transition-colors duration-200 ${isActiveItem ? 'text-red-400' : ''}`} />
+                  <span className="inline md:hidden md:group-hover:inline truncate">
+                    {displayLabel}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Categories section — movies / series / livetv */}
+          {showCategories && (
+            <div className="mt-3 pt-3 border-t border-white/10 flex flex-col">
+              {/* Section label */}
+              <div className="px-4 mb-1.5 shrink-0 flex md:hidden md:group-hover:flex">
+                <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-gray-500 whitespace-nowrap">
+                  {activePage === 'livetv' ? 'Canais & Categorias' : t('genres')}
+                </span>
+              </div>
+              {/* Genre / category list */}
+              <div className="px-2.5 flex flex-col gap-0.5">
+                {allCategories.map((genre) => {
+                  const isActiveGenre = String(selectedGenreId) === String(genre.id);
+                  const localizedGenreName = activePage === 'livetv' ? genre.name : getGenreName(genre.id, genre.name);
+                  return (
+                    <button
+                      key={genre.id}
+                      onClick={() => handleCategoryClick(genre.id)}
+                      title={localizedGenreName}
+                      className={`
+                        relative flex items-center justify-start md:justify-center md:group-hover:justify-start gap-3.5 px-3.5 py-2 rounded-xl
+                        w-full text-[12px] sm:text-[13px] font-medium whitespace-nowrap
+                        border transition-colors duration-200 focus:outline-none text-left
+                        ${isActiveGenre
+                          ? 'border-red-500/35 bg-red-500/15 text-white'
+                          : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                        }
+                      `}
+                    >
+                      <span
+                        className={`
+                          w-2 h-2 rounded-full shrink-0 transition-all duration-200
+                          ${isActiveGenre ? 'bg-red-400 scale-110' : 'bg-gray-600'}
+                        `}
+                      />
+                      <span className="inline md:hidden md:group-hover:inline truncate">
+                        {localizedGenreName}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Rodapé fixo da Barra Lateral: Idioma + Admin + Conta + Sair */}
+        <div className="mt-auto pt-2.5 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] md:pb-4 px-2.5 shrink-0 border-t border-white/10 relative z-10 bg-gray-900/98 flex flex-col gap-1.5">
+          <div className="flex items-center justify-start md:justify-center md:group-hover:justify-start px-2 py-1 transition-all">
+            <LanguageSelector compact />
+            <div className="flex md:hidden md:group-hover:flex flex-col ml-2.5 text-left text-xs leading-tight min-w-0">
+              <span className="text-[9px] uppercase font-bold text-gray-500 tracking-wider">{t('language')}</span>
+              <span className="text-gray-300 font-medium text-[11px] truncate">Alternar idioma</span>
+            </div>
+          </div>
+
+          {isAdmin && (
             <button
-              onClick={handleLogout}
-              title={t('log_out')}
+              onClick={() => {
+                if (onCloseMobile) onCloseMobile();
+                navigate('/admin');
+              }}
+              title="Painel de Clientes & Assinaturas"
               className="
-                relative flex items-center gap-4 px-4 py-3 rounded-2xl
+                relative flex items-center justify-start md:justify-center md:group-hover:justify-start gap-3.5 px-3.5 py-2 rounded-2xl
                 w-full whitespace-nowrap
-                border-2 border-transparent text-gray-400 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-colors duration-200 focus:outline-none group/user
+                bg-red-600/20 border border-red-500/40 text-red-400 hover:bg-red-600/30 hover:text-white transition-all duration-200 focus:outline-none shadow-md shadow-red-950/40
               "
             >
-              <FaSignOutAlt className="text-[22px] shrink-0" />
-              <div className="flex flex-col text-left opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-75">
-                <span className="text-white line-clamp-1 text-[13px] font-bold">{user.displayName || user.email?.split('@')[0]}</span>
-                <span className="text-red-400 text-[10px] font-bold uppercase tracking-wider">{t('log_out')}</span>
+              <FaShieldAlt className="text-[19px] shrink-0" />
+              <div className="flex md:hidden md:group-hover:flex flex-col text-left min-w-0">
+                <span className="text-white text-[12px] font-bold truncate">Painel Master</span>
+                <span className="text-red-400 text-[9px] font-black uppercase tracking-wider truncate">Gestão Clientes</span>
               </div>
             </button>
-          </>
-        ) : (
-          <button
-            onClick={onOpenAuthModal}
-            title={t('sign_in')}
-            className="
-              relative flex items-center gap-4 px-4 py-3.5 rounded-2xl
-              w-full text-[14px] font-medium whitespace-nowrap
-              border-2 border-transparent text-gray-400 hover:text-white hover:bg-white/5 hover:border-transparent transition-colors duration-200 focus:outline-none
-            "
-          >
-            <FaUserCircle className="text-[24px] shrink-0" />
-            <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-75 w-24 overflow-hidden">
-              {t('sign_in')}
-            </span>
-          </button>
-        )}
-      </div>
-    </aside>
+          )}
+
+          {user ? (
+            <>
+              <button
+                onClick={() => {
+                  if (onCloseMobile) onCloseMobile();
+                  onOpenAccountModal();
+                }}
+                title="Minha Conta, Vencimento & Trocar Plano"
+                className="
+                  relative flex items-center justify-start md:justify-center md:group-hover:justify-start gap-3.5 px-3.5 py-2 rounded-2xl
+                  w-full whitespace-nowrap
+                  bg-purple-950/30 border border-purple-500/30 text-gray-200 hover:bg-purple-600/25 hover:border-purple-500/50 hover:text-white transition-all duration-200 focus:outline-none shadow-md group/acc
+                "
+              >
+                <FaUserCircle className="text-[20px] text-purple-400 shrink-0 group-hover/acc:scale-110 transition-transform" />
+                <div className="flex md:hidden md:group-hover:flex flex-col text-left min-w-0">
+                  <span className="text-white text-[12px] font-bold truncate">
+                    {profile?.plan_name || 'Minha Conta'}
+                  </span>
+                  <span
+                    className={`text-[10px] font-black truncate ${
+                      isActive ? 'text-emerald-400' : 'text-red-400'
+                    }`}
+                  >
+                    {isActive ? `${daysRemaining}d restantes` : 'Assinatura Vencida'}
+                  </span>
+                </div>
+              </button>
+
+              <button
+                onClick={handleLogout}
+                title={t('log_out')}
+                className="
+                  relative flex items-center justify-start md:justify-center md:group-hover:justify-start gap-3.5 px-3.5 py-2 rounded-2xl
+                  w-full whitespace-nowrap
+                  border border-transparent text-gray-400 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-colors duration-200 focus:outline-none group/user
+                "
+              >
+                <FaSignOutAlt className="text-[20px] shrink-0" />
+                <div className="flex md:hidden md:group-hover:flex flex-col text-left min-w-0">
+                  <span className="text-white truncate text-[12px] font-bold">{user.displayName || user.email?.split('@')[0]}</span>
+                  <span className="text-red-400 text-[9px] font-bold uppercase tracking-wider">{t('log_out')}</span>
+                </div>
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => {
+                if (onCloseMobile) onCloseMobile();
+                onOpenAuthModal();
+              }}
+              title={t('sign_in')}
+              className="
+                relative flex items-center justify-start md:justify-center md:group-hover:justify-start gap-3.5 px-3.5 py-2.5 rounded-2xl
+                w-full text-[13px] font-medium whitespace-nowrap
+                border border-transparent text-gray-400 hover:text-white hover:bg-white/5 transition-colors duration-200 focus:outline-none
+              "
+            >
+              <FaUserCircle className="text-[22px] shrink-0" />
+              <span className="inline md:hidden md:group-hover:inline truncate">
+                {t('sign_in')}
+              </span>
+            </button>
+          )}
+        </div>
+      </aside>
+    </>
   );
 }
 
@@ -295,6 +354,8 @@ Sidebar.propTypes = {
   onGenreSelect: PropTypes.func,
   onOpenAuthModal: PropTypes.func,
   onOpenAccountModal: PropTypes.func,
+  isMobileOpen: PropTypes.bool,
+  onCloseMobile: PropTypes.func,
 };
 
 export default React.memo(Sidebar);

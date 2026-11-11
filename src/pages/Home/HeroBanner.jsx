@@ -130,7 +130,7 @@ export default function HeroBanner() {
   const handlePlay = () => navigate(toDetailPath(isTV ? 'tv' : 'movie', item.id, title));
 
   return (
-    <div className="relative w-full h-[72vh] md:h-screen overflow-hidden bg-black select-none">
+    <div className="relative w-full h-[64vh] sm:h-[72vh] md:h-screen overflow-hidden bg-black select-none">
 
       {/* ── Backdrop ─────────────────────────── */}
       <div className={`absolute inset-0 transition-opacity duration-500 ${fade ? 'opacity-100' : 'opacity-0'}`}>
@@ -147,35 +147,35 @@ export default function HeroBanner() {
       </div>
 
       {/* ── Content ──────────────────────────── */}
-      <div className={`relative z-10 h-full flex flex-col justify-end md:justify-center px-6 md:px-14 pb-20 md:pb-16 max-w-2xl transition-opacity duration-500 ${fade ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`relative z-10 h-full flex flex-col justify-end md:justify-center px-4 sm:px-6 md:px-14 pb-16 sm:pb-20 md:pb-16 max-w-2xl transition-opacity duration-500 ${fade ? 'opacity-100' : 'opacity-0'}`}>
 
         {/* Live badge + type label */}
-        <div className="flex items-center gap-3 mb-4">
-          <span className="inline-flex items-center gap-1.5 bg-red-600/20 border border-red-500/40 text-red-400 text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-widest">
+        <div className="flex items-center gap-2.5 sm:gap-3 mb-2.5 sm:mb-4">
+          <span className="inline-flex items-center gap-1.5 bg-red-600/20 border border-red-500/40 text-red-400 text-[10px] sm:text-[11px] font-bold px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full uppercase tracking-widest">
             <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
             Trending
           </span>
-          <span className="text-gray-400 text-[11px] font-semibold uppercase tracking-widest">
+          <span className="text-gray-400 text-[10px] sm:text-[11px] font-semibold uppercase tracking-widest">
             {isTV ? t('tv_shows') : t('movies')}
           </span>
         </div>
 
         {/* Title */}
-        <h2 className="text-4xl md:text-5xl lg:text-[3.25rem] font-black text-white leading-[1.05] tracking-tight mb-3 drop-shadow-[0_2px_20px_rgba(0,0,0,0.8)]">
+        <h2 className="text-2xl sm:text-4xl md:text-5xl lg:text-[3.25rem] font-black text-white leading-[1.1] sm:leading-[1.05] tracking-tight mb-2.5 sm:mb-3 drop-shadow-[0_2px_20px_rgba(0,0,0,0.8)] line-clamp-2">
           {title}
         </h2>
 
         {/* Meta: rating + year + genres */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-5">
+        <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-1.5 sm:gap-y-2 mb-4 sm:mb-5">
           {rating && (
-            <span className="flex items-center gap-1.5 text-yellow-400 font-bold text-sm">
+            <span className="flex items-center gap-1.5 text-yellow-400 font-bold text-xs sm:text-sm">
               <FaStar className="text-yellow-400 text-xs" />
               {rating}
               <span className="text-gray-500 font-normal text-xs">({votes})</span>
             </span>
           )}
           {year && (
-            <span className="flex items-center gap-1.5 text-gray-400 text-sm">
+            <span className="flex items-center gap-1.5 text-gray-400 text-xs sm:text-sm">
               <BiCalendar className="text-gray-500 text-xs" />
               {year}
             </span>
@@ -183,7 +183,7 @@ export default function HeroBanner() {
           {genres.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {genres.map(g => (
-                <span key={g} className="text-[11px] font-semibold text-gray-300 bg-white/[0.09] border border-white/[0.12] px-2.5 py-0.5 rounded-full">
+                <span key={g} className="text-[10px] sm:text-[11px] font-semibold text-gray-300 bg-white/[0.09] border border-white/[0.12] px-2 sm:px-2.5 py-0.5 rounded-full">
                   {g}
                 </span>
               ))}
@@ -199,21 +199,20 @@ export default function HeroBanner() {
         )}
 
         {/* CTA buttons */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
           <button
             onClick={handlePlay}
-            className="flex items-center gap-2.5 bg-red-600 hover:bg-red-500 text-white font-bold px-7 py-3 rounded-full transition-all duration-200 hover:scale-105 shadow-lg shadow-red-700/40 text-sm"
+            className="flex items-center gap-2 sm:gap-2.5 bg-red-600 hover:bg-red-500 text-white font-bold px-5 sm:px-7 py-2.5 sm:py-3 rounded-full transition-all duration-200 hover:scale-105 shadow-lg shadow-red-700/40 text-xs sm:text-sm"
           >
             <FaPlay className="text-xs" />
             {t('watch_now')}
           </button>
           <button
             onClick={handlePlay}
-            className="flex items-center gap-2 bg-white/[0.1] hover:bg-white/[0.18] backdrop-blur border border-white/[0.15] text-white font-semibold px-6 py-3 rounded-full transition-all duration-200 text-sm"
+            className="flex items-center gap-2 bg-white/[0.1] hover:bg-white/[0.18] backdrop-blur border border-white/[0.15] text-white font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-full transition-all duration-200 text-xs sm:text-sm"
           >
-            <FaInfoCircle className="text-sm" />
-            <span className="hidden sm:inline">{t('more_info')}</span>
-            <span className="sm:hidden">{t('more_info')}</span>
+            <FaInfoCircle className="text-xs sm:text-sm" />
+            <span>{t('more_info')}</span>
           </button>
         </div>
       </div>

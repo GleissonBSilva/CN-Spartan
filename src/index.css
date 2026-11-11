@@ -27,10 +27,15 @@
 
 html, body {
   background-color: black;
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 #root {
   min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 .fade-in {
     animation: fadeIn 0.2s ease-out forwards;
@@ -152,4 +157,34 @@ input, textarea {
 
 html {
   scroll-behavior: smooth;
+}
+
+/* Fullscreen Limpo: Oculta barras globais e garante 100% da tela */
+body.cinespartan-fullscreen {
+  overflow: hidden !important;
+}
+
+body.cinespartan-fullscreen nav,
+body.cinespartan-fullscreen aside,
+body.cinespartan-fullscreen .cinespartan-top-controls,
+body.cinespartan-fullscreen .fixed.top-4.right-4 {
+  display: none !important;
+}
+
+.cinespartan-player-container:fullscreen,
+.cinespartan-player-container:-webkit-full-screen,
+.cinespartan-player-container:-moz-full-screen,
+.cinespartan-player-container:-ms-fullscreen {
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  max-height: 100dvh !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: #000 !important;
 }

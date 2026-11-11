@@ -98,6 +98,10 @@ function streamProxyPlugin() {
 export default defineConfig({
   plugins: [react(), streamProxyPlugin()],
   server: {
-    host: '0.0.0.0' // Expose on all network interfaces
+    host: '0.0.0.0', // Expose on all network interfaces
+    headers: {
+      'Permissions-Policy': 'fullscreen=*, picture-in-picture=*, autoplay=*, encrypted-media=*, screen-wake-lock=*',
+      'Feature-Policy': 'fullscreen *; picture-in-picture *; autoplay *; encrypted-media *'
+    }
   }
 })

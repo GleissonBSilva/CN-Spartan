@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { useAuthProfile } from '../hooks/useAuthProfile';
 
 const STORAGE_KEY = (uid) => `wf_watchlist_${uid}`;
 
@@ -13,8 +14,21 @@ const getCachedAuthUser = () => {
 };
 
 export function WatchlistProvider({ children }) {
-  // Seed user from localStorage so we can load watchlist cache before Firebase resolves
-  const [user, setUser] = useState(getCachedAuthUser);
+  const { user: supaUser } = useAuthProfile();
+  const [fbUser, setFbUser] = useState(getCachedAuthUser);
+
+  const user = useMemo(() => {
+    if (supaUser) {
+      return {
+        uid: supaUser.id,
+        email: supaUser.email,
+        displayName: supaUser.user_metadata?.display_name || supaUser.email?.split('@')[0],
+        isSupabase: true,
+      };
+    }
+    return fbUser;
+  }, [supaUser, fbUser]);
+
   const [watchlistIds, setWatchlistIds] = useState(() => {
     const cached = getCachedAuthUser();
     if (!cached) return new Set();
@@ -33,43 +47,46 @@ export function WatchlistProvider({ children }) {
     } catch { /* ignore */ }
     return [];
   });
-  // If we already have a cached user+items, start as ready
-  const [ready, setReady] = useState(() => {
-    const cached = getCachedAuthUser();
-    if (!cached) return false;
-    try {
-      return !!localStorage.getItem(STORAGE_KEY(cached.uid));
-    } catch { return false; }
-  });
+  const [ready, setReady] = useState(true);
 
-  // Track auth state
+  // Track Firebase auth fallback
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      if (!u) {
-        setWatchlistIds(new Set());
-        setWatchlistItems([]);
-        setReady(true);
-        return;
+      if (u) {
+        setFbUser(u);
+      } else {
+        setFbUser(null);
       }
-
-      // ── Load from localStorage cache immediately so buttons show right away ──
-      try {
-        const cached = localStorage.getItem(STORAGE_KEY(u.uid));
-        if (cached) {
-          const { ids, items } = JSON.parse(cached);
-          setWatchlistIds(new Set(ids));
-          setWatchlistItems(items || []);
-          setReady(true); // already ready from cache
-        }
-      } catch { /* ignore malformed cache */ }
     });
     return () => unsub();
   }, []);
 
-  // Subscribe to Firestore — confirms / corrects the localStorage cache
+  // Load watchlist from localStorage whenever active user (Supabase or Firebase) changes
   useEffect(() => {
-    if (!user) return;
+    if (!user?.uid) {
+      setWatchlistIds(new Set());
+      setWatchlistItems([]);
+      setReady(true);
+      return;
+    }
+
+    try {
+      const cached = localStorage.getItem(STORAGE_KEY(user.uid));
+      if (cached) {
+        const { ids, items } = JSON.parse(cached);
+        setWatchlistIds(new Set(ids || []));
+        setWatchlistItems(items || []);
+      } else {
+        setWatchlistIds(new Set());
+        setWatchlistItems([]);
+      }
+    } catch { /* ignore malformed cache */ }
+    setReady(true);
+  }, [user?.uid]);
+
+  // Subscribe to Firestore only when logged into Firebase
+  useEffect(() => {
+    if (!user?.uid || user.isSupabase) return;
 
     const ref = collection(db, 'users', user.uid, 'watchlist');
     const unsub = onSnapshot(ref, (snapshot) => {
@@ -85,12 +102,10 @@ export function WatchlistProvider({ children }) {
       setWatchlistItems(sorted);
       setReady(true);
 
-      // Persist to localStorage so next refresh is instant
       try {
         localStorage.setItem(STORAGE_KEY(user.uid), JSON.stringify({ ids: [...ids], items: sorted }));
       } catch { /* quota exceeded — ignore */ }
-    }, (error) => {
-      console.warn('Watchlist snapshot error:', error);
+    }, () => {
       setReady(true);
     });
 
@@ -98,21 +113,40 @@ export function WatchlistProvider({ children }) {
   }, [user]);
 
   const toggleWatchlist = useCallback(async (item, onNeedAuth) => {
-    if (!user) {
+    if (!user?.uid) {
       onNeedAuth?.();
       return;
     }
     const id = String(item.mediaId);
-    const ref = doc(db, 'users', user.uid, 'watchlist', id);
-    if (watchlistIds.has(id)) {
-      await deleteDoc(ref);
+    const nextIds = new Set(watchlistIds);
+    let nextItems;
+
+    if (nextIds.has(id)) {
+      nextIds.delete(id);
+      nextItems = watchlistItems.filter((i) => String(i.mediaId) !== id);
     } else {
-      await setDoc(ref, {
-        ...item,
-        addedAt: new Date().toISOString(),
-      });
+      nextIds.add(id);
+      const newItem = { id, ...item, addedAt: new Date().toISOString() };
+      nextItems = [newItem, ...watchlistItems.filter((i) => String(i.mediaId) !== id)];
     }
-  }, [user, watchlistIds]);
+
+    setWatchlistIds(nextIds);
+    setWatchlistItems(nextItems);
+    try {
+      localStorage.setItem(STORAGE_KEY(user.uid), JSON.stringify({ ids: [...nextIds], items: nextItems }));
+    } catch { /* ignore */ }
+
+    if (!user.isSupabase) {
+      try {
+        const ref = doc(db, 'users', user.uid, 'watchlist', id);
+        if (!nextIds.has(id)) {
+          await deleteDoc(ref);
+        } else {
+          await setDoc(ref, { ...item, addedAt: new Date().toISOString() });
+        }
+      } catch { /* ignore Firestore error when offline */ }
+    }
+  }, [user, watchlistIds, watchlistItems]);
 
   return (
     <WatchlistContext.Provider value={{ watchlistIds, watchlistItems, toggleWatchlist, ready, user }}>

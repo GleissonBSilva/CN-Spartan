@@ -3,11 +3,13 @@ import { BiChevronLeft, BiChevronRight, BiTime } from 'react-icons/bi';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../../firebase';
+import { useAuthProfile } from '../../hooks/useAuthProfile';
 import ContentCard from './ContentCard';
 
 const POSTER = 'https://image.tmdb.org/t/p/w500';
 
-export default function ContinueWatchingRow({ onSelect, accent }) {
+export default function ContinueWatchingRow({ onSelect }) {
+  const { user: supaUser } = useAuthProfile();
   const [items, setItems] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('wf_cw_cache_items') || '[]');
@@ -15,28 +17,46 @@ export default function ContinueWatchingRow({ onSelect, accent }) {
       return [];
     }
   });
-  const [user, setUser] = useState(null);
+  const [fbUser, setFbUser] = useState(null);
   const rowRef = useRef(null);
   const dragStateRef = useRef({ active: false, startX: 0, startScrollLeft: 0, moved: false });
   const suppressClickRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Track auth
+  const activeUid = supaUser?.id || fbUser?.uid || null;
+
+  // Track Firebase auth fallback
   useEffect(() => {
     return onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      if (!u) {
-        setItems([]);
-        localStorage.removeItem('wf_cw_cache_items');
-      }
+      setFbUser(u);
     });
   }, []);
 
-  // Sync from Firestore
+  // Load and sync from localStorage for Supabase/local users
   useEffect(() => {
-    if (!user) return;
+    const loadFromStorage = () => {
+      if (!activeUid) {
+        setItems([]);
+        return;
+      }
+      try {
+        const raw = localStorage.getItem(`wf_cw_cache_items_${activeUid}`) || localStorage.getItem('wf_cw_cache_items') || '[]';
+        setItems(JSON.parse(raw));
+      } catch {
+        setItems([]);
+      }
+    };
+
+    loadFromStorage();
+    window.addEventListener('continueWatchingUpdated', loadFromStorage);
+    return () => window.removeEventListener('continueWatchingUpdated', loadFromStorage);
+  }, [activeUid]);
+
+  // Sync from Firestore if authenticated via Firebase
+  useEffect(() => {
+    if (!fbUser?.uid || supaUser) return;
     const q = query(
-      collection(db, 'users', user.uid, 'continue_watching'),
+      collection(db, 'users', fbUser.uid, 'continue_watching'),
       orderBy('updatedAt', 'desc'),
       limit(20)
     );
@@ -46,14 +66,12 @@ export default function ContinueWatchingRow({ onSelect, accent }) {
       setItems(data);
       try {
         localStorage.setItem('wf_cw_cache_items', JSON.stringify(data));
-      } catch (e) {
+      } catch {
         // limit reached
       }
-    }, (error) => {
-      console.warn('Continue watching snapshot error:', error);
-    });
+    }, () => {});
     return unsub;
-  }, [user]);
+  }, [fbUser, supaUser]);
 
   const scroll = (dir) => {
     const el = rowRef.current;

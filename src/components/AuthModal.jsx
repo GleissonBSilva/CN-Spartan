@@ -4,6 +4,7 @@ import { FaTimes, FaGoogle, FaEnvelope, FaLock, FaUser, FaSpinner, FaExclamation
 import { BiMoviePlay } from 'react-icons/bi';
 import { supabase } from '../lib/supabase';
 import { getSavedPlans } from '../constants/plans';
+import { useAuthProfile } from '../hooks/useAuthProfile';
 import { auth, googleProvider, db } from '../firebase';
 import { 
   createUserWithEmailAndPassword, 
@@ -60,6 +61,7 @@ const formatAuthError = (msg) => {
 };
 
 export default function AuthModal({ isOpen, onClose }) {
+  const { refreshProfile } = useAuthProfile();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -180,7 +182,12 @@ export default function AuthModal({ isOpen, onClose }) {
     setLoading(true);
     setError('');
     try {
-      await sendPasswordResetEmail(auth, resetEmail.trim());
+      const { error: supaResetErr } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (supaResetErr) {
+        await sendPasswordResetEmail(auth, resetEmail.trim());
+      }
       setResetSent(true);
     } catch (err) {
       setError(getFirebaseError(err));
@@ -196,16 +203,50 @@ export default function AuthModal({ isOpen, onClose }) {
 
     try {
       if (isLogin) {
+        const cleanLoginEmail = email.trim().toLowerCase();
         // Autenticação primária pelo Supabase (Cine Spartan Database)
         const { data: supaData, error: supaError } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
+          email: cleanLoginEmail,
           password,
         });
 
         if (supaError) {
-          // Se falhar no Supabase, tenta o Firebase como fallback
+          // Verifica se o cliente acabou de se cadastrar localmente (ou aguarda confirmação de e-mail do Supabase)
+          let localRegisteredUser = null;
           try {
-            const result = await signInWithEmailAndPassword(auth, email, password);
+            const regList = JSON.parse(localStorage.getItem('spartan_registered_profiles') || '[]');
+            if (Array.isArray(regList)) {
+              localRegisteredUser = regList.find(
+                (p) => p.email?.toLowerCase() === cleanLoginEmail
+              );
+            }
+          } catch {
+            localRegisteredUser = null;
+          }
+
+          if (localRegisteredUser) {
+            localStorage.setItem('weflix_user', JSON.stringify({
+              uid: localRegisteredUser.id,
+              id: localRegisteredUser.id,
+              email: localRegisteredUser.email,
+              displayName: localRegisteredUser.full_name || localRegisteredUser.email.split('@')[0],
+              full_name: localRegisteredUser.full_name || localRegisteredUser.email.split('@')[0],
+              whatsapp: localRegisteredUser.whatsapp,
+              plan_name: localRegisteredUser.plan_name,
+              max_screens: localRegisteredUser.max_screens,
+              is_trial: localRegisteredUser.is_trial,
+              status: localRegisteredUser.status,
+              expires_at: localRegisteredUser.expires_at,
+            }));
+            window.dispatchEvent(new Event('spartan_auth_updated'));
+            await refreshProfile();
+            onClose();
+            return;
+          }
+
+          // Se não estiver no registro local, tenta o Firebase como fallback
+          try {
+            const result = await signInWithEmailAndPassword(auth, cleanLoginEmail, password);
             await result.user.reload();
             if (!result.user.emailVerified) {
               await auth.signOut();
@@ -223,9 +264,16 @@ export default function AuthModal({ isOpen, onClose }) {
         if (supaData?.user) {
           localStorage.setItem('weflix_user', JSON.stringify({
             uid: supaData.user.id,
+            id: supaData.user.id,
             email: supaData.user.email,
-            displayName: supaData.user.user_metadata?.display_name || email.split('@')[0],
+            displayName: supaData.user.user_metadata?.display_name || supaData.user.user_metadata?.full_name || cleanLoginEmail.split('@')[0],
+            full_name: supaData.user.user_metadata?.full_name || supaData.user.user_metadata?.display_name || cleanLoginEmail.split('@')[0],
+            whatsapp: supaData.user.user_metadata?.whatsapp,
+            plan_name: supaData.user.user_metadata?.plan_name,
+            max_screens: supaData.user.user_metadata?.max_screens,
           }));
+          window.dispatchEvent(new Event('spartan_auth_updated'));
+          await refreshProfile();
         }
 
         onClose();
@@ -237,59 +285,186 @@ export default function AuthModal({ isOpen, onClose }) {
           return;
         }
 
-        // Cadastro no Supabase com suporte a Plano e Teste Grátis configurável
-        const effectiveTrialDays = trialEnabled ? trialDays : 0;
+        const cleanEmail = email.trim().toLowerCase();
+        const cleanName = name.trim() || cleanEmail.split('@')[0];
+        const chosenPlanName = selectedPlan?.name || 'SPARTAN PRO';
+        const chosenPlanScreens = Number(selectedPlan?.screens || 2);
+        const chosenPlanPrice = Number(selectedPlan?.monthlyPrice || 59.9);
+
+        // Verifica se e-mail ou WhatsApp foram bloqueados permanentemente no Anti-Fraude
+        let alreadyUsedTrial = false;
+        try {
+          const localUsed = JSON.parse(localStorage.getItem('spartan_used_trials') || '[]');
+          if (Array.isArray(localUsed)) {
+            alreadyUsedTrial = localUsed.some(
+              (item) =>
+                (item.email && item.email.toLowerCase() === cleanEmail) ||
+                (item.whatsapp && String(item.whatsapp).replace(/\D/g, '') === cleanPhone)
+            );
+          }
+        } catch {
+          // ignore
+        }
+
+        // Todo novo usuário que se cadastra já entra imediatamente no prazo de Teste Grátis (salvo se bloqueado no Anti-Fraude)
+        const configuredDays = Math.max(1, Number(trialDays) || 3);
+        const effectiveTrialDays = !alreadyUsedTrial && trialEnabled !== false ? configuredDays : 0;
+        const isTrialActive = effectiveTrialDays > 0;
+        const initialStatus = isTrialActive ? 'ativo' : 'vencido';
+        const nowIso = new Date().toISOString();
         const expiryDate = new Date(Date.now() + effectiveTrialDays * 24 * 60 * 60 * 1000).toISOString();
 
         const { data: supaData, error: supaError } = await supabase.auth.signUp({
-          email: email.trim(),
+          email: cleanEmail,
           password,
           options: {
             data: {
-              display_name: name,
+              display_name: cleanName,
+              full_name: cleanName,
               whatsapp: cleanPhone,
-              plan_name: selectedPlan.name,
-              max_screens: selectedPlan.screens,
+              plan_name: chosenPlanName,
+              plan_price: chosenPlanPrice,
+              max_screens: chosenPlanScreens,
               trial_days: effectiveTrialDays,
-              is_trial: effectiveTrialDays > 0,
+              is_trial: isTrialActive,
+              status: initialStatus,
+              expires_at: expiryDate,
             },
           },
         });
 
-        if (supaError) {
+        // Se o erro for "User already registered", avisa o cliente; se for limite de envio de e-mail do Supabase, conclui o cadastro normalmente
+        if (supaError && supaError.message?.includes('User already registered')) {
           setError(formatAuthError(supaError.message));
           setLoading(false);
           return;
         }
 
-        if (supaData?.user) {
+        const newUserId = supaData?.user?.id || `usr-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+        const createdProfile = {
+          id: newUserId,
+          email: cleanEmail,
+          full_name: cleanName,
+          whatsapp: cleanPhone,
+          role: 'client',
+          plan_name: chosenPlanName,
+          max_screens: chosenPlanScreens,
+          is_trial: isTrialActive,
+          trial_used: true,
+          status: initialStatus,
+          expires_at: expiryDate,
+          created_at: nowIso,
+          admin_updated_at: nowIso,
+        };
+
+        // 1. Persiste imediatamente no registro compartilhado com o Painel Admin e AuthProfileContext
+        try {
+          const existingProfiles = JSON.parse(localStorage.getItem('spartan_registered_profiles') || '[]');
+          const filtered = Array.isArray(existingProfiles)
+            ? existingProfiles.filter((p) => p.id !== createdProfile.id && p.email?.toLowerCase() !== cleanEmail)
+            : [];
+          localStorage.setItem('spartan_registered_profiles', JSON.stringify([createdProfile, ...filtered]));
+        } catch {
+          // ignore
+        }
+
+        // 2. Registra no histórico de Teste Grátis (Anti-Fraude)
+        if (isTrialActive) {
           try {
-            await supabase
+            const localUsed = JSON.parse(localStorage.getItem('spartan_used_trials') || '[]');
+            const filteredUsed = Array.isArray(localUsed)
+              ? localUsed.filter((u) => u.email?.toLowerCase() !== cleanEmail)
+              : [];
+            const newTrialEntry = {
+              id: 'trial-' + Date.now(),
+              email: cleanEmail,
+              whatsapp: cleanPhone,
+              claimed_at: nowIso,
+              trial_days: effectiveTrialDays,
+              notes: `Teste grátis (${effectiveTrialDays}d) no plano ${chosenPlanName} (${chosenPlanScreens} telas)`,
+            };
+            localStorage.setItem('spartan_used_trials', JSON.stringify([newTrialEntry, ...filteredUsed]));
+          } catch {
+            // ignore
+          }
+        }
+
+        // 3. Gera automaticamente a cobrança Pix pendente no Painel Admin conforme o plano e dados do cliente
+        try {
+          const existingCharges = JSON.parse(localStorage.getItem('spartan_pix_charges') || 'null');
+          const baseCharges = Array.isArray(existingCharges) ? existingCharges : [];
+          const newPixCharge = {
+            id: 'pix-' + Date.now(),
+            hash: 'PIX-' + Math.random().toString(36).substring(2, 7).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase(),
+            customerName: cleanName,
+            customerEmail: cleanEmail,
+            customerWhatsapp: cleanPhone,
+            amount: chosenPlanPrice,
+            method: `Pix (${chosenPlanName} • ${chosenPlanScreens} ${chosenPlanScreens > 1 ? 'Telas' : 'Tela'})`,
+            dueDate: new Date(expiryDate).toLocaleDateString('pt-BR'),
+            status: 'pendente',
+            createdAt: new Date().toLocaleString('pt-BR'),
+          };
+          const filteredCharges = baseCharges.filter(
+            (c) => !(c.customerEmail?.toLowerCase() === cleanEmail && c.status === 'pendente')
+          );
+          localStorage.setItem('spartan_pix_charges', JSON.stringify([newPixCharge, ...filteredCharges]));
+        } catch {
+          // ignore
+        }
+
+        // 4. Sincroniza na tabela profiles do Supabase (com fallback para colunas base se a tabela remota ainda não tiver todas as colunas)
+        if (supaData?.user?.id) {
+          try {
+            const { error: updateErr } = await supabase
               .from('profiles')
               .update({
+                full_name: cleanName,
                 whatsapp: cleanPhone,
-                plan_name: selectedPlan.name,
-                max_screens: selectedPlan.screens,
-                is_trial: effectiveTrialDays > 0,
-                trial_used: effectiveTrialDays > 0,
-                status: effectiveTrialDays > 0 ? 'ativo' : 'vencido',
+                plan_name: chosenPlanName,
+                max_screens: chosenPlanScreens,
+                is_trial: isTrialActive,
+                trial_used: true,
+                status: initialStatus,
                 expires_at: expiryDate,
               })
               .eq('id', supaData.user.id);
-          } catch {
-            // Silencioso se trigger já tiver gravado
-          }
 
-          localStorage.setItem('weflix_user', JSON.stringify({
-            uid: supaData.user.id,
-            email: supaData.user.email,
-            displayName: name,
-            whatsapp: cleanPhone,
-            plan_name: selectedPlan.name,
-            max_screens: selectedPlan.screens,
-          }));
+            if (updateErr) {
+              // Tenta atualizar apenas as colunas base originais da tabela profiles
+              await supabase
+                .from('profiles')
+                .update({
+                  plan_name: chosenPlanName,
+                  max_screens: chosenPlanScreens,
+                  status: initialStatus,
+                  expires_at: expiryDate,
+                })
+                .eq('id', supaData.user.id);
+            }
+          } catch {
+            // Silencioso
+          }
         }
 
+        // 5. Ativa a sessão imediata do cliente no navegador para já entrar assistindo no período de teste grátis
+        localStorage.setItem('weflix_user', JSON.stringify({
+          uid: newUserId,
+          id: newUserId,
+          email: cleanEmail,
+          displayName: cleanName,
+          full_name: cleanName,
+          whatsapp: cleanPhone,
+          plan_name: chosenPlanName,
+          max_screens: chosenPlanScreens,
+          is_trial: isTrialActive,
+          status: initialStatus,
+          expires_at: expiryDate,
+        }));
+
+        window.dispatchEvent(new Event('spartan_auth_updated'));
+        await refreshProfile();
         onClose();
       }
     } catch (err) {

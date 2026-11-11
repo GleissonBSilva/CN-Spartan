@@ -4,6 +4,7 @@ export type ProfileStatus = 'ativo' | 'suspenso' | 'vencido';
 export interface Profile {
   id: string;
   email: string;
+  full_name?: string;
   whatsapp?: string;
   role: ProfileRole;
   status: ProfileStatus;
@@ -13,6 +14,7 @@ export interface Profile {
   expires_at: string;
   max_screens: number;
   created_at: string;
+  admin_updated_at?: string;
 }
 
 export interface UsedTrial {

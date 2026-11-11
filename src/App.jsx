@@ -40,6 +40,16 @@ function TvNavigationHandler() {
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' || e.key === 'BrowserBack' || e.key === 'GoBack') {
+        const isFullscreenActive = Boolean(
+          document.fullscreenElement ||
+          document.webkitFullscreenElement ||
+          document.mozFullScreenElement ||
+          document.msFullscreenElement ||
+          document.querySelector('.is-css-fullscreen')
+        );
+        if (isFullscreenActive) {
+          return;
+        }
         if (location.pathname !== '/' && location.pathname !== '') {
           e.preventDefault();
           navigate(-1);

@@ -17,6 +17,7 @@ create table if not exists public.profiles (
 );
 
 -- Garantir adição das colunas na tabela profiles caso ela já exista
+alter table public.profiles add column if not exists full_name text;
 alter table public.profiles add column if not exists whatsapp text;
 alter table public.profiles add column if not exists is_trial boolean default false;
 alter table public.profiles add column if not exists trial_used boolean default false;
@@ -67,6 +68,7 @@ $$;
 drop policy if exists "Perfis são legíveis pelo próprio usuário" on public.profiles;
 drop policy if exists "Admin pode visualizar todos os perfis" on public.profiles;
 drop policy if exists "Admin pode atualizar qualquer perfil" on public.profiles;
+drop policy if exists "Usuario pode atualizar seu proprio perfil" on public.profiles;
 drop policy if exists "Admin pode inserir perfis" on public.profiles;
 drop policy if exists "Admin pode deletar perfis" on public.profiles;
 
@@ -97,6 +99,17 @@ with check (
   public.is_admin()
 );
 
+-- Política 3b: O próprio usuário pode sincronizar dados de cadastro/bloqueio de expiração do próprio perfil
+create policy "Usuario pode atualizar seu proprio perfil"
+on public.profiles
+for update
+using (
+  auth.uid() = id
+)
+with check (
+  auth.uid() = id
+);
+
 -- Política 4: O Administrador pode criar e deletar perfis se necessário
 create policy "Admin pode inserir perfis"
 on public.profiles
@@ -123,6 +136,9 @@ declare
   user_role text;
   already_used_trial boolean := false;
   clean_phone text;
+  customer_name text;
+  chosen_plan text;
+  chosen_screens int := 1;
   initial_status text;
   initial_expiry timestamptz;
   initial_plan text;
@@ -131,12 +147,25 @@ declare
   cfg_trial_days int := 3;
   cfg_trial_enabled boolean := true;
 begin
+  customer_name := coalesce(
+    nullif(new.raw_user_meta_data->>'full_name', ''),
+    nullif(new.raw_user_meta_data->>'display_name', ''),
+    ''
+  );
+  chosen_plan := coalesce(nullif(new.raw_user_meta_data->>'plan_name', ''), 'SPARTAN PRO');
+  begin
+    chosen_screens := greatest(1, coalesce((new.raw_user_meta_data->>'max_screens')::int, 1));
+  exception when others then
+    chosen_screens := 1;
+  end;
+
   -- Se for o administrador principal (Master Admin)
   if lower(new.email) = 'gleisson1984@gmail.com' then
     user_role := 'admin';
     initial_status := 'ativo';
     initial_expiry := now() + interval '365 days';
     initial_plan := 'Master Admin';
+    chosen_screens := 5;
     is_trial_flag := false;
     trial_used_flag := false;
   else
@@ -172,36 +201,37 @@ begin
     ) into already_used_trial;
 
     if already_used_trial then
-      -- Já usou o teste grátis! Cria a conta bloqueada (vencida) para obrigar contratação
+      -- Já usou o teste grátis! Cria a conta bloqueada (vencida) mantendo o plano escolhido para pagamento
       initial_status := 'vencido';
       initial_expiry := now();
-      initial_plan := 'Assinatura Necessária';
+      initial_plan := chosen_plan;
       is_trial_flag := false;
       trial_used_flag := true;
     elsif not cfg_trial_enabled or cfg_trial_days <= 0 then
       -- Teste grátis desativado pelo administrador no painel
       initial_status := 'vencido';
       initial_expiry := now();
-      initial_plan := 'Assinatura Necessária';
+      initial_plan := chosen_plan;
       is_trial_flag := false;
       trial_used_flag := false;
     else
-      -- Novo cliente legítimo: Ganha Teste Grátis conforme configurado pelo Admin!
+      -- Novo cliente legítimo: Inicia no Período de Teste do Plano Escolhido!
       initial_status := 'ativo';
       initial_expiry := now() + (cfg_trial_days || ' days')::interval;
-      initial_plan := 'Teste Grátis (' || cfg_trial_days || ' dias)';
+      initial_plan := chosen_plan;
       is_trial_flag := true;
-      trial_used_flag := false;
+      trial_used_flag := true;
 
       -- Registra de forma permanente na tabela anti-fraude
       insert into public.used_trials (email, whatsapp, trial_days, notes)
-      values (lower(new.email), clean_phone, cfg_trial_days, 'Concedido no primeiro cadastro (Painel Admin)');
+      values (lower(new.email), clean_phone, cfg_trial_days, 'Concedido no primeiro cadastro (' || chosen_plan || ')');
     end if;
   end if;
 
   insert into public.profiles (
     id,
     email,
+    full_name,
     whatsapp,
     role,
     status,
@@ -214,6 +244,7 @@ begin
   ) values (
     new.id,
     new.email,
+    customer_name,
     coalesce(new.raw_user_meta_data->>'whatsapp', ''),
     user_role,
     initial_status,
@@ -221,12 +252,15 @@ begin
     is_trial_flag,
     trial_used_flag,
     initial_expiry,
-    1,
+    chosen_screens,
     now()
   )
   on conflict (id) do update set
     email = excluded.email,
+    full_name = coalesce(nullif(excluded.full_name, ''), public.profiles.full_name),
     whatsapp = coalesce(nullif(excluded.whatsapp, ''), public.profiles.whatsapp),
+    plan_name = coalesce(nullif(excluded.plan_name, ''), public.profiles.plan_name),
+    max_screens = coalesce(excluded.max_screens, public.profiles.max_screens),
     role = case 
       when lower(excluded.email) = 'gleisson1984@gmail.com' then 'admin'
       else public.profiles.role

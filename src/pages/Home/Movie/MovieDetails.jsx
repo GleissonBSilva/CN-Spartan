@@ -257,7 +257,7 @@ const MovieDetails = ({ movieId: movieIdProp }) => {
       />
 
       {/* ── HERO SECTION ── */}
-      <div className="relative w-full min-h-[70vh] flex flex-col justify-end pt-32 pb-20">
+      <div className="relative w-full min-h-[54vh] sm:min-h-[64vh] md:min-h-[70vh] flex flex-col justify-end pt-20 sm:pt-28 md:pt-32 pb-10 sm:pb-16 md:pb-20">
         {/* Backdrop Image */}
         <div className="absolute inset-0 z-0 select-none overflow-hidden">
           {movie.backdrop_path ? (
@@ -276,10 +276,10 @@ const MovieDetails = ({ movieId: movieIdProp }) => {
         </div>
 
         {/* Back Button */}
-        <div className="absolute top-0 left-0 right-0 z-20 p-6 md:p-10 flex">
+        <div className="absolute top-0 left-0 right-0 z-20 p-3.5 sm:p-6 md:p-10 flex">
           <button
             onClick={handleBack}
-            className="group flex items-center gap-2 bg-black/30 hover:bg-black/50 backdrop-blur-md border border-white/10 text-gray-200 hover:text-white text-sm font-medium px-5 py-2.5 rounded-full transition-all duration-300"
+            className="group flex items-center gap-2 bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/10 text-gray-200 hover:text-white text-xs sm:text-sm font-medium px-3.5 py-2 sm:px-5 sm:py-2.5 rounded-full transition-all duration-300"
           >
             <FaArrowLeft className="group-hover:-translate-x-1 transition-transform duration-300" />
             <span>{t('back')}</span>
@@ -287,7 +287,7 @@ const MovieDetails = ({ movieId: movieIdProp }) => {
         </div>
 
         {/* Hero Content */}
-        <div className="relative z-10 w-full max-w-7xl mx-auto px-6 md:px-12 flex flex-col md:flex-row items-end gap-8 lg:gap-14">
+        <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-12 flex flex-col md:flex-row items-end gap-6 sm:gap-8 lg:gap-14">
           
           {/* Poster (Desktop) */}
           {movie.poster_path && (
@@ -301,18 +301,18 @@ const MovieDetails = ({ movieId: movieIdProp }) => {
           )}
 
           {/* Info */}
-          <div className="flex-1 max-w-3xl pb-2">
+          <div className="flex-1 w-full max-w-3xl pb-2">
             {movie.tagline && (
-              <p className="text-red-400 font-semibold tracking-wider text-xs md:text-sm uppercase mb-3 drop-shadow-md">
+              <p className="text-red-400 font-semibold tracking-wider text-xs md:text-sm uppercase mb-2 sm:mb-3 drop-shadow-md">
                 {movie.tagline}
               </p>
             )}
 
-            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-white tracking-tight leading-[1.05] mb-4 drop-shadow-2xl font-sans">
+            <h1 className="text-2xl sm:text-4xl md:text-6xl lg:text-7xl font-black text-white tracking-tight leading-[1.1] sm:leading-[1.05] mb-3 sm:mb-4 drop-shadow-2xl font-sans break-words">
               {movie.title}
             </h1>
 
-            <div className="flex flex-wrap items-center gap-4 text-sm font-medium text-gray-300 mb-6 drop-shadow-md">
+            <div className="flex flex-wrap items-center gap-2.5 sm:gap-4 text-xs sm:text-sm font-medium text-gray-300 mb-4 sm:mb-6 drop-shadow-md">
               {year && <span className="flex items-center gap-1.5"><BiCalendar className="text-gray-400 text-base" /> {year}</span>}
               {runtime && <span className="flex items-center gap-1.5"><BiTime className="text-gray-400 text-base" /> {runtime}</span>}
               {rating && <span className="flex items-center gap-1.5"><FaStar className="text-yellow-500 text-base" /> {rating}</span>}
@@ -322,9 +322,9 @@ const MovieDetails = ({ movieId: movieIdProp }) => {
             </div>
 
             {genres.length > 0 && (
-               <div className="flex flex-wrap gap-2 mb-6">
+               <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-4 sm:mb-6">
                  {genres.map(g => (
-                   <span key={g.id} className="bg-white/10 hover:bg-white/20 transition-colors backdrop-blur-md border border-white/10 px-3 py-1 rounded-full text-xs font-semibold text-gray-200 shadow-sm">
+                   <span key={g.id} className="bg-white/10 hover:bg-white/20 transition-colors backdrop-blur-md border border-white/10 px-2.5 py-1 sm:px-3 rounded-full text-[11px] sm:text-xs font-semibold text-gray-200 shadow-sm">
                      {g.name}
                    </span>
                  ))}
@@ -332,10 +332,10 @@ const MovieDetails = ({ movieId: movieIdProp }) => {
             )}
 
             {/* Actions */}
-            <div className="flex flex-wrap items-center gap-3 mb-6">
+            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 mb-4 sm:mb-6">
                <button
                  onClick={toggleWatchlist}
-                 className={`flex items-center gap-2 backdrop-blur-md text-white font-bold px-6 py-3 rounded-xl transition-all active:scale-[0.98] ${
+                 className={`flex items-center gap-2 backdrop-blur-md text-white font-bold px-4 py-2.5 sm:px-6 sm:py-3 text-xs sm:text-sm rounded-xl transition-all active:scale-[0.98] ${
                    inWatchlist 
                      ? 'bg-red-600/20 hover:bg-red-600/30 border border-red-500/50' 
                      : 'bg-white/10 hover:bg-white/20 border border-white/10'
@@ -362,7 +362,7 @@ const MovieDetails = ({ movieId: movieIdProp }) => {
                      }
                    }
                  }}
-                 className={`flex items-center gap-2 backdrop-blur-md font-bold px-5 py-3 rounded-xl transition-all active:scale-[0.98] ${
+                 className={`flex items-center gap-2 backdrop-blur-md font-bold px-4 py-2.5 sm:px-5 sm:py-3 text-xs sm:text-sm rounded-xl transition-all active:scale-[0.98] ${
                    isBlocked
                      ? 'bg-red-600/30 text-red-300 border border-red-500/50 hover:bg-red-600/40'
                      : 'bg-white/10 hover:bg-red-500/20 text-gray-200 hover:text-red-400 border border-white/10'
@@ -376,7 +376,7 @@ const MovieDetails = ({ movieId: movieIdProp }) => {
 
             {overview && (
               <div className="relative">
-                <p className="text-gray-300/90 leading-relaxed md:text-lg drop-shadow-md max-w-2xl">
+                <p className="text-gray-300/90 leading-relaxed text-sm md:text-lg drop-shadow-md max-w-2xl">
                   {truncated}
                 </p>
                 {overview.length > 280 && (
@@ -394,14 +394,14 @@ const MovieDetails = ({ movieId: movieIdProp }) => {
       </div>
 
       {/* ── PLAYER & EXTRA CONTENT ── */}
-      <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 md:px-12 -mt-4 md:-mt-10 mb-20">
+      <div className="relative z-20 max-w-7xl mx-auto px-2 sm:px-6 md:px-12 -mt-2 sm:-mt-4 md:-mt-10 mb-16 sm:mb-20">
         
         {/* Video Player Container */}
         <div className="relative">
           {/* Subtle Video Player Glow Backdrop */}
-          <div className="absolute -inset-1 bg-gradient-to-r from-red-600/30 to-blue-600/30 blur-2xl opacity-50 z-0 rounded-2xl md:rounded-[2rem]"></div>
+          <div className="absolute -inset-1 bg-gradient-to-r from-red-600/30 to-blue-600/30 blur-2xl opacity-50 z-0 rounded-xl sm:rounded-2xl md:rounded-[2rem]"></div>
           
-          <div className="relative z-10 bg-[#0f1117]/80 backdrop-blur-xl border border-white/5 rounded-2xl md:rounded-[2rem] p-2 md:p-4 shadow-2xl mb-6 ring-1 ring-white/5">
+          <div className="relative z-10 bg-[#0f1117]/95 border border-white/5 rounded-xl sm:rounded-2xl md:rounded-[2rem] p-1.5 sm:p-2 md:p-4 shadow-2xl mb-6 ring-1 ring-white/5">
             {isBlocked || (isFamilyMode && isContentRestricted(movie)) ? (
               <div className="w-full aspect-video bg-black/90 rounded-xl border border-red-500/30 flex flex-col items-center justify-center p-6 text-center shadow-2xl">
                 <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 text-3xl mb-4 shadow-inner">
