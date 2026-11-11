@@ -187,19 +187,19 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
       const hlsConfig = {
         enableWorker: true,
         lowLatencyMode: false,
-        backBufferLength: 30,
-        maxBufferLength: 45,
-        maxMaxBufferLength: 90,
-        liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 10,
-        manifestLoadingTimeOut: 20000,
-        levelLoadingTimeOut: 20000,
-        fragLoadingTimeOut: 35000,
-        fragLoadingMaxRetry: 8,
-        fragLoadingRetryDelay: 1000,
-        fragLoadingMaxRetryTimeout: 64000,
-        manifestLoadingMaxRetry: 6,
-        manifestLoadingRetryDelay: 1000,
+        backBufferLength: 15,
+        maxBufferLength: 20,
+        maxMaxBufferLength: 40,
+        liveSyncDurationCount: 2,
+        liveMaxLatencyDurationCount: 3,
+        maxLiveSyncPlaybackRate: 1.1,
+        manifestLoadingTimeOut: 15000,
+        levelLoadingTimeOut: 15000,
+        fragLoadingTimeOut: 20000,
+        fragLoadingMaxRetry: 6,
+        fragLoadingRetryDelay: 500,
+        manifestLoadingMaxRetry: 5,
+        manifestLoadingRetryDelay: 500,
       };
 
       const hls = new Hls(hlsConfig);
@@ -229,6 +229,13 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
       });
 
       hls.on(Hls.Events.ERROR, (event, data) => {
+        // Trata erro de fragmento expirado (404 em live stream de janela rolante curta)
+        if (data.details === 'fragLoadError' && (data.response?.code === 404 || data.response?.status === 404)) {
+          console.warn('[Hls] Fragmento expirado no servidor (404). Recarregando playlist ao vivo...');
+          hls.startLoad();
+          return;
+        }
+
         // Ignore non-fatal internal events (like bufferSeekOverHole or retry attempts)
         if (!data.fatal) {
           return;

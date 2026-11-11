@@ -46,7 +46,9 @@ export default async function handler(req, res) {
 
     if (isM3u8) {
       res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
 
       const text = await response.text();
 
@@ -60,7 +62,9 @@ export default async function handler(req, res) {
           } catch {
             fullUrl = trimmed;
           }
-          return `/api/proxy-stream?url=${encodeURIComponent(fullUrl)}`;
+          const isChildM3u8 = fullUrl.includes('.m3u8');
+          const cacheBust = isChildM3u8 ? `&_t=${Date.now()}` : '';
+          return `/api/proxy-stream?url=${encodeURIComponent(fullUrl)}${cacheBust}`;
         }
         if (trimmed.startsWith('#EXT') && trimmed.includes('URI="')) {
           return trimmed.replace(/URI="([^"]+)"/g, (match, p1) => {
@@ -71,7 +75,9 @@ export default async function handler(req, res) {
             } catch {
               fullUrl = p1;
             }
-            return `URI="/api/proxy-stream?url=${encodeURIComponent(fullUrl)}"`;
+            const isChildM3u8 = fullUrl.includes('.m3u8');
+            const cacheBust = isChildM3u8 ? `&_t=${Date.now()}` : '';
+            return `URI="/api/proxy-stream?url=${encodeURIComponent(fullUrl)}${cacheBust}"`;
           });
         }
         return line;
