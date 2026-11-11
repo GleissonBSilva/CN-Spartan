@@ -319,9 +319,6 @@ const VideoPlayer = ({ movieId, title, backdrop, poster }) => {
                             key={`${movieId}-${streamMode}-${activeServer.id}`}
                             src={iframeSrc}
                             allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *"
-                            allowFullScreen
-                            webkitallowfullscreen="true"
-                            mozallowfullscreen="true"
                             title={title || 'Player de Filme'}
                             referrerPolicy="origin"
                             className="w-full h-full border-0"
