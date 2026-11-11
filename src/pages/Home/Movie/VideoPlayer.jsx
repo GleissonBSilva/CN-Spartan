@@ -1,6 +1,6 @@
 import { memo, useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { FaPlay, FaExpand, FaCompress, FaVolumeUp, FaClosedCaptioning, FaSyncAlt, FaCalendarAlt, FaFilm } from 'react-icons/fa';
+import { FaPlay, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute, FaClosedCaptioning, FaSyncAlt, FaCalendarAlt, FaFilm, FaQuestionCircle, FaTimes } from 'react-icons/fa';
 import { useLanguage } from '../../../context/LanguageContext';
 import { useAuthProfile } from '../../../hooks/useAuthProfile';
 import SubscriptionLockGate from '../../../components/SubscriptionLockGate';
@@ -10,19 +10,19 @@ import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
 const SERVERS = {
   dublado: [
     {
+      id: 'superflix_dub',
+      name: 'SuperFlix (Dublado BR 100%)',
+      url: (id) => `https://superflixapi.bond/filme/${id}`
+    },
+    {
       id: 'multiembed_dub',
       name: 'MultiEmbed (Multi-Áudio / Dublado BR)',
       url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
     },
     {
-      id: 'superflix_dub',
-      name: 'SuperFlix (Dublado BR)',
-      url: (id) => `https://superflixapi.bond/filme/${id}`
-    },
-    {
       id: 'vidlink_direct',
       name: 'VidLink Ultra HD (Multi-Áudio)',
-      url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+      url: (id) => `https://vidlink.pro/movie/${id}?primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
     },
     {
       id: 'autoembed_co',
@@ -37,14 +37,14 @@ const SERVERS = {
   ],
   legendado: [
     {
-      id: 'multiembed_orig',
-      name: 'MultiEmbed HD (Áudio Original)',
-      url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
-    },
-    {
       id: 'vidlink_orig',
       name: 'VidLink Ultra HD (Áudio Original)',
-      url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+      url: (id) => `https://vidlink.pro/movie/${id}?primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+    },
+    {
+      id: 'vidsrc_pm',
+      name: 'VidSrc PM (Áudio Original Estéreo)',
+      url: (id) => `https://vidsrc.pm/embed/movie/${id}`
     },
     {
       id: 'autoembed_orig',
@@ -52,9 +52,9 @@ const SERVERS = {
       url: (id) => `https://autoembed.co/movie/tmdb/${id}`
     },
     {
-      id: 'vidsrc_pm',
-      name: 'VidSrc PM (Original)',
-      url: (id) => `https://vidsrc.pm/embed/movie/${id}`
+      id: 'multiembed_orig',
+      name: 'MultiEmbed HD (Áudio Original)',
+      url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
     },
     {
       id: 'embedder_orig',
@@ -74,6 +74,7 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
     const { isActive, isAdmin } = useAuthProfile();
     const [hasStarted, setHasStarted] = useState(false);
     const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
+    const [showAudioHelp, setShowAudioHelp] = useState(false);
     const canPlay = isAdmin || isActive;
     const { isScreenBlocked, activeDevices, maxScreens, disconnectOtherDevices } = useScreenLimiter(canPlay && hasStarted);
 
@@ -155,6 +156,9 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
     const handleStartPlay = (startAsTrailer = false) => {
         setIsPlayingTrailer(startAsTrailer);
         setHasStarted(true);
+        if (!startAsTrailer && streamMode === 'legendado') {
+            showToast('💡 Dica: Se o áudio iniciar mudo, toque no ícone 🔊 no player para desmutar');
+        }
     };
 
     // Troca de Modo: Dublado BR <-> Legendado (Original HD)
@@ -168,7 +172,7 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
         if (newMode === 'dublado') {
             showToast('🇧🇷 Áudio Dublado em Português ativado');
         } else {
-            showToast('🌐 Áudio Original ativado (ative legendas no botão [CC] do vídeo)');
+            showToast('🌐 Áudio Original ativado — se iniciar sem som, desmute no ícone 🔊');
         }
     };
 
@@ -339,8 +343,18 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                         )}
                     </div>
 
-                    {/* Controles da Direita: Rota e Tela Cheia */}
+                    {/* Controles da Direita: Ajuda de Áudio, Troca de Rota e Tela Cheia */}
                     <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
+                        <button
+                            type="button"
+                            onClick={() => setShowAudioHelp(prev => !prev)}
+                            className="flex items-center gap-1 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold bg-blue-600/70 hover:bg-blue-600 text-white border border-blue-400/30 backdrop-blur-md transition-all shadow-md cursor-pointer"
+                            title="Ajuda com som mudo ou legendas"
+                        >
+                            <FaQuestionCircle className="text-[10px]" />
+                            <span className="hidden sm:inline">Sem Áudio?</span>
+                        </button>
+
                         {hasStarted && !isPlayingTrailer && (
                             <button
                                 type="button"
@@ -367,8 +381,51 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
 
                 {/* Notificação Toast Flutuante */}
                 {toastMessage && (
-                    <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full bg-black/95 border border-white/20 text-white text-xs font-medium shadow-2xl backdrop-blur-md animate-fadeIn">
+                    <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full bg-black/95 border border-white/20 text-white text-xs font-medium shadow-2xl backdrop-blur-md animate-fadeIn text-center">
                         <span>{toastMessage}</span>
+                    </div>
+                )}
+
+                {/* Modal / Painel de Ajuda de Áudio */}
+                {showAudioHelp && (
+                    <div className="absolute inset-0 z-50 bg-black/85 backdrop-blur-md p-6 flex flex-col items-center justify-center animate-fadeIn text-left">
+                        <div className="max-w-md w-full bg-[#111319] border border-white/20 rounded-2xl p-5 shadow-2xl relative text-gray-200">
+                            <button
+                                type="button"
+                                onClick={() => setShowAudioHelp(false)}
+                                className="absolute top-3 right-3 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+                            >
+                                <FaTimes className="text-base" />
+                            </button>
+
+                            <div className="flex items-center gap-2.5 mb-3 text-blue-400 font-bold text-base">
+                                <FaVolumeUp className="text-lg" />
+                                <h3>Como resolver som mudo ou sem voz</h3>
+                            </div>
+
+                            <ul className="space-y-2.5 text-xs sm:text-sm leading-relaxed text-gray-300">
+                                <li className="flex items-start gap-2">
+                                    <span className="font-bold text-amber-400">1.</span>
+                                    <span><strong>Desmutar o Player:</strong> Por padrão de segurança de navegadores (Chrome, Edge, Safari, TV Box), vídeos externos iniciam sem som. Toque no vídeo e clique no <strong>ícone de alto-falante (🔊)</strong> para desmutar.</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="font-bold text-amber-400">2.</span>
+                                    <span><strong>Sem vozes (Apenas som de fundo):</strong> Filmes estrangeiros em alta definição costumam usar áudio 5.1 Surround (vozes no canal central). Se o seu som for estéreo, clique no botão <strong>"Trocar Servidor"</strong> para carregar uma versão estéreo (2.0).</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="font-bold text-amber-400">3.</span>
+                                    <span><strong>Prefere Dublado?</strong> Clique no botão vermelho <strong>"🇧🇷 Dublado"</strong> para carregar o áudio brasileiro com dublagem completa.</span>
+                                </li>
+                            </ul>
+
+                            <button
+                                type="button"
+                                onClick={() => setShowAudioHelp(false)}
+                                className="mt-4 w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-all shadow-md"
+                            >
+                                Entendi, voltar ao filme
+                            </button>
+                        </div>
                     </div>
                 )}
 
@@ -431,7 +488,7 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                         <iframe
                             key={`${movieId}-${isPlayingTrailer ? 'trailer' : streamMode}-${activeServer.id}`}
                             src={iframeSrc}
-                            allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *"
+                            allow="autoplay; fullscreen; encrypted-media; picture-in-picture; screen-wake-lock; clipboard-write"
                             title={title || 'Player de Filme'}
                             referrerPolicy="origin"
                             className="w-full h-full border-0"
