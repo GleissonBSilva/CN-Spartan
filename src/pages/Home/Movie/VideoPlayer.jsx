@@ -10,13 +10,8 @@ import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
 const SERVERS = {
   dublado: [
     {
-      id: 'superflix_dub',
-      name: 'SuperFlix (Dublado BR 100%)',
-      url: (id) => `https://superflixapi.bond/filme/${id}`
-    },
-    {
       id: 'multiembed_dub',
-      name: 'MultiEmbed (Multi-Áudio / Dublado BR)',
+      name: 'MultiEmbed Ultra (Dublado BR / Estável)',
       url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
     },
     {
@@ -26,8 +21,13 @@ const SERVERS = {
     },
     {
       id: 'autoembed_co',
-      name: 'AutoEmbed (Multi-Áudio)',
+      name: 'AutoEmbed HD (Multi-Áudio)',
       url: (id) => `https://autoembed.co/movie/tmdb/${id}`
+    },
+    {
+      id: 'superflix_dub',
+      name: 'SuperFlix (Dublado BR)',
+      url: (id) => `https://superflixapi.bond/filme/${id}`
     },
     {
       id: 'embedder_net',
@@ -36,6 +36,11 @@ const SERVERS = {
     }
   ],
   legendado: [
+    {
+      id: 'multiembed_orig',
+      name: 'MultiEmbed Ultra HD (Original)',
+      url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
+    },
     {
       id: 'vidlink_orig',
       name: 'VidLink Ultra HD (Áudio Original)',
@@ -50,11 +55,6 @@ const SERVERS = {
       id: 'autoembed_orig',
       name: 'AutoEmbed HD (Original)',
       url: (id) => `https://autoembed.co/movie/tmdb/${id}`
-    },
-    {
-      id: 'multiembed_orig',
-      name: 'MultiEmbed HD (Áudio Original)',
-      url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
     },
     {
       id: 'embedder_orig',
