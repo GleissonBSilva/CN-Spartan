@@ -475,6 +475,39 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                     </>
                 )}
             </div>
+
+            {/* Barra Persistente de Servidores Alternativos */}
+            {hasStarted && (
+                <div className="flex flex-wrap items-center justify-between gap-2.5 p-3 mt-3 rounded-xl bg-[#0f141f] border border-white/10 shadow-lg">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-gray-300">Servidor Ativo:</span>
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-red-600/25 text-red-400 border border-red-500/30">
+                            {activeServer.name}
+                        </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[11px] text-gray-400 hidden sm:inline">Caso o episódio exiba erro ou tela preta, selecione:</span>
+                        {currentSources.map((srv, idx) => (
+                            <button
+                                key={srv.id}
+                                type="button"
+                                onClick={() => {
+                                    setSourceIdx(idx);
+                                    showToast(`Alternado para: ${srv.name}`);
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                    sourceIdx === idx
+                                        ? 'bg-red-600 text-white shadow-md shadow-red-950 ring-1 ring-red-400'
+                                        : 'bg-white/5 hover:bg-white/15 text-gray-300 hover:text-white border border-white/10'
+                                }`}
+                            >
+                                Opção {idx + 1}: {srv.name.split(' ')[0]}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
