@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { Readable } from 'node:stream'
 
 // Lightweight Proxy Plugin for live HLS streams without CORS
 function streamProxyPlugin() {
@@ -24,17 +25,24 @@ function streamProxyPlugin() {
             return res.end('Missing url param');
           }
 
-          // Fetch target with timeout (15s for upstream CDNs)
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 15000);
+          const timeout = setTimeout(() => controller.abort(), 25000);
+
+          const headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': '*/*'
+          };
+
+          if (target.includes('pluto.tv')) {
+            headers['Origin'] = 'https://pluto.tv';
+            headers['Referer'] = 'https://pluto.tv/';
+          } else {
+            headers['Referer'] = target;
+          }
 
           const response = await fetch(target, {
             signal: controller.signal,
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-              'Accept': '*/*',
-              'Referer': target
-            }
+            headers
           });
           clearTimeout(timeout);
 
@@ -49,6 +57,7 @@ function streamProxyPlugin() {
 
           if (isM3u8) {
             res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
             const text = await response.text();
 
             const rewritten = text.split('\n').map(line => {
@@ -81,13 +90,23 @@ function streamProxyPlugin() {
             return res.end(rewritten);
           } else {
             res.setHeader('Content-Type', contentType || 'video/MP2T');
-            const buffer = Buffer.from(await response.arrayBuffer());
-            return res.end(buffer);
+            res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=180, stale-while-revalidate=300');
+            const contentLength = response.headers.get('content-length');
+            if (contentLength) {
+              res.setHeader('Content-Length', contentLength);
+            }
+            if (response.body) {
+              Readable.fromWeb(response.body).pipe(res);
+            } else {
+              res.end();
+            }
           }
         } catch (err) {
           console.error('[StreamProxy Error]:', err.message);
-          res.statusCode = 502;
-          res.end(`Proxy error: ${err.message}`);
+          if (!res.headersSent) {
+            res.statusCode = 502;
+            res.end(`Proxy error: ${err.message}`);
+          }
         }
       });
     }

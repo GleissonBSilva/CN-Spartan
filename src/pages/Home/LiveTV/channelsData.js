@@ -61,7 +61,8 @@ export const CHANNELS = [
     logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/TNT_Sports_%28Brazil%29_logo.svg/1200px-TNT_Sports_%28Brazil%29_logo.svg.png',
     resolution: '720p',
     sources: [
-      { name: 'Sinal HLS Ao Vivo', url: 'http://170.83.49.66:8083/TNTHD/index.m3u8' }
+      { name: 'Sinal HLS Ao Vivo (Principal)', url: 'http://170.83.49.66:8083/TNTHD/index.m3u8' },
+      { name: 'TNT Sports Brasil (YouTube Ao Vivo)', url: 'https://www.youtube.com/embed/live_stream?channel=UCjc5E1o_kL3Gf97Q9qZ_Z4w' }
     ]
   },
   {
@@ -72,7 +73,8 @@ export const CHANNELS = [
     logo: 'https://upload.wikimedia.org/wikipedia/pt/thumb/a/a2/BandSports_logo.png/250px-BandSports_logo.png',
     resolution: '720p',
     sources: [
-      { name: 'Transmissão Ao Vivo HLS', url: 'http://170.83.49.66:8083/BANDSPORTSHD/index.m3u8' }
+      { name: 'Transmissão Ao Vivo HLS (Principal)', url: 'http://170.83.49.66:8083/BANDSPORTSHD/index.m3u8' },
+      { name: 'BandSports Ao Vivo / Notícias', url: 'https://www.youtube.com/embed?listType=search&list=BandSports+Ao+Vivo' }
     ]
   },
   {
@@ -127,7 +129,8 @@ export const CHANNELS = [
     logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Space_logo_2021.svg/1200px-Space_logo_2021.svg.png',
     resolution: '720p',
     sources: [
-      { name: 'Sinal Ao Vivo HLS', url: 'http://170.83.49.66:8083/SPACEHD/index.m3u8' }
+      { name: 'Sinal Ao Vivo HLS (Principal)', url: 'http://170.83.49.66:8083/SPACEHD/index.m3u8' },
+      { name: 'Pluto TV Filmes Ação HD (Alternativo)', url: 'https://jmp2.uk/plu-5f120f41b7d403000783a6d6.m3u8' }
     ]
   },
   {
@@ -279,18 +282,20 @@ export const CHANNELS = [
     logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/16/AMC_logo_2019.svg/1200px-AMC_logo_2019.svg.png',
     resolution: '720p',
     sources: [
-      { name: 'Sinal HLS Ao Vivo', url: 'http://170.83.49.66:8083/AMCHD/index.m3u8' }
+      { name: 'Sinal HLS Ao Vivo (Principal)', url: 'http://170.83.49.66:8083/AMCHD/index.m3u8' },
+      { name: 'The Walking Dead by AMC (Alternativo)', url: 'https://jmp2.uk/plu-678aa104680721c77c506746.m3u8' }
     ]
   },
   {
     id: 'axn_hd',
-    name: 'AXN HD',
+    name: 'AXN HD (Séries Policiais)',
     category: 'filmes',
     categoryLabel: 'Filmes & Séries',
     logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/AXN_logo_2015.svg/1200px-AXN_logo_2015.svg.png',
     resolution: '720p',
     sources: [
-      { name: 'Sinal HLS Ao Vivo', url: 'http://170.83.49.66:8083/AXNHD/index.m3u8' }
+      { name: 'Sinal HLS Ao Vivo (Principal)', url: 'http://170.83.49.66:8083/AXNHD/index.m3u8' },
+      { name: 'Blue Bloods Policial 24h HD (Alternativo)', url: 'https://jmp2.uk/plu-69fcc8cfb83300b380051794.m3u8' }
     ]
   },
   {
@@ -606,7 +611,8 @@ export const CHANNELS = [
     logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Television_icon.svg/500px-Television_icon.svg.png',
     resolution: '720p',
     sources: [
-      { name: 'Sinal Ao Vivo HLS', url: 'http://170.83.49.66:8083/BOXKIDSHD/index.m3u8' }
+      { name: 'Sinal Ao Vivo HLS (Principal)', url: 'http://170.83.49.66:8083/BOXKIDSHD/index.m3u8' },
+      { name: 'Turma da Mônica 24h HD (Alternativo)', url: 'https://jmp2.uk/plu-5f997e44949bc70007a6941e.m3u8' }
     ]
   },
 

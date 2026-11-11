@@ -17,7 +17,22 @@ import {
 } from 'react-icons/fa';
 
 // Helper to route external streams without CORS through our same-origin stream proxy
-const resolveStreamUrl = (url) => {
+const isNativePlatform = () => {
+  if (typeof window === 'undefined') return false;
+  return Boolean(
+    window?.Capacitor?.isNativePlatform?.() === true ||
+    window?.Capacitor?.getPlatform?.() === 'android' ||
+    window?.Capacitor?.getPlatform?.() === 'ios' ||
+    window.location.protocol === 'capacitor:' ||
+    (window.location.hostname === 'localhost' && !window.location.port)
+  );
+};
+
+const getProxyBase = () => {
+  return isNativePlatform() ? 'https://cn-spartan.vercel.app/api/proxy-stream' : '/api/proxy-stream';
+};
+
+const resolveStreamUrl = (url, forceProxy = false) => {
   if (!url) return '';
   // Se for embed (iframe / youtube / multiembed), mantém direto
   if (
@@ -29,18 +44,22 @@ const resolveStreamUrl = (url) => {
     return url;
   }
 
-  // Em navegadores web (localhost / browser), streams de terceiros sem CORS
-  // são direcionados para o proxy CORS local / Vercel
-  const isNativeApp = typeof window !== 'undefined' && (
-    window?.Capacitor?.isNativePlatform?.() === true ||
-    window?.Capacitor?.getPlatform?.() === 'android' ||
-    window?.Capacitor?.getPlatform?.() === 'ios'
-  );
+  const isNative = isNativePlatform();
+  const proxyBase = getProxyBase();
 
-  if (!isNativeApp) {
+  if (forceProxy) {
+    return `${proxyBase}?url=${encodeURIComponent(url)}`;
+  }
+
+  // Pluto TV / jmp2.uk sempre exigem proxy devido ao cabeçalho CORS restrito do servidor
+  if (url.includes('jmp2.uk') || url.includes('pluto.tv')) {
+    return `${proxyBase}?url=${encodeURIComponent(url)}`;
+  }
+
+  // No navegador web (HTTPS), streams HTTP puros ou com CORS restrito precisam de proxy
+  if (!isNative) {
     if (
-      url.includes('jmp2.uk') ||
-      url.includes('pluto.tv') ||
+      url.startsWith('http://') ||
       url.includes('45.185.') ||
       url.includes('64.31.') ||
       url.includes('170.83.') ||
@@ -53,12 +72,12 @@ const resolveStreamUrl = (url) => {
       url.includes(':8000') ||
       url.includes(':2082') ||
       url.includes(':8080') ||
-      url.includes(':8083') ||
-      url.startsWith('http://')
+      url.includes(':8083')
     ) {
-      return `/api/proxy-stream?url=${encodeURIComponent(url)}`;
+      return `${proxyBase}?url=${encodeURIComponent(url)}`;
     }
   }
+
   return url;
 };
 
@@ -165,18 +184,25 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
     const streamUrl = resolveStreamUrl(currentSource.url);
 
     if (Hls.isSupported()) {
-      const hls = new Hls({
+      const hlsConfig = {
         enableWorker: true,
         lowLatencyMode: false,
         backBufferLength: 30,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
+        maxBufferLength: 45,
+        maxMaxBufferLength: 90,
         liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 6,
-        manifestLoadingTimeOut: 15000,
-        levelLoadingTimeOut: 15000,
-        fragLoadingTimeOut: 20000,
-      });
+        liveMaxLatencyDurationCount: 10,
+        manifestLoadingTimeOut: 20000,
+        levelLoadingTimeOut: 20000,
+        fragLoadingTimeOut: 35000,
+        fragLoadingMaxRetry: 8,
+        fragLoadingRetryDelay: 1000,
+        fragLoadingMaxRetryTimeout: 64000,
+        manifestLoadingMaxRetry: 6,
+        manifestLoadingRetryDelay: 1000,
+      };
+
+      const hls = new Hls(hlsConfig);
 
       hlsRef.current = hls;
       hls.loadSource(streamUrl);
@@ -227,17 +253,9 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel }) => {
             case Hls.ErrorTypes.NETWORK_ERROR:
               hls.destroy();
               // Se falhou por CORS ou rede e ainda não tentou o proxy, tenta via proxy CORS
-              if (!streamUrl.includes('/api/proxy-stream')) {
-                const proxiedRetryUrl = `/api/proxy-stream?url=${encodeURIComponent(currentSource.url)}`;
-                const retryHls = new Hls({
-                  enableWorker: true,
-                  lowLatencyMode: false,
-                  backBufferLength: 30,
-                  maxBufferLength: 30,
-                  manifestLoadingTimeOut: 15000,
-                  levelLoadingTimeOut: 15000,
-                  fragLoadingTimeOut: 20000,
-                });
+              if (!streamUrl.includes('proxy-stream')) {
+                const proxiedRetryUrl = resolveStreamUrl(currentSource.url, true);
+                const retryHls = new Hls(hlsConfig);
                 hlsRef.current = retryHls;
                 retryHls.loadSource(proxiedRetryUrl);
                 retryHls.attachMedia(video);
