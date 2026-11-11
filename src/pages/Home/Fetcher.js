@@ -141,7 +141,7 @@ export const fetchMovieDetails = async (movieId, lang) => {
     const url = new URL(`${BASE_URL}/movie/${movieId}`);
     url.searchParams.append('api_key', API_KEY);
     url.searchParams.append('language', lang || getCurrentLanguage());
-    url.searchParams.append('append_to_response', 'credits');
+    url.searchParams.append('append_to_response', 'credits,videos');
 
     let response = await fetch(url);
 
@@ -199,7 +199,7 @@ export const fetchSeriesDetails = async (tvId, lang) => {
     const url = new URL(`${BASE_URL}/tv/${tvId}`);
     url.searchParams.append('api_key', API_KEY);
     url.searchParams.append('language', lang || getCurrentLanguage());
-    url.searchParams.append('append_to_response', 'credits');
+    url.searchParams.append('append_to_response', 'credits,videos');
 
     let response = await fetch(url);
 

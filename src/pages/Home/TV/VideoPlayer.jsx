@@ -10,6 +10,11 @@ import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
 const SERVERS = {
   dublado: [
     {
+      id: 'multiembed_dub',
+      name: 'MultiEmbed (Multi-Áudio / Dublado BR)',
+      url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
+    },
+    {
       id: 'superflix_dub',
       name: 'SuperFlix (Dublado BR)',
       url: (id, s, e) => `https://superflixapi.bond/serie/${id}/${s}/${e}`
@@ -18,23 +23,48 @@ const SERVERS = {
       id: 'vidlink_direct',
       name: 'VidLink Ultra HD (Multi-Áudio)',
       url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+    },
+    {
+      id: 'autoembed_co',
+      name: 'AutoEmbed (Multi-Áudio)',
+      url: (id, s, e) => `https://autoembed.co/tv/tmdb/${id}-${s}-${e}`
+    },
+    {
+      id: 'embedder_net',
+      name: 'Embedder HD',
+      url: (id, s, e) => `https://embedder.net/e/series?tmdb=${id}&sea=${s}&epi=${e}`
     }
   ],
   legendado: [
+    {
+      id: 'multiembed_orig',
+      name: 'MultiEmbed HD (Áudio Original)',
+      url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
+    },
     {
       id: 'vidlink_orig',
       name: 'VidLink Ultra HD (Áudio Original)',
       url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
     },
     {
+      id: 'autoembed_orig',
+      name: 'AutoEmbed HD (Original)',
+      url: (id, s, e) => `https://autoembed.co/tv/tmdb/${id}-${s}-${e}`
+    },
+    {
+      id: 'vidsrc_pm',
+      name: 'VidSrc PM (Original)',
+      url: (id, s, e) => `https://vidsrc.pm/embed/tv/${id}/${s}/${e}`
+    },
+    {
+      id: 'embedder_orig',
+      name: 'Embedder HD (Original)',
+      url: (id, s, e) => `https://embedder.net/e/series?tmdb=${id}&sea=${s}&epi=${e}`
+    },
+    {
       id: 'embedsu_orig',
       name: 'Embed.su (Legendado HD)',
       url: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}`
-    },
-    {
-      id: 'vidsrc_orig',
-      name: 'VidSrc To (Original)',
-      url: (id, s, e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}`
     }
   ]
 };

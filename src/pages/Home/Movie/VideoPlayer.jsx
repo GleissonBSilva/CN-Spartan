@@ -1,6 +1,6 @@
 import { memo, useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { FaPlay, FaExpand, FaCompress, FaVolumeUp, FaClosedCaptioning, FaSyncAlt } from 'react-icons/fa';
+import { FaPlay, FaExpand, FaCompress, FaVolumeUp, FaClosedCaptioning, FaSyncAlt, FaCalendarAlt, FaFilm } from 'react-icons/fa';
 import { useLanguage } from '../../../context/LanguageContext';
 import { useAuthProfile } from '../../../hooks/useAuthProfile';
 import SubscriptionLockGate from '../../../components/SubscriptionLockGate';
@@ -10,6 +10,11 @@ import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
 const SERVERS = {
   dublado: [
     {
+      id: 'multiembed_dub',
+      name: 'MultiEmbed (Multi-Áudio / Dublado BR)',
+      url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
+    },
+    {
       id: 'superflix_dub',
       name: 'SuperFlix (Dublado BR)',
       url: (id) => `https://superflixapi.bond/filme/${id}`
@@ -18,33 +23,75 @@ const SERVERS = {
       id: 'vidlink_direct',
       name: 'VidLink Ultra HD (Multi-Áudio)',
       url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+    },
+    {
+      id: 'autoembed_co',
+      name: 'AutoEmbed (Multi-Áudio)',
+      url: (id) => `https://autoembed.co/movie/tmdb/${id}`
+    },
+    {
+      id: 'embedder_net',
+      name: 'Embedder HD',
+      url: (id) => `https://embedder.net/e/movie?tmdb=${id}`
     }
   ],
   legendado: [
+    {
+      id: 'multiembed_orig',
+      name: 'MultiEmbed HD (Áudio Original)',
+      url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
+    },
     {
       id: 'vidlink_orig',
       name: 'VidLink Ultra HD (Áudio Original)',
       url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
     },
     {
+      id: 'autoembed_orig',
+      name: 'AutoEmbed HD (Original)',
+      url: (id) => `https://autoembed.co/movie/tmdb/${id}`
+    },
+    {
+      id: 'vidsrc_pm',
+      name: 'VidSrc PM (Original)',
+      url: (id) => `https://vidsrc.pm/embed/movie/${id}`
+    },
+    {
+      id: 'embedder_orig',
+      name: 'Embedder HD (Original)',
+      url: (id) => `https://embedder.net/e/movie?tmdb=${id}`
+    },
+    {
       id: 'embedsu_orig',
       name: 'Embed.su (Legendado HD)',
       url: (id) => `https://embed.su/embed/movie/${id}`
-    },
-    {
-      id: 'vidsrc_orig',
-      name: 'VidSrc To (Original)',
-      url: (id) => `https://vidsrc.to/embed/movie/${id}`
     }
   ]
 };
 
-const VideoPlayer = ({ movieId, title, backdrop, poster }) => {
+const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, videos }) => {
     const { language } = useLanguage();
     const { isActive, isAdmin } = useAuthProfile();
     const [hasStarted, setHasStarted] = useState(false);
+    const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
     const canPlay = isAdmin || isActive;
     const { isScreenBlocked, activeDevices, maxScreens, disconnectOtherDevices } = useScreenLimiter(canPlay && hasStarted);
+
+    // Verificar se o título é lançamento futuro ou em produção
+    const isUnreleased = Boolean(
+      (releaseDate && new Date(releaseDate) > new Date()) ||
+      (status && ['In Production', 'Post Production', 'Planned', 'Em Produção', 'Pós-Produção'].includes(status))
+    );
+
+    const formattedReleaseDate = releaseDate
+      ? new Date(releaseDate + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+      : null;
+
+    const trailer = Array.isArray(videos)
+      ? (videos.find(v => v.site === 'YouTube' && v.type === 'Trailer') ||
+         videos.find(v => v.site === 'YouTube' && v.type === 'Teaser') ||
+         videos.find(v => v.site === 'YouTube'))
+      : null;
 
     // Resolução do modo padrão com base no Painel do Usuário (se pt-BR, começa em Dublado)
     const resolveDefaultMode = useCallback(() => {
@@ -105,12 +152,14 @@ const VideoPlayer = ({ movieId, title, backdrop, poster }) => {
     }, [resetControlsTimer]);
 
     // Ao clicar em Play
-    const handleStartPlay = () => {
+    const handleStartPlay = (startAsTrailer = false) => {
+        setIsPlayingTrailer(startAsTrailer);
         setHasStarted(true);
     };
 
     // Troca de Modo: Dublado BR <-> Legendado (Original HD)
     const handleModeChange = (newMode) => {
+        setIsPlayingTrailer(false);
         if (newMode === streamMode) return;
         setStreamMode(newMode);
         setSourceIdx(0);
@@ -125,6 +174,7 @@ const VideoPlayer = ({ movieId, title, backdrop, poster }) => {
 
     // Alternar servidor reserva se necessário
     const handleNextServer = () => {
+        setIsPlayingTrailer(false);
         const next = (sourceIdx + 1) % currentSources.length;
         setSourceIdx(next);
         showToast(`🔄 Servidor alternativo: ${currentSources[next].name}`);
@@ -185,11 +235,39 @@ const VideoPlayer = ({ movieId, title, backdrop, poster }) => {
         );
     }
 
-    const iframeSrc = activeServer.url(movieId);
+    const iframeSrc = isPlayingTrailer && trailer
+        ? `https://www.youtube-nocookie.com/embed/${trailer.key}?autoplay=1&rel=0`
+        : activeServer.url(movieId);
+
     const bgImage = backdrop || poster;
 
     return (
         <div className="w-full flex flex-col">
+            {/* Aviso especial para Títulos em Breve / Não Lançados */}
+            {isUnreleased && (
+                <div className="mb-3 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs sm:text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg backdrop-blur-md">
+                    <div className="flex items-center gap-2.5">
+                        <FaCalendarAlt className="text-amber-400 text-base shrink-0" />
+                        <div>
+                            <span className="font-bold text-amber-300">Estreia Prevista: {formattedReleaseDate || 'Em Breve'}</span>
+                            <span className="text-amber-200/80 block sm:inline sm:ml-2">
+                                (Filme em produção / antes do lançamento nos cinemas. Servidores de streaming só disponibilizam cópias completas após a estreia.)
+                            </span>
+                        </div>
+                    </div>
+                    {trailer && (
+                        <button
+                            type="button"
+                            onClick={() => handleStartPlay(true)}
+                            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs transition-all shadow-md cursor-pointer"
+                        >
+                            <FaFilm className="text-xs" />
+                            <span>Ver Trailer Oficial</span>
+                        </button>
+                    )}
+                </div>
+            )}
+
             {/* Container do Player com detecção de movimento para auto-hide */}
             <div
                 ref={playerContainerRef}
@@ -216,7 +294,7 @@ const VideoPlayer = ({ movieId, title, backdrop, poster }) => {
                             type="button"
                             onClick={() => handleModeChange('dublado')}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-md cursor-pointer ${
-                                streamMode === 'dublado'
+                                !isPlayingTrailer && streamMode === 'dublado'
                                     ? 'bg-red-600 text-white shadow-red-900/50 ring-2 ring-white/20'
                                     : 'bg-black/60 hover:bg-black/90 text-gray-300 hover:text-white border border-white/15 backdrop-blur-md'
                             }`}
@@ -230,7 +308,7 @@ const VideoPlayer = ({ movieId, title, backdrop, poster }) => {
                             type="button"
                             onClick={() => handleModeChange('legendado')}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-md cursor-pointer ${
-                                streamMode === 'legendado'
+                                !isPlayingTrailer && streamMode === 'legendado'
                                     ? 'bg-amber-500 text-black shadow-amber-900/50 ring-2 ring-white/20 font-black'
                                     : 'bg-black/60 hover:bg-black/90 text-gray-300 hover:text-white border border-white/15 backdrop-blur-md'
                             }`}
@@ -239,11 +317,31 @@ const VideoPlayer = ({ movieId, title, backdrop, poster }) => {
                             <FaClosedCaptioning className="text-xs" />
                             <span>Original (Legendado)</span>
                         </button>
+
+                        {trailer && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsPlayingTrailer(true);
+                                    setHasStarted(true);
+                                    showToast('🎬 Reproduzindo Trailer Oficial');
+                                }}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-md cursor-pointer ${
+                                    isPlayingTrailer
+                                        ? 'bg-blue-600 text-white shadow-blue-900/50 ring-2 ring-white/20'
+                                        : 'bg-black/60 hover:bg-black/90 text-gray-300 hover:text-white border border-white/15 backdrop-blur-md'
+                                }`}
+                                title="Assistir Trailer Oficial"
+                            >
+                                <FaFilm className="text-xs" />
+                                <span>Trailer</span>
+                            </button>
+                        )}
                     </div>
 
                     {/* Controles da Direita: Rota e Tela Cheia */}
                     <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
-                        {hasStarted && (
+                        {hasStarted && !isPlayingTrailer && (
                             <button
                                 type="button"
                                 onClick={handleNextServer}
@@ -277,7 +375,7 @@ const VideoPlayer = ({ movieId, title, backdrop, poster }) => {
                 {!hasStarted ? (
                     /* Tela Limpa Pré-Play: Apenas a Arte e o Botão Central */
                     <div
-                        onClick={handleStartPlay}
+                        onClick={() => handleStartPlay(false)}
                         className="relative w-full h-full flex flex-col items-center justify-center cursor-pointer group select-none"
                     >
                         {bgImage ? (
@@ -297,7 +395,7 @@ const VideoPlayer = ({ movieId, title, backdrop, poster }) => {
                             <button
                                 type="button"
                                 autoFocus
-                                onClick={handleStartPlay}
+                                onClick={() => handleStartPlay(false)}
                                 className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center shadow-[0_0_40px_rgba(239,68,68,0.85)] group-hover:shadow-[0_0_60px_rgba(239,68,68,1)] group-hover:scale-110 active:scale-95 transition-all duration-300 ring-4 ring-white/20 cursor-pointer"
                                 title="Clique para Assistir"
                             >
@@ -310,13 +408,28 @@ const VideoPlayer = ({ movieId, title, backdrop, poster }) => {
                             <div className="flex items-center gap-2 text-xs text-gray-300 font-medium bg-black/70 px-3.5 py-1.5 rounded-full border border-white/10 backdrop-blur-md">
                                 <span>{streamMode === 'dublado' ? '🇧🇷 Dublado em Português' : '🌐 Áudio Original (Legendado)'}</span>
                             </div>
+
+                            {/* Se o filme for futuro/não lançado, oferece atalho direto para o trailer */}
+                            {isUnreleased && trailer && (
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleStartPlay(true);
+                                    }}
+                                    className="mt-1 flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/90 hover:bg-amber-400 text-black font-extrabold text-xs shadow-xl transition-all cursor-pointer ring-2 ring-white/20 hover:scale-105"
+                                >
+                                    <FaFilm className="text-sm" />
+                                    <span>Assistir Trailer Oficial</span>
+                                </button>
+                            )}
                         </div>
                     </div>
                 ) : (
                     /* Vídeo em Reprodução */
                     <>
                         <iframe
-                            key={`${movieId}-${streamMode}-${activeServer.id}`}
+                            key={`${movieId}-${isPlayingTrailer ? 'trailer' : streamMode}-${activeServer.id}`}
                             src={iframeSrc}
                             allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *"
                             title={title || 'Player de Filme'}
@@ -348,6 +461,9 @@ VideoPlayer.propTypes = {
     title: PropTypes.string,
     backdrop: PropTypes.string,
     poster: PropTypes.string,
+    releaseDate: PropTypes.string,
+    status: PropTypes.string,
+    videos: PropTypes.array,
 };
 
 export default memo(VideoPlayer);
