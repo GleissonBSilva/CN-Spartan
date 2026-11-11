@@ -81,7 +81,6 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
 
     const [streamMode, setStreamMode] = useState('dublado');
     const [sourceIdx, setSourceIdx] = useState(0);
-    const [antiAdShield, setAntiAdShield] = useState(true);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isCssFullscreen, setIsCssFullscreen] = useState(false);
     const [showControls, setShowControls] = useState(true);
@@ -545,9 +544,9 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                     /* Vídeo em Reprodução */
                     <>
                         <iframe
-                            key={`${movieId}-${isPlayingTrailer ? 'trailer' : streamMode}-${activeServer.id}-${antiAdShield}`}
+                            key={`${movieId}-${isPlayingTrailer ? 'trailer' : streamMode}-${activeServer.id}`}
                             src={iframeSrc}
-                            sandbox={antiAdShield && !isPlayingTrailer ? "allow-scripts allow-same-origin allow-forms allow-presentation" : undefined}
+                            sandbox={!isPlayingTrailer ? "allow-scripts allow-same-origin allow-forms allow-presentation" : undefined}
                             allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *; clipboard-write *"
                             allowFullScreen={true}
                             webkitallowfullscreen="true"
@@ -560,57 +559,6 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                     </>
                 )}
             </div>
-
-            {/* Barra Persistente de Servidores e Escudo Anti-Popups */}
-            {!isPlayingTrailer && (
-                <div className="flex flex-wrap items-center justify-between gap-2.5 p-3 mt-3 rounded-xl bg-[#0f141f] border border-white/10 shadow-lg">
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-bold text-gray-300">Servidor:</span>
-                        <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-red-600/25 text-red-400 border border-red-500/30">
-                            {activeServer.name}
-                        </span>
-
-                        <button
-                            type="button"
-                            onClick={() => {
-                                const nextState = !antiAdShield;
-                                setAntiAdShield(nextState);
-                                showToast(nextState ? '🛡️ Escudo Anti-Popups ATIVADO (Abas bloqueadas)' : '⚠️ Escudo desativado temporariamente');
-                            }}
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                antiAdShield
-                                    ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30'
-                                    : 'bg-amber-600/20 text-amber-400 border border-amber-500/30 hover:bg-amber-600/30'
-                            }`}
-                            title={antiAdShield ? "Bloqueia abertura de novas abas e anúncios externos" : "Clique para ativar o escudo anti-popups"}
-                        >
-                            <span>{antiAdShield ? '🛡️ Anti-Popups: Ativo' : '⚠️ Anti-Popups: Desativado'}</span>
-                        </button>
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[11px] text-gray-400 hidden sm:inline">Se o filme falhar ou der erro:</span>
-                        {currentSources.map((srv, idx) => (
-                            <button
-                                key={srv.id}
-                                type="button"
-                                onClick={() => {
-                                    setSourceIdx(idx);
-                                    if (!hasStarted) setHasStarted(true);
-                                    showToast(`Alternado para: ${srv.name}`);
-                                }}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                    sourceIdx === idx
-                                        ? 'bg-red-600 text-white shadow-md shadow-red-950 ring-1 ring-red-400'
-                                        : 'bg-white/5 hover:bg-white/15 text-gray-300 hover:text-white border border-white/10'
-                                }`}
-                            >
-                                Opção {idx + 1}: {srv.name.split(' ')[0]}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
