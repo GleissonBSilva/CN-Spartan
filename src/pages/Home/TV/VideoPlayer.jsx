@@ -15,6 +15,11 @@ const SERVERS = {
       url: (id, s, e) => `https://superflixapi.bond/serie/${id}/${s}/${e}`
     },
     {
+      id: 'multiembed_dub',
+      name: 'MultiEmbed (Multi-Áudio & Dublado)',
+      url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
+    },
+    {
       id: 'vidlink_direct',
       name: 'VidLink Ultra HD (Multi-Áudio)',
       url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
@@ -25,6 +30,11 @@ const SERVERS = {
       id: 'vidlink_orig',
       name: 'VidLink Ultra HD (Áudio Original)',
       url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+    },
+    {
+      id: 'multiembed_orig',
+      name: 'MultiEmbed (Original / Leg)',
+      url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
     },
     {
       id: 'embedsu_orig',
