@@ -546,7 +546,6 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                         <iframe
                             key={`${movieId}-${isPlayingTrailer ? 'trailer' : streamMode}-${activeServer.id}`}
                             src={iframeSrc}
-                            sandbox={!isPlayingTrailer ? "allow-scripts allow-same-origin allow-forms allow-presentation" : undefined}
                             allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *; clipboard-write *"
                             allowFullScreen={true}
                             webkitallowfullscreen="true"

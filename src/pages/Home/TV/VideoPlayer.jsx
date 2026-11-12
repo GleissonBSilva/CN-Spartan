@@ -463,7 +463,6 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                         <iframe
                             key={`${tvId}-${season}-${episode}-${streamMode}-${activeServer.id}`}
                             src={iframeSrc}
-                            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                             allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *; clipboard-write *"
                             allowFullScreen={true}
                             webkitallowfullscreen="true"
