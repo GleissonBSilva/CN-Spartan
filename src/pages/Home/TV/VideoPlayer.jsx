@@ -463,17 +463,48 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                         <iframe
                             key={`${tvId}-${season}-${episode}-${streamMode}-${activeServer.id}`}
                             src={iframeSrc}
-                            allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *; clipboard-write *"
-                            allowFullScreen={true}
-                            webkitallowfullscreen="true"
-                            mozallowfullscreen="true"
+                            allow="autoplay; fullscreen; encrypted-media; picture-in-picture; screen-wake-lock; clipboard-write"
+                            allowFullScreen
                             title={title || 'Player de Série'}
-                            referrerPolicy="origin"
+                            referrerPolicy="no-referrer-when-downgrade"
                             className="w-full h-full border-0"
                             style={{ userSelect: 'none' }}
                         />
                     </>
                 )}
+            </div>
+
+            {/* Seletor Rápido de Servidores Spartan */}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 px-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider mr-1 flex items-center gap-1">
+                        <FaSyncAlt className="text-red-500 text-[10px]" />
+                        <span>Servidor:</span>
+                    </span>
+                    {currentSources.map((srv, idx) => (
+                        <button
+                            key={srv.id}
+                            type="button"
+                            onClick={() => {
+                                setSourceIdx(idx);
+                                setHasStarted(true);
+                                showToast(`Conectado ao ${srv.name}`);
+                            }}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                sourceIdx === idx
+                                    ? 'bg-red-600 text-white shadow-lg shadow-red-600/30 ring-1 ring-white/30'
+                                    : 'bg-[#12151e] text-gray-400 hover:text-white hover:bg-[#1a1e2b] border border-white/5'
+                            }`}
+                        >
+                            <span>{srv.name}</span>
+                            {sourceIdx === idx && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="text-[11px] text-gray-400 italic">
+                    {sourceIdx === 0 && 'Se o episódio exibir "No ID", alterne para o Servidor 2 (MultiEmbed)'}
+                </div>
             </div>
         </div>
     );
