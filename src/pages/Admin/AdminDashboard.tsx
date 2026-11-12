@@ -438,23 +438,21 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     if (!isUuid) return;
 
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update(fullPayload)
-        .eq('id', profileId);
+      // Filtra estritamente apenas as colunas que existem na tabela profiles do Supabase
+      // para evitar erros 400 (Bad Request: column not found)
+      const basePayload: Record<string, any> = {};
+      if (fullPayload.status !== undefined) basePayload.status = fullPayload.status;
+      if (fullPayload.expires_at !== undefined) basePayload.expires_at = fullPayload.expires_at;
+      if (fullPayload.plan_name !== undefined) basePayload.plan_name = fullPayload.plan_name;
+      if (fullPayload.max_screens !== undefined) basePayload.max_screens = fullPayload.max_screens;
+      if (fullPayload.role !== undefined) basePayload.role = fullPayload.role;
+      if (fullPayload.email !== undefined) basePayload.email = fullPayload.email;
 
-      if (error) {
-        // Fallback para colunas originais da tabela profiles caso full_name/whatsapp/is_trial ainda não tenham sido migradas no banco
-        const basePayload: Record<string, any> = {};
-        if (fullPayload.plan_name !== undefined) basePayload.plan_name = fullPayload.plan_name;
-        if (fullPayload.max_screens !== undefined) basePayload.max_screens = fullPayload.max_screens;
-        if (fullPayload.status !== undefined) basePayload.status = fullPayload.status;
-        if (fullPayload.expires_at !== undefined) basePayload.expires_at = fullPayload.expires_at;
-        if (fullPayload.role !== undefined) basePayload.role = fullPayload.role;
-
-        if (Object.keys(basePayload).length > 0) {
-          await supabase.from('profiles').update(basePayload).eq('id', profileId);
-        }
+      if (Object.keys(basePayload).length > 0) {
+        await supabase
+          .from('profiles')
+          .update(basePayload)
+          .eq('id', profileId);
       }
     } catch (err) {
       console.warn('Aviso ao sincronizar alteração no Supabase (mantido localmente):', err);

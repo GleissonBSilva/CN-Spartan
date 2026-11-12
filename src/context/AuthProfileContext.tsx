@@ -238,7 +238,7 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           data &&
           (data.plan_name !== mergedProfile.plan_name ||
             data.max_screens !== mergedProfile.max_screens ||
-            (!data.whatsapp && mergedProfile.whatsapp))
+            data.status !== mergedProfile.status)
         ) {
           try {
             await supabase
@@ -246,7 +246,6 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
               .update({
                 plan_name: mergedProfile.plan_name,
                 max_screens: mergedProfile.max_screens,
-                whatsapp: mergedProfile.whatsapp,
                 status: mergedProfile.status,
               })
               .eq('id', mergedProfile.id);
