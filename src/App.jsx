@@ -18,6 +18,8 @@ import AuthActionPage from './pages/Home/AuthActionPage';
 import LiveTvPage from './pages/Home/LiveTV/LiveTvPage';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import AccountPage from './pages/Home/AccountPage';
+import ForceUpdateModal from './components/ForceUpdateModal';
+import { useAppUpdateGuard } from './hooks/useAppUpdateGuard';
 
 // Handles TV Remote Control (Back button, Escape, Return)
 function TvNavigationHandler() {
@@ -70,9 +72,18 @@ function TvNavigationHandler() {
 }
 
 function App() {
+  const { isBlocked, blockReason, appConfig, recheck } = useAppUpdateGuard();
+
   return (
     <Router>
       <TvNavigationHandler />
+      {isBlocked && (
+        <ForceUpdateModal
+          reason={blockReason}
+          config={appConfig}
+          onRecheck={recheck}
+        />
+      )}
       <Routes>
         <Route path="/admin" element={<AdminDashboard defaultTab="overview" />} />
         <Route path="/admin/users" element={<AdminDashboard defaultTab="users" />} />

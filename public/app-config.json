@@ -1,0 +1,11 @@
+{
+  "minVersion": "1.0.0",
+  "latestVersion": "1.0.0",
+  "forceUpdate": false,
+  "apkDownloadUrl": "https://cn-spartan.vercel.app/cinespartan.apk",
+  "maintenanceMode": false,
+  "maintenanceMessage": "Estamos realizando melhorias programadas nos servidores do Cine Spartan. O aplicativo retornará em instantes!",
+  "updateMessage": "Uma nova versão com melhorias e correções obrigatórias está disponível. Atualize seu aplicativo para continuar assistindo.",
+  "blockedIps": [],
+  "blockedDevices": []
+}
