@@ -3,8 +3,13 @@ import PropTypes from 'prop-types';
 import { FaDownload, FaSyncAlt, FaShieldAlt, FaTools, FaWhatsapp } from 'react-icons/fa';
 import { CURRENT_APP_VERSION } from '../config/appVersion';
 import { App as CapApp } from '@capacitor/app';
+import { isTvBoxOrApk } from '../hooks/useAppUpdateGuard';
 
 const ForceUpdateModal = ({ reason, config, onRecheck }) => {
+  // Se for atualização de APK mas o usuário estiver navegando no PC, não bloqueia
+  if (reason === 'UPDATE_REQUIRED' && !isTvBoxOrApk()) {
+    return null;
+  }
   // Previne que o botão Voltar do controle da TV feche a tela de bloqueio
   useEffect(() => {
     const handleKeyDown = (e) => {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { CURRENT_APP_VERSION, isVersionOlder } from '../config/appVersion';
 import { App as CapApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 
 const CONFIG_URLS = [
   '/api/app-config',
@@ -8,6 +9,44 @@ const CONFIG_URLS = [
   '/app-config.json',
   'https://cn-spartan.vercel.app/app-config.json'
 ];
+
+/**
+ * Detecta se o aplicativo está sendo executado no CineSpartan TV Box ou APK Android (Capacitor/Nativo).
+ * Retorna false quando acessado diretamente pelo navegador web no PC / Desktop.
+ */
+export const isTvBoxOrApk = () => {
+  if (typeof window === 'undefined') return false;
+
+  // 1. Verificação oficial do Capacitor Nativo
+  try {
+    if (Capacitor.isNativePlatform()) return true;
+    const platform = Capacitor.getPlatform();
+    if (platform === 'android' || platform === 'ios') return true;
+  } catch {}
+
+  // 2. Verificação de objetos injetados e protocolos nativos (Capacitor/Cordova)
+  if (
+    window?.Capacitor?.isNativePlatform?.() === true ||
+    window?.Capacitor?.getPlatform?.() === 'android' ||
+    window?.Capacitor?.getPlatform?.() === 'ios' ||
+    window.location.protocol === 'capacitor:' ||
+    window.location.protocol === 'file:'
+  ) {
+    return true;
+  }
+
+  // 3. User-Agent específico para APK Android WebView ou TV Box
+  const ua = (navigator.userAgent || '').toLowerCase();
+  const isAndroid = ua.includes('android');
+  const isTv = ua.includes('tv') || ua.includes('smarttv') || ua.includes('googletv') || ua.includes('box');
+  const isWebView = ua.includes('wv') || (isAndroid && !ua.includes('chrome/'));
+
+  if (isAndroid && (isWebView || isTv || window.location.protocol === 'capacitor:')) {
+    return true;
+  }
+
+  return false;
+};
 
 export function useAppUpdateGuard() {
   const [isBlocked, setIsBlocked] = useState(false);
@@ -71,7 +110,7 @@ export function useAppUpdateGuard() {
 
       setAppConfig(config);
 
-      // 1. Verificação de Modo Manutenção Geral
+      // 1. Verificação de Modo Manutenção Geral (suspende o serviço temporariamente)
       if (config.maintenanceMode) {
         setIsBlocked(true);
         setBlockReason('MAINTENANCE');
@@ -92,16 +131,20 @@ export function useAppUpdateGuard() {
         }
       }
 
-      // 3. Verificação de Versão Obrigatória (Force Update)
-      const minVer = config.minVersion || '1.0.0';
-      const needsUpdate = isVersionOlder(CURRENT_APP_VERSION, minVer) || 
-                          (config.forceUpdate && config.latestVersion && CURRENT_APP_VERSION !== config.latestVersion);
+      // 3. Verificação de Versão Obrigatória / Forçar Download de Atualização do APK
+      // REGRA: O bloqueio de versão do APK é EXCLUSIVO para CineSpartan TV Box / Android APK!
+      // Usuários acessando pelo computador / navegador web no PC NÃO são bloqueados.
+      if (isTvBoxOrApk()) {
+        const minVer = config.minVersion || '1.0.0';
+        const needsUpdate = isVersionOlder(CURRENT_APP_VERSION, minVer) || 
+                            (config.forceUpdate && config.latestVersion && CURRENT_APP_VERSION !== config.latestVersion);
 
-      if (needsUpdate) {
-        setIsBlocked(true);
-        setBlockReason('UPDATE_REQUIRED');
-        setIsChecking(false);
-        return;
+        if (needsUpdate) {
+          setIsBlocked(true);
+          setBlockReason('UPDATE_REQUIRED');
+          setIsChecking(false);
+          return;
+        }
       }
 
       // Se passou por todas as checagens: liberado!

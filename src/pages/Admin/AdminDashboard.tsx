@@ -2772,8 +2772,8 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                       <FaShieldAlt />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-white">Versão Obrigatória do Aplicativo</h3>
-                      <p className="text-[11px] text-gray-400">Forçar atualização nas TV Boxes e celulares</p>
+                      <h3 className="text-sm font-bold text-white">Versão Obrigatória do APK (TV Box & Android)</h3>
+                      <p className="text-[11px] text-gray-400">Forçar atualização nos TV Boxes (não afeta o acesso no PC via web)</p>
                     </div>
                   </div>
                 </div>
@@ -2790,7 +2790,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                       placeholder="Ex: 1.0.0"
                       className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-xl text-xs text-white focus:border-red-500 focus:outline-none"
                     />
-                    <span className="text-[10px] text-gray-500 mt-1 block">APKs abaixo desta versão serão travados</span>
+                    <span className="text-[10px] text-gray-500 mt-1 block">APKs do TV Box abaixo desta versão serão travados</span>
                   </div>
 
                   <div>
@@ -2804,7 +2804,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                       placeholder="Ex: 1.0.0"
                       className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-xl text-xs text-white focus:border-red-500 focus:outline-none"
                     />
-                    <span className="text-[10px] text-gray-500 mt-1 block">Exibida no badge de atualização</span>
+                    <span className="text-[10px] text-gray-500 mt-1 block">Exibida no badge de atualização da TV Box</span>
                   </div>
                 </div>
 
@@ -2837,8 +2837,8 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                 {/* Switch: Forçar Atualização Imediata */}
                 <div className="flex items-center justify-between p-3 rounded-xl bg-black/30 border border-gray-800">
                   <div>
-                    <span className="text-xs font-bold text-white block">Forçar Atualização Imediata</span>
-                    <span className="text-[10px] text-gray-400">Bloqueia qualquer APK cuja versão for diferente da mais recente</span>
+                    <span className="text-xs font-bold text-white block">Forçar Atualização na TV Box</span>
+                    <span className="text-[10px] text-gray-400">Bloqueia o APK da TV Box cuja versão for diferente (não afeta o PC)</span>
                   </div>
                   <button
                     type="button"
@@ -2979,9 +2979,12 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             <div className="p-4 rounded-2xl bg-gradient-to-r from-red-950/30 via-black to-purple-950/30 border border-white/10 flex items-start gap-3">
               <FaShieldAlt className="text-red-400 text-xl shrink-0 mt-0.5" />
               <div className="text-xs text-gray-300 leading-relaxed space-y-1">
-                <span className="font-bold text-white block">Como funciona a Trava Remota na TV Box:</span>
+                <span className="font-bold text-white block">Como funciona a Trava Remota no CineSpartan TV Box:</span>
                 <p>
-                  Ao modificar a <strong>Versão Mínima</strong> ou ativar o <strong>Forçar Atualização</strong> e clicar em Salvar, qualquer TV Box ou smartphone com a versão desatualizada receberá a tela de bloqueio vermelha imediatamente ao abrir o aplicativo. O usuário só conseguirá continuar assistindo após instalar a nova versão pelo botão de download.
+                  Esta trava e a tela de forçar download do APK atuam <strong>exclusivamente nos aparelhos TV Box e celulares Android</strong> onde o APK está instalado. O acesso de clientes navegando pelo computador (PC/Desktop) <strong>nunca é bloqueado</strong> por atualização de versão.
+                </p>
+                <p className="text-gray-400">
+                  Ao modificar a <strong>Versão Mínima</strong> ou ativar o <strong>Forçar Atualização na TV Box</strong> e clicar em Salvar, qualquer aparelho com versão desatualizada exibirá imediatamente a tela de bloqueio com o botão de download do novo APK.
                 </p>
               </div>
             </div>
