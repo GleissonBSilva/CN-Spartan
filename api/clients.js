@@ -1,7 +1,52 @@
 // Serverless Cloud Sync for Client Profiles across all devices & Admin Dashboard
 // Allows TV Boxes, Web, and Admin Dashboard to share active clients in real-time
 
-let memoryProfiles = [];
+const SEED_PROFILES = [
+  {
+    id: 'mock-1',
+    email: 'gleisson1984@gmail.com',
+    full_name: 'Gleisson Silva (Master Admin)',
+    whatsapp: '(92) 99374-6740',
+    role: 'admin',
+    status: 'ativo',
+    plan_name: 'SPARTAN BUSINESS',
+    max_screens: 5,
+    is_trial: false,
+    trial_used: true,
+    expires_at: '2027-12-31T23:59:59.000Z',
+    created_at: '2026-11-01T10:00:00.000Z'
+  },
+  {
+    id: 'mock-2',
+    email: 'carlos.spartan@gmail.com',
+    full_name: 'Carlos Eduardo',
+    whatsapp: '(92) 98122-3344',
+    role: 'client',
+    status: 'ativo',
+    plan_name: 'SPARTAN PRO',
+    max_screens: 2,
+    is_trial: false,
+    trial_used: true,
+    expires_at: new Date(Date.now() + 25 * 86400000).toISOString(),
+    created_at: '2026-11-08T14:30:00.000Z'
+  },
+  {
+    id: 'mock-3',
+    email: 'mariana.costa@hotmail.com',
+    full_name: 'Mariana Costa',
+    whatsapp: '(92) 99188-7766',
+    role: 'client',
+    status: 'ativo',
+    plan_name: 'SPARTAN START',
+    max_screens: 1,
+    is_trial: false,
+    trial_used: true,
+    expires_at: new Date(Date.now() + 12 * 86400000).toISOString(),
+    created_at: '2026-11-05T09:15:00.000Z'
+  }
+];
+
+let memoryProfiles = [...SEED_PROFILES];
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -80,7 +125,7 @@ export default async function handler(req, res) {
       memoryProfiles.unshift(normalizedProfile);
     }
 
-    // Tenta salvar também no Supabase (usando apenas as colunas válidas que existem no schema)
+    // Tenta salvar também no Supabase
     try {
       const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://arckidvhfsffumowjarn.supabase.co';
       const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_L8j30Fn2CUE0OTJgsh3Ipg_IfHZrNFd';
@@ -103,10 +148,23 @@ export default async function handler(req, res) {
         })
       });
     } catch (e) {
-      // ignore
+      // Ignora erro de RLS se tabela for restrita
     }
 
     return res.status(200).json({ success: true, profile: normalizedProfile });
+  }
+
+  // 3. DELETE: Remove perfil
+  if (req.method === 'DELETE') {
+    const { id, email } = req.query;
+    if (id || email) {
+      memoryProfiles = memoryProfiles.filter(p => {
+        if (id && p.id === id) return false;
+        if (email && p.email?.toLowerCase() === String(email).toLowerCase()) return false;
+        return true;
+      });
+    }
+    return res.status(200).json({ success: true });
   }
 
   return res.status(405).json({ error: 'Method not allowed' });

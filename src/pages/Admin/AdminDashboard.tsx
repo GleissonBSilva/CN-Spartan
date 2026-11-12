@@ -503,6 +503,45 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         deletedList.includes(p.id || '') ||
         (p.email ? deletedList.includes(p.email.toLowerCase()) : false);
 
+      const fallbackMocks: Profile[] = [
+        {
+          id: 'mock-1',
+          email: 'gleisson1984@gmail.com',
+          full_name: 'Gleisson Silva (Master Admin)',
+          whatsapp: '(92) 99374-6740',
+          role: 'admin',
+          status: 'ativo',
+          plan_name: 'SPARTAN BUSINESS',
+          expires_at: new Date(Date.now() + 365 * 86400000).toISOString(),
+          max_screens: 5,
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 'mock-2',
+          email: 'carlos.spartan@gmail.com',
+          full_name: 'Carlos Eduardo',
+          whatsapp: '(92) 98122-3344',
+          role: 'client',
+          status: 'ativo',
+          plan_name: 'SPARTAN PRO',
+          expires_at: new Date(Date.now() + 25 * 86400000).toISOString(),
+          max_screens: 2,
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 'mock-3',
+          email: 'mariana.costa@hotmail.com',
+          full_name: 'Mariana Costa',
+          whatsapp: '(92) 99188-7766',
+          role: 'client',
+          status: 'ativo',
+          plan_name: 'SPARTAN START',
+          expires_at: new Date(Date.now() + 12 * 86400000).toISOString(),
+          max_screens: 1,
+          created_at: new Date().toISOString(),
+        },
+      ];
+
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -510,44 +549,6 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
       if (error) {
         console.warn('Profiles não encontrados no Supabase, usando fallback local:', error.message);
-        const fallbackMocks: Profile[] = [
-          {
-            id: 'mock-1',
-            email: 'gleisson1984@gmail.com',
-            full_name: 'Gleisson Silva (Admin)',
-            whatsapp: '(92) 99374-6740',
-            role: 'admin',
-            status: 'ativo',
-            plan_name: 'SPARTAN BUSINESS',
-            expires_at: new Date(Date.now() + 365 * 86400000).toISOString(),
-            max_screens: 5,
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: 'mock-2',
-            email: 'carlos.spartan@gmail.com',
-            full_name: 'Carlos Eduardo',
-            whatsapp: '(92) 98122-3344',
-            role: 'client',
-            status: 'ativo',
-            plan_name: 'SPARTAN PRO',
-            expires_at: new Date(Date.now() + 25 * 86400000).toISOString(),
-            max_screens: 2,
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: 'mock-3',
-            email: 'mariana.costa@hotmail.com',
-            full_name: 'Mariana Costa',
-            whatsapp: '(92) 99188-7766',
-            role: 'client',
-            status: 'ativo',
-            plan_name: 'SPARTAN START',
-            expires_at: new Date(Date.now() + 12 * 86400000).toISOString(),
-            max_screens: 1,
-            created_at: new Date().toISOString(),
-          },
-        ];
         const combined = localList.filter((c) => !isDeletedProfile(c));
         for (const m of fallbackMocks) {
           if (
@@ -656,6 +657,15 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             ...lp,
             status: isExp && lp.status === 'ativo' ? 'vencido' : lp.status,
           });
+        }
+      }
+
+      // Se a lista estiver vazia (ex: tabela profiles bloqueada por RLS no Supabase), garante os clientes ativos
+      if (dbProfiles.length === 0) {
+        for (const m of fallbackMocks) {
+          if (!isDeletedProfile(m)) {
+            dbProfiles.push(m);
+          }
         }
       }
 
