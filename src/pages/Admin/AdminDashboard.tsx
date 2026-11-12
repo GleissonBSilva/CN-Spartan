@@ -289,34 +289,16 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   });
   const [savingTrialConfig, setSavingTrialConfig] = useState(false);
 
-  // Sincroniza configuração de Trial do Supabase
+  // Sincroniza configuração de Trial local
   useEffect(() => {
-    if (sessionStorage.getItem('spartan_settings_404')) return;
-
-    supabase
-      .from('system_settings')
-      .select('value')
-      .eq('key', 'trial_config')
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (error) {
-          sessionStorage.setItem('spartan_settings_404', 'true');
-          return;
-        }
-        if (data?.value) {
-          if (typeof data.value.trial_days === 'number') {
-            setTrialConfig((prev) => ({ ...prev, days: data.value.trial_days }));
-            localStorage.setItem('spartan_trial_days', String(data.value.trial_days));
-          }
-          if (typeof data.value.enabled === 'boolean') {
-            setTrialConfig((prev) => ({ ...prev, enabled: data.value.enabled }));
-            localStorage.setItem('spartan_trial_enabled', String(data.value.enabled));
-          }
-        }
-      })
-      .catch(() => {
-        sessionStorage.setItem('spartan_settings_404', 'true');
+    const savedDays = localStorage.getItem('spartan_trial_days');
+    const savedEnabled = localStorage.getItem('spartan_trial_enabled');
+    if (savedDays || savedEnabled !== null) {
+      setTrialConfig({
+        enabled: savedEnabled !== null ? savedEnabled === 'true' : true,
+        days: savedDays ? parseInt(savedDays, 10) : 3,
       });
+    }
   }, []);
 
   // Modal Novo Cliente
@@ -347,29 +329,37 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
   // Configuração da Trava do APK e Segurança Remota
   const [securityConfig, setSecurityConfig] = useState<AppSecurityConfig>(() => {
-    const saved = localStorage.getItem('spartan_app_config');
-    if (saved) {
-      try {
-        return { ...DEFAULT_SECURITY_CONFIG, ...JSON.parse(saved) };
-      } catch {}
-    }
+    try {
+      const saved = localStorage.getItem('spartan_app_config');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          ...DEFAULT_SECURITY_CONFIG,
+          ...parsed,
+          blockedIps: Array.isArray(parsed?.blockedIps) ? parsed.blockedIps : [],
+        };
+      }
+    } catch {}
     return DEFAULT_SECURITY_CONFIG;
   });
   const [newIpToBlock, setNewIpToBlock] = useState('');
   const [savingSecurity, setSavingSecurity] = useState(false);
 
-  // Carrega configuração de segurança do Supabase se existir
+  // Carrega configuração de segurança do servidor /api/app-config
   useEffect(() => {
-    supabase
-      .from('system_settings')
-      .select('value')
-      .eq('key', 'apk_security_config')
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (!error && data?.value) {
+    fetch('/api/app-config')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((remote) => {
+        if (remote) {
           setSecurityConfig((prev) => {
-            const merged = { ...prev, ...data.value };
-            localStorage.setItem('spartan_app_config', JSON.stringify(merged));
+            const merged = {
+              ...prev,
+              ...remote,
+              blockedIps: Array.isArray(remote.blockedIps) ? remote.blockedIps : (prev.blockedIps || []),
+            };
+            try {
+              localStorage.setItem('spartan_app_config', JSON.stringify(merged));
+            } catch {}
             return merged;
           });
         }
@@ -380,16 +370,25 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   const handleSaveSecurity = async () => {
     setSavingSecurity(true);
     try {
-      localStorage.setItem('spartan_app_config', JSON.stringify(securityConfig));
+      const cleanConfig = {
+        ...DEFAULT_SECURITY_CONFIG,
+        ...securityConfig,
+        blockedIps: Array.isArray(securityConfig?.blockedIps) ? securityConfig.blockedIps : [],
+      };
+      localStorage.setItem('spartan_app_config', JSON.stringify(cleanConfig));
 
-      // Sincroniza no Supabase
-      await supabase
-        .from('system_settings')
-        .upsert(
-          { key: 'apk_security_config', value: securityConfig, updated_at: new Date().toISOString() },
-          { onConflict: 'key' }
-        )
-        .catch(() => {});
+      // Sincroniza via API /api/app-config (local e nuvem)
+      try {
+        await fetch('/api/app-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cleanConfig),
+        }).catch(() => fetch('https://cn-spartan.vercel.app/api/app-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cleanConfig),
+        }));
+      } catch {}
 
       setNotification({
         type: 'success',
@@ -1160,16 +1159,6 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       setTrialConfig(updated);
       localStorage.setItem('spartan_trial_days', String(days));
       localStorage.setItem('spartan_trial_enabled', String(enabled));
-
-      try {
-        await supabase.from('system_settings').upsert({
-          key: 'trial_config',
-          value: { trial_days: days, enabled },
-          updated_at: new Date().toISOString(),
-        });
-      } catch {
-        // Fallback local se a tabela de sistema ainda não estiver disponível
-      }
 
       setNotification({
         type: 'success',
@@ -2796,8 +2785,8 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                     </label>
                     <input
                       type="text"
-                      value={securityConfig.minVersion}
-                      onChange={(e) => setSecurityConfig({ ...securityConfig, minVersion: e.target.value })}
+                      value={securityConfig?.minVersion || ''}
+                      onChange={(e) => setSecurityConfig({ ...DEFAULT_SECURITY_CONFIG, ...securityConfig, minVersion: e.target.value })}
                       placeholder="Ex: 1.0.0"
                       className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-xl text-xs text-white focus:border-red-500 focus:outline-none"
                     />
@@ -2810,8 +2799,8 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                     </label>
                     <input
                       type="text"
-                      value={securityConfig.latestVersion}
-                      onChange={(e) => setSecurityConfig({ ...securityConfig, latestVersion: e.target.value })}
+                      value={securityConfig?.latestVersion || ''}
+                      onChange={(e) => setSecurityConfig({ ...DEFAULT_SECURITY_CONFIG, ...securityConfig, latestVersion: e.target.value })}
                       placeholder="Ex: 1.0.0"
                       className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-xl text-xs text-white focus:border-red-500 focus:outline-none"
                     />
@@ -2825,8 +2814,8 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                   </label>
                   <input
                     type="url"
-                    value={securityConfig.apkDownloadUrl}
-                    onChange={(e) => setSecurityConfig({ ...securityConfig, apkDownloadUrl: e.target.value })}
+                    value={securityConfig?.apkDownloadUrl || ''}
+                    onChange={(e) => setSecurityConfig({ ...DEFAULT_SECURITY_CONFIG, ...securityConfig, apkDownloadUrl: e.target.value })}
                     placeholder="https://..."
                     className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-xl text-xs text-white focus:border-red-500 focus:outline-none"
                   />
@@ -2839,8 +2828,8 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                   </label>
                   <textarea
                     rows={2}
-                    value={securityConfig.updateMessage}
-                    onChange={(e) => setSecurityConfig({ ...securityConfig, updateMessage: e.target.value })}
+                    value={securityConfig?.updateMessage || ''}
+                    onChange={(e) => setSecurityConfig({ ...DEFAULT_SECURITY_CONFIG, ...securityConfig, updateMessage: e.target.value })}
                     className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-xl text-xs text-white focus:border-red-500 focus:outline-none resize-none"
                   />
                 </div>
@@ -2853,14 +2842,14 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                   </div>
                   <button
                     type="button"
-                    onClick={() => setSecurityConfig({ ...securityConfig, forceUpdate: !securityConfig.forceUpdate })}
+                    onClick={() => setSecurityConfig({ ...DEFAULT_SECURITY_CONFIG, ...securityConfig, forceUpdate: !securityConfig?.forceUpdate })}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
-                      securityConfig.forceUpdate ? 'bg-red-600' : 'bg-gray-700'
+                      securityConfig?.forceUpdate ? 'bg-red-600' : 'bg-gray-700'
                     }`}
                   >
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        securityConfig.forceUpdate ? 'translate-x-6' : 'translate-x-1'
+                        securityConfig?.forceUpdate ? 'translate-x-6' : 'translate-x-1'
                       }`}
                     />
                   </button>
@@ -2884,14 +2873,14 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                     </div>
                     <button
                       type="button"
-                      onClick={() => setSecurityConfig({ ...securityConfig, maintenanceMode: !securityConfig.maintenanceMode })}
+                      onClick={() => setSecurityConfig({ ...DEFAULT_SECURITY_CONFIG, ...securityConfig, maintenanceMode: !securityConfig?.maintenanceMode })}
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
-                        securityConfig.maintenanceMode ? 'bg-amber-600' : 'bg-gray-700'
+                        securityConfig?.maintenanceMode ? 'bg-amber-600' : 'bg-gray-700'
                       }`}
                     >
                       <span
                         className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          securityConfig.maintenanceMode ? 'translate-x-6' : 'translate-x-1'
+                          securityConfig?.maintenanceMode ? 'translate-x-6' : 'translate-x-1'
                         }`}
                       />
                     </button>
@@ -2903,8 +2892,8 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                     </label>
                     <textarea
                       rows={2}
-                      value={securityConfig.maintenanceMessage}
-                      onChange={(e) => setSecurityConfig({ ...securityConfig, maintenanceMessage: e.target.value })}
+                      value={securityConfig?.maintenanceMessage || ''}
+                      onChange={(e) => setSecurityConfig({ ...DEFAULT_SECURITY_CONFIG, ...securityConfig, maintenanceMessage: e.target.value })}
                       className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-xl text-xs text-white focus:border-amber-500 focus:outline-none resize-none"
                     />
                   </div>
@@ -2935,10 +2924,12 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                       onClick={() => {
                         if (!newIpToBlock.trim()) return;
                         const ip = newIpToBlock.trim();
-                        if (securityConfig.blockedIps.includes(ip)) return;
+                        const currentIps = Array.isArray(securityConfig?.blockedIps) ? securityConfig.blockedIps : [];
+                        if (currentIps.includes(ip)) return;
                         setSecurityConfig({
+                          ...DEFAULT_SECURITY_CONFIG,
                           ...securityConfig,
-                          blockedIps: [...securityConfig.blockedIps, ip]
+                          blockedIps: [...currentIps, ip]
                         });
                         setNewIpToBlock('');
                       }}
@@ -2949,11 +2940,11 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                     </button>
                   </div>
 
-                  {securityConfig.blockedIps.length === 0 ? (
+                  {(!Array.isArray(securityConfig?.blockedIps) || securityConfig.blockedIps.length === 0) ? (
                     <p className="text-xs text-gray-500 italic py-2 text-center">Nenhum IP bloqueado no momento.</p>
                   ) : (
                     <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto pt-1">
-                      {securityConfig.blockedIps.map((ip) => (
+                      {(securityConfig?.blockedIps || []).map((ip) => (
                         <span
                           key={ip}
                           className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-600/20 border border-red-500/30 text-red-300 text-xs font-mono font-bold"
@@ -2962,9 +2953,11 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                           <button
                             type="button"
                             onClick={() => {
+                              const currentIps = Array.isArray(securityConfig?.blockedIps) ? securityConfig.blockedIps : [];
                               setSecurityConfig({
+                                ...DEFAULT_SECURITY_CONFIG,
                                 ...securityConfig,
-                                blockedIps: securityConfig.blockedIps.filter((item) => item !== ip)
+                                blockedIps: currentIps.filter((item) => item !== ip)
                               });
                             }}
                             className="text-red-400 hover:text-white ml-1 p-0.5 cursor-pointer"

@@ -16,6 +16,18 @@ export function useAppUpdateGuard() {
   const [isChecking, setIsChecking] = useState(true);
 
   const fetchRemoteConfig = async () => {
+    // 1. Tenta carregar do cache local/admin se existir
+    try {
+      const localSaved = localStorage.getItem('spartan_app_config');
+      if (localSaved) {
+        const parsed = JSON.parse(localSaved);
+        if (parsed && parsed.minVersion) {
+          return parsed;
+        }
+      }
+    } catch {}
+
+    // 2. Busca nas rotas de API e arquivos remotos
     for (const url of CONFIG_URLS) {
       try {
         const controller = new AbortController();
@@ -41,6 +53,14 @@ export function useAppUpdateGuard() {
   };
 
   const checkStatus = useCallback(async () => {
+    // Nunca bloqueia o painel administrativo para permitir ajustes e desbloqueio
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+      setIsBlocked(false);
+      setBlockReason(null);
+      setIsChecking(false);
+      return;
+    }
+
     setIsChecking(true);
     try {
       const config = await fetchRemoteConfig();

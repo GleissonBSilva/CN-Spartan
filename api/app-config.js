@@ -1,7 +1,9 @@
-// Vercel Serverless Function - Retorna a configuração remota e o IP do cliente
+// Vercel Serverless Function - Retorna e atualiza a configuração remota e o IP do cliente
+let memoryConfig = null;
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', '*');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
 
@@ -26,28 +28,31 @@ export default async function handler(req, res) {
     blockedDevices: []
   };
 
-  // Se houver integração com Supabase, tenta buscar configuração remota de lá
-  try {
-    const supabaseUrl = process.env.VITE_SUPABASE_URL;
-    const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
-    if (supabaseUrl && supabaseKey) {
-      const response = await fetch(`${supabaseUrl}/rest/v1/app_settings?select=*&limit=1`, {
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data && data.length > 0) {
-          config = { ...config, ...data[0] };
-        }
-      }
-    }
-  } catch (err) {
-    // Falha silenciosa, usa config padrão
+  if (memoryConfig) {
+    config = { ...config, ...memoryConfig };
   }
 
+  // 1. POST ou PUT: Atualiza a configuração remota vinda do Admin Dashboard
+  if (req.method === 'POST' || req.method === 'PUT') {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    if (body) {
+      memoryConfig = {
+        minVersion: body.minVersion || config.minVersion,
+        latestVersion: body.latestVersion || config.latestVersion,
+        forceUpdate: Boolean(body.forceUpdate),
+        apkDownloadUrl: body.apkDownloadUrl || config.apkDownloadUrl,
+        maintenanceMode: Boolean(body.maintenanceMode),
+        maintenanceMessage: body.maintenanceMessage || config.maintenanceMessage,
+        updateMessage: body.updateMessage || config.updateMessage,
+        blockedIps: Array.isArray(body.blockedIps) ? body.blockedIps : (config.blockedIps || []),
+        blockedDevices: Array.isArray(body.blockedDevices) ? body.blockedDevices : []
+      };
+      config = { ...config, ...memoryConfig };
+    }
+    return res.status(200).json({ success: true, ...config });
+  }
+
+  // 2. GET: Retorna a configuração e o IP do cliente
   return res.status(200).json({
     ...config,
     clientIp

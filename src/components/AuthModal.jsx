@@ -93,33 +93,15 @@ export default function AuthModal({ isOpen, onClose }) {
   });
 
   useEffect(() => {
-    if (!isOpen) return;
-    if (sessionStorage.getItem('spartan_settings_404')) return;
-
-    supabase
-      .from('system_settings')
-      .select('value')
-      .eq('key', 'trial_config')
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (error) {
-          sessionStorage.setItem('spartan_settings_404', 'true');
-          return;
-        }
-        if (data?.value) {
-          if (typeof data.value.trial_days === 'number') {
-            setTrialDays(data.value.trial_days);
-            localStorage.setItem('spartan_trial_days', String(data.value.trial_days));
-          }
-          if (typeof data.value.enabled === 'boolean') {
-            setTrialEnabled(data.value.enabled);
-            localStorage.setItem('spartan_trial_enabled', String(data.value.enabled));
-          }
-        }
-      })
-      .catch(() => {
-        sessionStorage.setItem('spartan_settings_404', 'true');
-      });
+    // Configurações locais de trial mantidas via storage
+    const savedDays = localStorage.getItem('spartan_trial_days');
+    if (savedDays) {
+      setTrialDays(parseInt(savedDays, 10));
+    }
+    const savedEnabled = localStorage.getItem('spartan_trial_enabled');
+    if (savedEnabled !== null) {
+      setTrialEnabled(savedEnabled === 'true');
+    }
   }, [isOpen]);
 
   // Formata telefone celular com DDD brasileiro (XX) XXXXX-XXXX

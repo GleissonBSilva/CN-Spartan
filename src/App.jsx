@@ -89,6 +89,8 @@ function App() {
         <Route path="/admin/users" element={<AdminDashboard defaultTab="users" />} />
         <Route path="/admin/finance" element={<AdminDashboard defaultTab="finance" />} />
         <Route path="/admin/plans" element={<AdminDashboard defaultTab="plans" />} />
+        <Route path="/admin/security" element={<AdminDashboard defaultTab="security" />} />
+        <Route path="/admin/apk" element={<AdminDashboard defaultTab="security" />} />
         <Route element={<ParentComponent />}>
           <Route index element={<HomePage />} />
           <Route path="/movies" element={<Movie />} />
