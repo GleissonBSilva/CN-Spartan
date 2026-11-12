@@ -348,7 +348,7 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                 className={`cinespartan-player-container relative w-full bg-black overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] flex items-center justify-center ${
                     isCssFullscreen 
                         ? 'is-css-fullscreen !fixed !inset-0 !z-[999999] !h-[100dvh] !w-screen !rounded-none !ring-0' 
-                        : 'aspect-video min-h-[235px] sm:min-h-0 rounded-xl sm:rounded-2xl ring-1 ring-white/15'
+                        : 'aspect-video min-h-[260px] xs:min-h-[290px] sm:min-h-[360px] md:min-h-[460px] rounded-xl sm:rounded-2xl ring-1 ring-white/15'
                 }`}
             >
                 {/* Sensor de topo (apenas fora da tela cheia) para reexibir os botões ao passar o mouse sobre o iframe */}
