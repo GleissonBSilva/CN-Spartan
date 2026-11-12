@@ -288,6 +288,22 @@ export default function AuthModal({ isOpen, onClose }) {
           // ignore
         }
 
+        // Checagem Anti-Fraude no Supabase em tempo real (impede múltiplos testes grátis)
+        if (!alreadyUsedTrial) {
+          try {
+            const { data: supaUsed } = await supabase
+              .from('used_trials')
+              .select('id')
+              .or(`email.eq.${cleanEmail},whatsapp.eq.${cleanPhone}`)
+              .limit(1);
+            if (supaUsed && supaUsed.length > 0) {
+              alreadyUsedTrial = true;
+            }
+          } catch {
+            // ignore
+          }
+        }
+
         // Todo novo usuário que se cadastra já entra imediatamente no prazo de Teste Grátis (salvo se bloqueado no Anti-Fraude)
         const configuredDays = Math.max(1, Number(trialDays) || 3);
         const effectiveTrialDays = !alreadyUsedTrial && trialEnabled !== false ? configuredDays : 0;
