@@ -15,14 +15,14 @@ const SERVERS = {
       url: (id) => `https://superflixapi.bond/filme/${id}`
     },
     {
-      id: 'multiembed_dub',
-      name: 'MultiEmbed (Multi-Áudio)',
-      url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
-    },
-    {
       id: 'vidlink_direct',
       name: 'VidLink Ultra HD (Multi-Áudio & Legendas PT)',
       url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+    },
+    {
+      id: 'multiembed_dub',
+      name: 'MultiEmbed (Multi-Áudio)',
+      url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
     },
     {
       id: 'vidsrc_me',
