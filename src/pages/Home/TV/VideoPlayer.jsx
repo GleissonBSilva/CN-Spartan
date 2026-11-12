@@ -10,19 +10,24 @@ import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
 const SERVERS = {
   dublado: [
     {
+      id: 'vidlink_direct',
+      name: 'VidLink Ultra HD (Multi-Áudio & Legendas PT)',
+      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+    },
+    {
+      id: 'vidsrc_me',
+      name: 'VidSrc HD (Multi-Áudio)',
+      url: (id, s, e) => `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}`
+    },
+    {
       id: 'superflix_dub',
       name: 'SuperFlix (Dublado BR)',
       url: (id, s, e) => `https://superflixapi.bond/serie/${id}/${s}/${e}`
     },
     {
       id: 'multiembed_dub',
-      name: 'MultiEmbed (Multi-Áudio & Dublado)',
+      name: 'MultiEmbed (Multi-Áudio)',
       url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
-    },
-    {
-      id: 'vidlink_direct',
-      name: 'VidLink Ultra HD (Multi-Áudio)',
-      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
     }
   ],
   legendado: [
@@ -32,19 +37,14 @@ const SERVERS = {
       url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
     },
     {
-      id: 'multiembed_orig',
-      name: 'MultiEmbed (Original / Leg)',
-      url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
-    },
-    {
-      id: 'embedsu_orig',
-      name: 'Embed.su (Legendado HD)',
-      url: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}`
-    },
-    {
       id: 'vidsrc_orig',
       name: 'VidSrc To (Original)',
       url: (id, s, e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}`
+    },
+    {
+      id: 'multiembed_orig',
+      name: 'MultiEmbed (Original / Leg)',
+      url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
     }
   ]
 };

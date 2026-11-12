@@ -10,19 +10,24 @@ import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
 const SERVERS = {
   dublado: [
     {
+      id: 'vidlink_direct',
+      name: 'VidLink Ultra HD (Multi-Áudio & Legendas PT)',
+      url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+    },
+    {
+      id: 'vidsrc_me',
+      name: 'VidSrc HD (Multi-Áudio)',
+      url: (id) => `https://vidsrc.me/embed/movie?tmdb=${id}`
+    },
+    {
       id: 'superflix_dub',
       name: 'SuperFlix (Dublado BR)',
       url: (id) => `https://superflixapi.bond/filme/${id}`
     },
     {
       id: 'multiembed_dub',
-      name: 'MultiEmbed (Multi-Áudio & Dublado)',
+      name: 'MultiEmbed (Multi-Áudio)',
       url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
-    },
-    {
-      id: 'vidlink_direct',
-      name: 'VidLink Ultra HD (Multi-Áudio)',
-      url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
     }
   ],
   legendado: [
@@ -32,19 +37,14 @@ const SERVERS = {
       url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
     },
     {
-      id: 'multiembed_orig',
-      name: 'MultiEmbed (Original / Leg)',
-      url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
-    },
-    {
-      id: 'embedsu_orig',
-      name: 'Embed.su (Legendado HD)',
-      url: (id) => `https://embed.su/embed/movie/${id}`
-    },
-    {
       id: 'vidsrc_orig',
       name: 'VidSrc To (Original)',
       url: (id) => `https://vidsrc.to/embed/movie/${id}`
+    },
+    {
+      id: 'multiembed_orig',
+      name: 'MultiEmbed (Original / Leg)',
+      url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
     }
   ]
 };
