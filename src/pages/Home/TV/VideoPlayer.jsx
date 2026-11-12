@@ -51,9 +51,14 @@ const SERVERS = {
 
 const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster }) => {
     const { language } = useLanguage();
-    const { isActive, isAdmin } = useAuthProfile();
+    const { isActive, isAdmin, refreshProfile } = useAuthProfile();
     const [hasStarted, setHasStarted] = useState(false);
     const [showAudioHelp, setShowAudioHelp] = useState(false);
+
+    useEffect(() => {
+        refreshProfile?.();
+    }, [tvId, season, episode]);
+
     const canPlay = isAdmin || isActive;
     const { isScreenBlocked, activeDevices, maxScreens, disconnectOtherDevices } = useScreenLimiter(canPlay && hasStarted);
 

@@ -9,7 +9,12 @@ import SubscriptionLockGate from '../../../components/SubscriptionLockGate';
 import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
 
 const LiveTvPage = () => {
-  const { isActive, isAdmin } = useAuthProfile();
+  const { isActive, isAdmin, refreshProfile } = useAuthProfile();
+
+  useEffect(() => {
+    refreshProfile?.();
+  }, []);
+
   const canPlay = isAdmin || isActive;
   const { isScreenBlocked, activeDevices, maxScreens, disconnectOtherDevices } = useScreenLimiter(canPlay);
 

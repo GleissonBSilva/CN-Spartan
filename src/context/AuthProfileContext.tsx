@@ -75,6 +75,48 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const fetchProfile = useCallback(async (userId: string, userEmail?: string, userMeta?: Record<string, any>): Promise<Profile | null> => {
     try {
       const cleanEmail = (userEmail || '').toLowerCase();
+
+      // 0. Sincronização prioritária em tempo real com o servidor /api/clients
+      let cloudProfile: Profile | null = null;
+      let isCloudDeleted = false;
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const res = await fetch('/api/clients', { signal: controller.signal })
+          .catch(() => fetch('https://cn-spartan.vercel.app/api/clients', { signal: controller.signal }));
+        clearTimeout(timeoutId);
+        if (res && res.ok) {
+          const cloudData = await res.json();
+          const profilesList: Profile[] = Array.isArray(cloudData) ? cloudData : (cloudData.profiles || []);
+          const deletedList: string[] = Array.isArray(cloudData?.deleted) ? cloudData.deleted : [];
+
+          // Se a conta foi excluída pelo Administrador, revoga acesso imediatamente
+          if (
+            deletedList.includes(userId) ||
+            (cleanEmail && deletedList.includes(cleanEmail))
+          ) {
+            isCloudDeleted = true;
+          } else {
+            cloudProfile = profilesList.find(
+              (p: Profile) => p.id === userId || (cleanEmail && p.email?.toLowerCase() === cleanEmail)
+            ) || null;
+          }
+        }
+      } catch {
+        // Fallback offline
+      }
+
+      if (isCloudDeleted) {
+        console.warn('[Spartan Security] Conta excluída pela administração. Revogando sessão...');
+        localStorage.removeItem('weflix_user');
+        localStorage.removeItem('spartan_registered_profiles');
+        await supabase.auth.signOut().catch(() => {});
+        setUser(null);
+        setSession(null);
+        setProfile(null);
+        return null;
+      }
+
       let localStoredProfile: Profile | null = null;
       try {
         const existing = JSON.parse(localStorage.getItem('spartan_registered_profiles') || '[]');
@@ -101,46 +143,54 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         error = res.error;
       }
 
-      if (error && !localStoredProfile) {
+      if (error && !localStoredProfile && !cloudProfile) {
         console.error('Erro ao buscar perfil:', error.message);
         return null;
       }
 
-      if (data || localStoredProfile) {
-        const raw = (data || localStoredProfile) as Profile;
-        const hasAdminEdit = Boolean(localStoredProfile?.admin_updated_at);
-        const metaPlan = userMeta?.plan_name || localStoredProfile?.plan_name;
-        const metaScreens = Number(userMeta?.max_screens || localStoredProfile?.max_screens || 0);
-        const metaName = userMeta?.full_name || userMeta?.display_name || localStoredProfile?.full_name;
-        const metaPhone = userMeta?.whatsapp || localStoredProfile?.whatsapp;
+      if (data || localStoredProfile || cloudProfile) {
+        const raw = (cloudProfile || data || localStoredProfile) as Profile;
+        const hasAdminEdit = Boolean(localStoredProfile?.admin_updated_at || cloudProfile);
+        const metaPlan = userMeta?.plan_name || cloudProfile?.plan_name || localStoredProfile?.plan_name;
+        const metaScreens = Number(userMeta?.max_screens || cloudProfile?.max_screens || localStoredProfile?.max_screens || 0);
+        const metaName = userMeta?.full_name || userMeta?.display_name || cloudProfile?.full_name || localStoredProfile?.full_name;
+        const metaPhone = userMeta?.whatsapp || cloudProfile?.whatsapp || localStoredProfile?.whatsapp;
 
-        // Se o Admin editou os dados deste cliente, prevalece sempre a alteração salva pelo Admin
-        const resolvedPlan =
-          hasAdminEdit && localStoredProfile?.plan_name
+        // Se a nuvem ou o Admin editou os dados deste cliente, prevalece a alteração do Admin
+        let resolvedPlan =
+          cloudProfile?.plan_name ||
+          (hasAdminEdit && localStoredProfile?.plan_name
             ? localStoredProfile.plan_name
             : raw.plan_name && !raw.plan_name.toLowerCase().startsWith('teste grátis') && raw.plan_name !== 'Mensal'
             ? raw.plan_name
-            : metaPlan || raw.plan_name || 'SPARTAN PRO';
+            : metaPlan || raw.plan_name || 'SPARTAN PRO');
 
-        const resolvedScreens =
-          hasAdminEdit && localStoredProfile?.max_screens
+        let resolvedScreens =
+          cloudProfile?.max_screens ||
+          (hasAdminEdit && localStoredProfile?.max_screens
             ? Number(localStoredProfile.max_screens)
             : raw.max_screens && raw.max_screens > 1
             ? raw.max_screens
             : metaScreens > 0
             ? metaScreens
-            : raw.max_screens || 1;
+            : raw.max_screens || 1);
 
         let resolvedExpiresAt =
-          hasAdminEdit && localStoredProfile?.expires_at ? localStoredProfile.expires_at : raw.expires_at;
+          cloudProfile?.expires_at ||
+          (hasAdminEdit && localStoredProfile?.expires_at ? localStoredProfile.expires_at : raw.expires_at);
+
         let resolvedStatus =
-          hasAdminEdit && localStoredProfile?.status ? localStoredProfile.status : raw.status;
+          cloudProfile?.status ||
+          (hasAdminEdit && localStoredProfile?.status ? localStoredProfile.status : raw.status);
+
         let resolvedIsTrial =
-          hasAdminEdit && localStoredProfile?.is_trial !== undefined
+          cloudProfile?.is_trial !== undefined
+            ? cloudProfile.is_trial
+            : hasAdminEdit && localStoredProfile?.is_trial !== undefined
             ? localStoredProfile.is_trial
             : raw.is_trial ?? (userMeta?.is_trial ?? false);
 
-        if (localStoredProfile && !hasAdminEdit) {
+        if (!cloudProfile && localStoredProfile && !hasAdminEdit) {
           const dbExp = new Date(raw.expires_at).getTime();
           const localExp = new Date(localStoredProfile.expires_at).getTime();
           if (localExp > dbExp && localStoredProfile.status === 'ativo') {
@@ -336,9 +386,77 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
   }, [fetchProfile, getFallbackCachedUser]);
 
-  // Verificador automático em tempo real: bloqueia imediatamente quando o período de teste expira
-  // e desbloqueia imediatamente quando o Admin confirma o pagamento
+  // Verificador automático em tempo real: sincroniza com o Admin Dashboard a cada 10s
+  // Se o cliente for suspenso, bloqueia imediatamente o player.
+  // Se for deletado pelo admin, revoga a sessão na hora.
   useEffect(() => {
+    let active = true;
+
+    const checkCloudStatus = async () => {
+      if (!user) return;
+      const cleanEmail = (user.email || '').toLowerCase();
+      const isMaster = cleanEmail === ADMIN_MASTER_EMAIL;
+      if (isMaster) return;
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const res = await fetch('/api/clients', { signal: controller.signal })
+          .catch(() => fetch('https://cn-spartan.vercel.app/api/clients', { signal: controller.signal }));
+        clearTimeout(timeoutId);
+
+        if (res && res.ok && active) {
+          const cloudData = await res.json();
+          const profilesList: Profile[] = Array.isArray(cloudData) ? cloudData : (cloudData.profiles || []);
+          const deletedList: string[] = Array.isArray(cloudData?.deleted) ? cloudData.deleted : [];
+
+          // 1. Cliente excluído pelo Admin: revoga credenciais e encerra a reprodução na hora
+          if (deletedList.includes(user.id) || (cleanEmail && deletedList.includes(cleanEmail))) {
+            console.warn('[Spartan Security] Conta excluída pela administração. Encerrando sessão...');
+            localStorage.removeItem('weflix_user');
+            localStorage.removeItem('spartan_registered_profiles');
+            await supabase.auth.signOut().catch(() => {});
+            if (active) {
+              setUser(null);
+              setSession(null);
+              setProfile(null);
+            }
+            return;
+          }
+
+          // 2. Cliente com status alterado (suspenso, vencido, ou reativado para ativo)
+          const cp = profilesList.find(
+            (p: Profile) => p.id === user.id || (cleanEmail && p.email?.toLowerCase() === cleanEmail)
+          );
+
+          if (cp && active) {
+            setProfile((current) => {
+              if (!current) return current;
+              if (
+                current.status !== cp.status ||
+                current.expires_at !== cp.expires_at ||
+                current.plan_name !== cp.plan_name ||
+                current.max_screens !== cp.max_screens
+              ) {
+                const updated: Profile = {
+                  ...current,
+                  status: cp.status,
+                  expires_at: cp.expires_at,
+                  plan_name: cp.plan_name || current.plan_name,
+                  max_screens: cp.max_screens || current.max_screens,
+                };
+                syncLocalProfileRegistry(updated);
+                return updated;
+              }
+              return current;
+            });
+          }
+        }
+      } catch {
+        // Fallback offline
+      }
+    };
+
     const interval = setInterval(() => {
       setNowTick(Date.now());
       if (profile && profile.role !== 'admin') {
@@ -350,7 +468,11 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           supabase.from('profiles').update({ status: 'vencido' }).eq('id', profile.id).then(() => {});
         }
       }
-    }, 15000);
+      checkCloudStatus();
+    }, 10000);
+
+    // Verificação inicial rápida
+    checkCloudStatus();
 
     const handleStorageSync = (e: StorageEvent) => {
       if (e.key === 'spartan_registered_profiles' && user) {
@@ -360,6 +482,7 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     window.addEventListener('storage', handleStorageSync);
 
     return () => {
+      active = false;
       clearInterval(interval);
       window.removeEventListener('storage', handleStorageSync);
     };

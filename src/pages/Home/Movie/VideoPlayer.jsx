@@ -51,10 +51,15 @@ const SERVERS = {
 
 const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, videos }) => {
     const { language } = useLanguage();
-    const { isActive, isAdmin } = useAuthProfile();
+    const { isActive, isAdmin, refreshProfile } = useAuthProfile();
     const [hasStarted, setHasStarted] = useState(false);
     const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
     const [showAudioHelp, setShowAudioHelp] = useState(false);
+
+    useEffect(() => {
+        refreshProfile?.();
+    }, [movieId]);
+
     const canPlay = isAdmin || isActive;
     const { isScreenBlocked, activeDevices, maxScreens, disconnectOtherDevices } = useScreenLimiter(canPlay && hasStarted);
 

@@ -1,5 +1,8 @@
 // Serverless Cloud Sync for Client Profiles across all devices & Admin Dashboard
 // Allows TV Boxes, Web, and Admin Dashboard to share active clients in real-time
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
 
 const SEED_PROFILES = [
   {
@@ -46,7 +49,43 @@ const SEED_PROFILES = [
   }
 ];
 
+const TMP_DIR = os.tmpdir();
+const PROFILES_FILE = path.join(TMP_DIR, 'spartan_clients.json');
+const DELETED_FILE = path.join(TMP_DIR, 'spartan_deleted.json');
+
 let memoryProfiles = [...SEED_PROFILES];
+let deletedAccounts = [];
+
+function loadFromDisk() {
+  try {
+    if (fs.existsSync(PROFILES_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(PROFILES_FILE, 'utf8'));
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        memoryProfiles = parsed;
+      }
+    }
+  } catch {}
+  try {
+    if (fs.existsSync(DELETED_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(DELETED_FILE, 'utf8'));
+      if (Array.isArray(parsed)) {
+        deletedAccounts = parsed;
+      }
+    }
+  } catch {}
+}
+
+function saveToDisk() {
+  try {
+    fs.writeFileSync(PROFILES_FILE, JSON.stringify(memoryProfiles), 'utf8');
+  } catch {}
+  try {
+    fs.writeFileSync(DELETED_FILE, JSON.stringify(deletedAccounts), 'utf8');
+  } catch {}
+}
+
+// Initial load
+loadFromDisk();
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -58,113 +97,94 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // 1. GET: Retorna todos os clientes cadastrados
+  loadFromDisk();
+
+  // 1. GET: Retorna perfis e contas deletadas/revogadas
   if (req.method === 'GET') {
-    let cloudList = [...memoryProfiles];
+    // Purga deletados da lista ativa
+    memoryProfiles = memoryProfiles.filter(p => {
+      const idMatch = p.id && deletedAccounts.includes(p.id);
+      const emailMatch = p.email && deletedAccounts.includes(p.email.toLowerCase().trim());
+      return !idMatch && !emailMatch;
+    });
 
-    // Tenta também buscar do Supabase profiles
-    try {
-      const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://arckidvhfsffumowjarn.supabase.co';
-      const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_L8j30Fn2CUE0OTJgsh3Ipg_IfHZrNFd';
-      const response = await fetch(`${supabaseUrl}/rest/v1/profiles?select=*`, {
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`
-        }
-      });
-      if (response.ok) {
-        const supaData = await response.json();
-        if (Array.isArray(supaData)) {
-          for (const sp of supaData) {
-            if (!cloudList.some(c => c.id === sp.id || (sp.email && c.email?.toLowerCase() === sp.email.toLowerCase()))) {
-              cloudList.push(sp);
-            }
-          }
-        }
-      }
-    } catch (e) {
-      // continua com memoryProfiles
-    }
-
-    return res.status(200).json(cloudList);
+    return res.status(200).json({
+      profiles: memoryProfiles,
+      deleted: deletedAccounts
+    });
   }
 
-  // 2. POST / PUT: Registra ou atualiza um cliente vindo de qualquer TV Box ou aparelho
+  // 2. POST / PUT: Registra ou atualiza status do cliente (ativo, suspenso, vencido)
   if (req.method === 'POST' || req.method === 'PUT') {
     const profile = req.body;
     if (!profile || (!profile.id && !profile.email)) {
       return res.status(400).json({ error: 'Dados de perfil inválidos' });
     }
 
-    const cleanEmail = profile.email ? profile.email.toLowerCase().trim() : '';
-    const cleanId = profile.id || `usr-${Date.now()}`;
+    const cleanEmail = profile.email ? String(profile.email).toLowerCase().trim() : '';
+    const cleanId = profile.id ? String(profile.id) : `usr-${Date.now()}`;
 
-    const normalizedProfile = {
-      id: cleanId,
-      email: cleanEmail,
-      full_name: profile.full_name || profile.name || cleanEmail.split('@')[0],
-      whatsapp: profile.whatsapp || profile.phone || '',
-      role: profile.role || 'client',
-      status: profile.status || 'ativo',
-      plan_name: profile.plan_name || 'SPARTAN PRO',
-      max_screens: Number(profile.max_screens || 2),
-      is_trial: Boolean(profile.is_trial),
-      trial_used: Boolean(profile.trial_used),
-      expires_at: profile.expires_at || new Date(Date.now() + 30 * 86400000).toISOString(),
-      created_at: profile.created_at || new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
+    // Se estiver ativando ou reativando, remove da lista de deletados
+    if (profile.status === 'ativo') {
+      deletedAccounts = deletedAccounts.filter(x => x !== cleanId && x !== cleanEmail);
+    }
 
-    // Atualiza na memória
     const existingIdx = memoryProfiles.findIndex(
-      p => p.id === cleanId || (cleanEmail && p.email?.toLowerCase() === cleanEmail)
+      p => (cleanId && p.id === cleanId) || (cleanEmail && p.email?.toLowerCase() === cleanEmail)
     );
+
     if (existingIdx >= 0) {
-      memoryProfiles[existingIdx] = { ...memoryProfiles[existingIdx], ...normalizedProfile };
+      memoryProfiles[existingIdx] = {
+        ...memoryProfiles[existingIdx],
+        ...profile,
+        id: cleanId || memoryProfiles[existingIdx].id,
+        email: cleanEmail || memoryProfiles[existingIdx].email,
+        updated_at: new Date().toISOString()
+      };
     } else {
-      memoryProfiles.unshift(normalizedProfile);
-    }
-
-    // Tenta salvar também no Supabase
-    try {
-      const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://arckidvhfsffumowjarn.supabase.co';
-      const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_L8j30Fn2CUE0OTJgsh3Ipg_IfHZrNFd';
-      await fetch(`${supabaseUrl}/rest/v1/profiles`, {
-        method: 'POST',
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'resolution=merge-duplicates'
-        },
-        body: JSON.stringify({
-          id: normalizedProfile.id,
-          email: normalizedProfile.email,
-          role: normalizedProfile.role,
-          status: normalizedProfile.status,
-          plan_name: normalizedProfile.plan_name,
-          max_screens: normalizedProfile.max_screens,
-          expires_at: normalizedProfile.expires_at
-        })
+      memoryProfiles.unshift({
+        id: cleanId,
+        email: cleanEmail,
+        full_name: profile.full_name || profile.name || cleanEmail.split('@')[0],
+        whatsapp: profile.whatsapp || profile.phone || '',
+        role: profile.role || 'client',
+        status: profile.status || 'ativo',
+        plan_name: profile.plan_name || 'SPARTAN PRO',
+        max_screens: Number(profile.max_screens || 2),
+        is_trial: Boolean(profile.is_trial),
+        trial_used: Boolean(profile.trial_used),
+        expires_at: profile.expires_at || new Date(Date.now() + 30 * 86400000).toISOString(),
+        created_at: profile.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString()
       });
-    } catch (e) {
-      // Ignora erro de RLS se tabela for restrita
     }
 
-    return res.status(200).json({ success: true, profile: normalizedProfile });
+    saveToDisk();
+    return res.status(200).json({
+      success: true,
+      profile: memoryProfiles[existingIdx >= 0 ? existingIdx : 0]
+    });
   }
 
-  // 3. DELETE: Remove perfil
+  // 3. DELETE: Revoga acesso imediatamente e coloca na lista negra
   if (req.method === 'DELETE') {
-    const { id, email } = req.query;
-    if (id || email) {
-      memoryProfiles = memoryProfiles.filter(p => {
-        if (id && p.id === id) return false;
-        if (email && p.email?.toLowerCase() === String(email).toLowerCase()) return false;
-        return true;
-      });
-    }
-    return res.status(200).json({ success: true });
+    const query = req.query || {};
+    const body = req.body || {};
+    const id = query.id || body.id;
+    const email = query.email || body.email;
+
+    if (id) deletedAccounts.push(String(id));
+    if (email) deletedAccounts.push(String(email).toLowerCase().trim());
+    deletedAccounts = Array.from(new Set(deletedAccounts));
+
+    memoryProfiles = memoryProfiles.filter(p => {
+      if (id && p.id === id) return false;
+      if (email && p.email?.toLowerCase() === String(email).toLowerCase().trim()) return false;
+      return true;
+    });
+
+    saveToDisk();
+    return res.status(200).json({ success: true, deleted: [id, email].filter(Boolean) });
   }
 
   return res.status(405).json({ error: 'Method not allowed' });

@@ -119,9 +119,56 @@ function streamProxyPlugin() {
   };
 }
 
+// Emulate Serverless Functions in local Vite development mode
+function apiServerlessPlugin() {
+  return {
+    name: 'api-serverless',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        try {
+          const url = new URL(req.url, 'http://localhost');
+          if (url.pathname === '/api/clients' || url.pathname === '/api/clients.js') {
+            req.query = Object.fromEntries(url.searchParams.entries());
+            if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+              let body = '';
+              for await (const chunk of req) body += chunk;
+              try { req.body = body ? JSON.parse(body) : {}; } catch { req.body = {}; }
+            }
+            res.status = (code) => { res.statusCode = code; return res; };
+            res.json = (data) => {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(data));
+            };
+            const { default: clientsHandler } = await import('./api/clients.js');
+            return await clientsHandler(req, res);
+          }
+          if (url.pathname === '/api/app-config' || url.pathname === '/api/app-config.js') {
+            req.query = Object.fromEntries(url.searchParams.entries());
+            if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+              let body = '';
+              for await (const chunk of req) body += chunk;
+              try { req.body = body ? JSON.parse(body) : {}; } catch { req.body = {}; }
+            }
+            res.status = (code) => { res.statusCode = code; return res; };
+            res.json = (data) => {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(data));
+            };
+            const { default: appConfigHandler } = await import('./api/app-config.js');
+            return await appConfigHandler(req, res);
+          }
+        } catch (err) {
+          console.error('[API Middleware Error]:', err);
+        }
+        next();
+      });
+    }
+  };
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), streamProxyPlugin()],
+  plugins: [react(), streamProxyPlugin(), apiServerlessPlugin()],
   server: {
     host: '0.0.0.0', // Expose on all network interfaces
     watch: {

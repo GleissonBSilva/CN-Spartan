@@ -474,10 +474,15 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       }
 
       // Sincroniza clientes cadastrados na nuvem (api/clients) para unificar todas as TV Boxes e aparelhos
+      let cloudDeleted: string[] = [];
       try {
         const clientRes = await fetch('/api/clients').catch(() => fetch('https://cn-spartan.vercel.app/api/clients'));
         if (clientRes && clientRes.ok) {
-          const cloudClients = await clientRes.json();
+          const cloudData = await clientRes.json();
+          const cloudClients = Array.isArray(cloudData) ? cloudData : (cloudData.profiles || []);
+          if (Array.isArray(cloudData?.deleted)) {
+            cloudDeleted = cloudData.deleted;
+          }
           if (Array.isArray(cloudClients)) {
             for (const cc of cloudClients) {
               const existingIdx = localList.findIndex(lp => lp.id === cc.id || (cc.email && lp.email?.toLowerCase() === cc.email.toLowerCase()));
@@ -498,6 +503,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       } catch {
         deletedList = [];
       }
+      deletedList = Array.from(new Set([...deletedList, ...cloudDeleted]));
 
       const isDeletedProfile = (p: { id?: string; email?: string }) =>
         deletedList.includes(p.id || '') ||
@@ -755,8 +761,14 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     setActionLoadingId(profile.id);
     try {
       await persistProfileToSupabase(profile.id, {
+        email: profile.email,
+        full_name: profile.full_name,
+        whatsapp: profile.whatsapp,
+        plan_name: profile.plan_name,
+        max_screens: profile.max_screens,
         status: newStatus,
         expires_at: newExpiresAt,
+        admin_updated_at: nowStamp,
       });
 
       setProfiles((prev) => {
@@ -770,7 +782,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       });
       setNotification({
         type: 'success',
-        message: `Status de ${profile.full_name || profile.email} alterado para "${newStatus}".`,
+        message: `Status de ${profile.full_name || profile.email} alterado para "${newStatus.toUpperCase()}". Sincronizado em tempo real com todos os dispositivos!`,
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao atualizar status';
@@ -790,9 +802,15 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       const nowStamp = new Date().toISOString();
 
       await persistProfileToSupabase(profile.id, {
+        email: profile.email,
+        full_name: profile.full_name,
+        whatsapp: profile.whatsapp,
+        plan_name: profile.plan_name,
+        max_screens: profile.max_screens,
         expires_at: newExpiryIso,
         status: 'ativo',
         is_trial: false,
+        admin_updated_at: nowStamp,
       });
 
       setProfiles((prev) => {
@@ -825,7 +843,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   const handleDeleteUser = async (profile: Profile) => {
     if (
       !window.confirm(
-        `Tem certeza que deseja excluir o cliente ${profile.email}?\n\nEle será removido da lista para não tomar lugar de um novo cliente. O e-mail e WhatsApp serão gravados permanentemente no Anti-Fraude e ele perderá o direito a qualquer novo teste grátis!`
+        `Tem certeza que deseja excluir o cliente ${profile.email}?\n\nEle será removido da lista e o acesso ao Cine Spartan será REVOGADO IMEDIATAMENTE em todos os aparelhos (TV Box, Celular e PC)! O e-mail e WhatsApp serão gravados permanentemente no Anti-Fraude e ele perderá o direito a qualquer novo teste grátis!`
       )
     )
       return;
@@ -844,6 +862,13 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       setUsedTrials(updatedUsedTrials);
       localStorage.setItem('spartan_used_trials', JSON.stringify(updatedUsedTrials));
 
+      // 2. Notifica a nuvem /api/clients para revogação em tempo real em todas as TV Boxes e dispositivos
+      try {
+        await fetch(`/api/clients?id=${encodeURIComponent(profile.id)}&email=${encodeURIComponent(profile.email.toLowerCase())}`, {
+          method: 'DELETE'
+        }).catch(() => fetch(`https://cn-spartan.vercel.app/api/clients?id=${encodeURIComponent(profile.id)}&email=${encodeURIComponent(profile.email.toLowerCase())}`, { method: 'DELETE' }));
+      } catch {}
+
       try {
         await supabase.from('used_trials').insert([
           {
@@ -857,7 +882,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         // Ignora caso offline ou fallback local
       }
 
-      // 2. Registra exclusão permanente local para não reaparecer no reload
+      // 3. Registra exclusão permanente local para não reaparecer no reload
       try {
         const rawDeleted = JSON.parse(localStorage.getItem('spartan_deleted_profiles') || '[]');
         const deletedArr = Array.isArray(rawDeleted) ? rawDeleted : [];
@@ -867,7 +892,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         // ignore
       }
 
-      // 3. Remove da lista de perfis no Supabase (se UUID válido) e localmente
+      // 4. Remove da lista de perfis no Supabase (se UUID válido) e localmente
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profile.id);
       if (isUuid) {
         try {
@@ -884,7 +909,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       });
       setNotification({
         type: 'success',
-        message: `Cliente ${profile.email} excluído. Anti-fraude ativado: direito a teste grátis revogado permanentemente.`,
+        message: `Cliente ${profile.email} excluído e acesso revogado em todos os aparelhos!`,
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao excluir cliente';
