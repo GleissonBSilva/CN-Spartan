@@ -444,19 +444,33 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
           if (cp && active) {
             setProfile((current) => {
-              if (!current) return current;
+              const base: Profile = current || {
+                id: cp.id || user.id,
+                email: cp.email || user.email || '',
+                full_name: cp.full_name || '',
+                role: 'client',
+                plan_name: cp.plan_name || 'SPARTAN PRO',
+                max_screens: cp.max_screens || 1,
+                is_trial: false,
+                trial_used: true,
+                expires_at: cp.expires_at || new Date().toISOString(),
+                created_at: new Date().toISOString(),
+                status: cp.status,
+              };
+
               if (
+                !current ||
                 current.status !== cp.status ||
                 current.expires_at !== cp.expires_at ||
                 current.plan_name !== cp.plan_name ||
                 current.max_screens !== cp.max_screens
               ) {
                 const updated: Profile = {
-                  ...current,
+                  ...base,
                   status: cp.status,
                   expires_at: cp.expires_at,
-                  plan_name: cp.plan_name || current.plan_name,
-                  max_screens: cp.max_screens || current.max_screens,
+                  plan_name: cp.plan_name || base.plan_name,
+                  max_screens: cp.max_screens || base.max_screens,
                 };
                 syncLocalProfileRegistry(updated);
                 return updated;

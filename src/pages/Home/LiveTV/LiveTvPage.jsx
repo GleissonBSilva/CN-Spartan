@@ -9,13 +9,13 @@ import SubscriptionLockGate from '../../../components/SubscriptionLockGate';
 import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
 
 const LiveTvPage = () => {
-  const { isActive, isAdmin, refreshProfile } = useAuthProfile();
+  const { isActive, isAdmin, isSuspended, refreshProfile } = useAuthProfile();
 
   useEffect(() => {
     refreshProfile?.();
   }, []);
 
-  const canPlay = isAdmin || isActive;
+  const canPlay = !isSuspended && (isAdmin || isActive);
   const { isScreenBlocked, activeDevices, maxScreens, disconnectOtherDevices } = useScreenLimiter(canPlay);
 
   // Custom channels loaded from localStorage (M3U or custom added)

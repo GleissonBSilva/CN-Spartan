@@ -51,7 +51,7 @@ const SERVERS = {
 
 const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster }) => {
     const { language } = useLanguage();
-    const { isActive, isAdmin, refreshProfile } = useAuthProfile();
+    const { isActive, isAdmin, isSuspended, refreshProfile } = useAuthProfile();
     const [hasStarted, setHasStarted] = useState(false);
     const [showAudioHelp, setShowAudioHelp] = useState(false);
 
@@ -59,7 +59,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
         refreshProfile?.();
     }, [tvId, season, episode]);
 
-    const canPlay = isAdmin || isActive;
+    const canPlay = !isSuspended && (isAdmin || isActive);
     const { isScreenBlocked, activeDevices, maxScreens, disconnectOtherDevices } = useScreenLimiter(canPlay && hasStarted);
 
     // Sempre inicia no servidor principal Dublado BR por padrão
@@ -252,7 +252,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
 
     if (!tvId) return null;
 
-    if (!canPlay) {
+    if (!canPlay || isSuspended) {
         return <SubscriptionLockGate title={title} />;
     }
 
