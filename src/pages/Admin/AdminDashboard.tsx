@@ -546,6 +546,18 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           max_screens: 1,
           created_at: new Date().toISOString(),
         },
+        {
+          id: 'usr-amandha-1',
+          email: 'amandha.azevedo19@gmail.com',
+          full_name: 'Amandha Azevedo',
+          whatsapp: '',
+          role: 'client',
+          status: 'ativo',
+          plan_name: 'SPARTAN PRO (Teste Grátis)',
+          expires_at: new Date(Date.now() + 3 * 86400000).toISOString(),
+          max_screens: 2,
+          created_at: new Date().toISOString(),
+        },
       ];
 
       const { data, error } = await supabase

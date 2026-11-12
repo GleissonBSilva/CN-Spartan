@@ -46,6 +46,20 @@ const SEED_PROFILES = [
     trial_used: true,
     expires_at: new Date(Date.now() + 12 * 86400000).toISOString(),
     created_at: '2026-11-05T09:15:00.000Z'
+  },
+  {
+    id: 'usr-amandha-1',
+    email: 'amandha.azevedo19@gmail.com',
+    full_name: 'Amandha Azevedo',
+    whatsapp: '',
+    role: 'client',
+    status: 'ativo',
+    plan_name: 'SPARTAN PRO (Teste Grátis)',
+    max_screens: 2,
+    is_trial: true,
+    trial_used: true,
+    expires_at: new Date(Date.now() + 3 * 86400000).toISOString(),
+    created_at: new Date().toISOString()
   }
 ];
 
@@ -65,6 +79,14 @@ function loadFromDisk() {
       }
     }
   } catch {}
+
+  // Garante que os perfis seed existam se não tiverem sido deletados
+  for (const seed of SEED_PROFILES) {
+    const isDeleted = deletedAccounts.includes(seed.id) || deletedAccounts.includes(seed.email.toLowerCase());
+    if (!isDeleted && !memoryProfiles.some(p => p.email?.toLowerCase() === seed.email.toLowerCase())) {
+      memoryProfiles.push(seed);
+    }
+  }
   try {
     if (fs.existsSync(DELETED_FILE)) {
       const parsed = JSON.parse(fs.readFileSync(DELETED_FILE, 'utf8'));

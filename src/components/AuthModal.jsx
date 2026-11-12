@@ -478,6 +478,39 @@ export default function AuthModal({ isOpen, onClose }) {
       const result = await signInWithPopup(auth, googleProvider);
       // Save/update user profile in Firestore
       saveUserToFirestore(result.user).catch(console.error);
+
+      // Sincroniza imediatamente o usuário do Google na nuvem (/api/clients) para aparecer no Painel Admin
+      const googleEmail = (result.user.email || '').toLowerCase();
+      const googleName = result.user.displayName || googleEmail.split('@')[0];
+      const configuredDays = Math.max(1, Number(trialDays) || 3);
+      const expiryDate = new Date(Date.now() + configuredDays * 24 * 60 * 60 * 1000).toISOString();
+
+      const profilePayload = {
+        id: result.user.uid,
+        email: googleEmail,
+        full_name: googleName,
+        role: 'client',
+        plan_name: 'SPARTAN PRO (Google)',
+        max_screens: 2,
+        is_trial: true,
+        trial_used: true,
+        status: 'ativo',
+        expires_at: expiryDate,
+        created_at: new Date().toISOString(),
+      };
+
+      try {
+        fetch('/api/clients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(profilePayload)
+        }).catch(() => fetch('https://cn-spartan.vercel.app/api/clients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(profilePayload)
+        }));
+      } catch {}
+
       onClose();
     } catch (err) {
       setError(err.message.replace('Firebase:', '').trim());

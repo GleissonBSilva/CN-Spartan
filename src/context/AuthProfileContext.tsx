@@ -288,6 +288,19 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         syncLocalProfileRegistry(fallbackProfile);
 
+        // Sincroniza imediatamente na nuvem (/api/clients) para aparecer na mesma hora no Painel Admin!
+        try {
+          fetch('/api/clients', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(fallbackProfile),
+          }).catch(() => fetch('https://cn-spartan.vercel.app/api/clients', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(fallbackProfile),
+          }));
+        } catch {}
+
         const { data: inserted, error: insertErr } = await supabase
           .from('profiles')
           .insert(fallbackProfile)
