@@ -474,7 +474,10 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       // Sincroniza clientes cadastrados na nuvem (api/clients) para unificar todas as TV Boxes e aparelhos
       let cloudDeleted: string[] = [];
       try {
-        const clientRes = await fetch('/api/clients').catch(() => fetch('https://cn-spartan.vercel.app/api/clients'));
+        // Tenta obter da nuvem oficial da Vercel (onde os celulares e TV Boxes se comunicam)
+        const clientRes = await fetch('https://cn-spartan.vercel.app/api/clients')
+          .catch(() => fetch('/api/clients'));
+
         if (clientRes && clientRes.ok) {
           const cloudData = await clientRes.json();
           const cloudClients = Array.isArray(cloudData) ? cloudData : (cloudData.profiles || []);
@@ -483,6 +486,19 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           }
           if (Array.isArray(cloudClients)) {
             for (const cc of cloudClients) {
+              // Se o cliente se cadastrou novamente ou está ativo na nuvem, limpa das exclusões antigas
+              if (cc.status === 'ativo') {
+                try {
+                  const rawDel = JSON.parse(localStorage.getItem('spartan_deleted_profiles') || '[]');
+                  if (Array.isArray(rawDel)) {
+                    localStorage.setItem(
+                      'spartan_deleted_profiles',
+                      JSON.stringify(rawDel.filter((d: string) => d !== cc.id && d !== cc.email?.toLowerCase()))
+                    );
+                  }
+                } catch {}
+              }
+
               const existingIdx = localList.findIndex(lp => lp.id === cc.id || (cc.email && lp.email?.toLowerCase() === cc.email.toLowerCase()));
               if (existingIdx >= 0) {
                 localList[existingIdx] = { ...localList[existingIdx], ...cc };
@@ -503,9 +519,14 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       }
       deletedList = Array.from(new Set([...deletedList, ...cloudDeleted]));
 
-      const isDeletedProfile = (p: { id?: string; email?: string }) =>
-        deletedList.includes(p.id || '') ||
-        (p.email ? deletedList.includes(p.email.toLowerCase()) : false);
+      // Não filtra clientes que estejam explicitamente ativos na lista
+      const isDeletedProfile = (p: { id?: string; email?: string; status?: string }) => {
+        if (p.status === 'ativo') return false;
+        return (
+          deletedList.includes(p.id || '') ||
+          (p.email ? deletedList.includes(p.email.toLowerCase()) : false)
+        );
+      };
 
       const fallbackMocks: Profile[] = [
         {
