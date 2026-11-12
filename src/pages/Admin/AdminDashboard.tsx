@@ -111,6 +111,29 @@ const DEFAULT_PLANS: PlanTier[] = [
   },
 ];
 
+// Configurações de Segurança e Trava do APK
+export interface AppSecurityConfig {
+  minVersion: string;
+  latestVersion: string;
+  forceUpdate: boolean;
+  apkDownloadUrl: string;
+  maintenanceMode: boolean;
+  maintenanceMessage: string;
+  updateMessage: string;
+  blockedIps: string[];
+}
+
+export const DEFAULT_SECURITY_CONFIG: AppSecurityConfig = {
+  minVersion: '1.0.0',
+  latestVersion: '1.0.0',
+  forceUpdate: false,
+  apkDownloadUrl: 'https://cn-spartan.vercel.app/cinespartan.apk',
+  maintenanceMode: false,
+  maintenanceMessage: 'Estamos realizando melhorias programadas nos servidores do Cine Spartan. O aplicativo retornará em instantes!',
+  updateMessage: 'Uma nova versão com melhorias e correções obrigatórias está disponível. Atualize seu aplicativo para continuar assistindo.',
+  blockedIps: [],
+};
+
 // Cobranças Pix padrão conforme especificação (Total Faturado R$ 99,00 / Inadimplência R$ 0,00)
 const INITIAL_PIX_CHARGES: PixCharge[] = [
   {
@@ -164,7 +187,7 @@ const INITIAL_PIX_CHARGES: PixCharge[] = [
 ];
 
 interface AdminDashboardProps {
-  defaultTab?: 'overview' | 'users' | 'finance' | 'plans';
+  defaultTab?: 'overview' | 'users' | 'finance' | 'plans' | 'security';
 }
 
 export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboardProps) {
@@ -177,10 +200,11 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     if (location.pathname.includes('/users')) return 'users';
     if (location.pathname.includes('/finance')) return 'finance';
     if (location.pathname.includes('/plans')) return 'plans';
+    if (location.pathname.includes('/security') || location.pathname.includes('/apk')) return 'security';
     return defaultTab;
   }, [location.pathname, defaultTab]);
 
-  const setActiveTab = (tab: 'overview' | 'users' | 'finance' | 'plans') => {
+  const setActiveTab = (tab: 'overview' | 'users' | 'finance' | 'plans' | 'security') => {
     if (tab === 'overview') navigate('/admin');
     else navigate(`/admin/${tab}`);
   };
@@ -320,6 +344,66 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     isTrial: false,
   });
   const [savingEditProfile, setSavingEditProfile] = useState(false);
+
+  // Configuração da Trava do APK e Segurança Remota
+  const [securityConfig, setSecurityConfig] = useState<AppSecurityConfig>(() => {
+    const saved = localStorage.getItem('spartan_app_config');
+    if (saved) {
+      try {
+        return { ...DEFAULT_SECURITY_CONFIG, ...JSON.parse(saved) };
+      } catch {}
+    }
+    return DEFAULT_SECURITY_CONFIG;
+  });
+  const [newIpToBlock, setNewIpToBlock] = useState('');
+  const [savingSecurity, setSavingSecurity] = useState(false);
+
+  // Carrega configuração de segurança do Supabase se existir
+  useEffect(() => {
+    supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'apk_security_config')
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!error && data?.value) {
+          setSecurityConfig((prev) => {
+            const merged = { ...prev, ...data.value };
+            localStorage.setItem('spartan_app_config', JSON.stringify(merged));
+            return merged;
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleSaveSecurity = async () => {
+    setSavingSecurity(true);
+    try {
+      localStorage.setItem('spartan_app_config', JSON.stringify(securityConfig));
+
+      // Sincroniza no Supabase
+      await supabase
+        .from('system_settings')
+        .upsert(
+          { key: 'apk_security_config', value: securityConfig, updated_at: new Date().toISOString() },
+          { onConflict: 'key' }
+        )
+        .catch(() => {});
+
+      setNotification({
+        type: 'success',
+        message: 'Trava do APK e configurações de segurança salvas com sucesso!',
+      });
+    } catch {
+      setNotification({
+        type: 'error',
+        message: 'Erro ao salvar configurações de segurança.',
+      });
+    } finally {
+      setSavingSecurity(false);
+    }
+  };
 
   // Modais Diagnóstico 360° e Churn
   const [diagModalOpen, setDiagModalOpen] = useState(false);
@@ -1539,6 +1623,17 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
               <FaSlidersH />
               <span>Planos & Preços</span>
             </button>
+            <button
+              onClick={() => setActiveTab('security')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+                activeTab === 'security'
+                  ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <FaShieldAlt />
+              <span>Trava APK & Segurança</span>
+            </button>
           </nav>
         </div>
       </header>
@@ -2613,6 +2708,256 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================================
+            5. ABA: TRAVA REMOTA DO APK, FORCE UPDATE & SEGURANÇA
+           ========================================================================= */}
+        {activeTab === 'security' && (
+          <div className="space-y-8 animate-fadeIn">
+            {/* Cabeçalho da Aba */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-gray-800">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+                  <FaShieldAlt className="text-red-500" />
+                  <span>Trava Remota do APK & Controle de Versão</span>
+                </h2>
+                <p className="text-xs sm:text-sm text-gray-400 mt-1">
+                  Gerencie a versão obrigatória para TV Box e Android, ative modo manutenção e bloqueie IPs indesejados remotamente.
+                </p>
+              </div>
+
+              <button
+                onClick={handleSaveSecurity}
+                disabled={savingSecurity}
+                className="px-5 py-2.5 bg-gradient-to-r from-red-600 to-purple-600 hover:from-red-500 hover:to-purple-500 text-white font-bold text-xs sm:text-sm rounded-xl shadow-lg shadow-red-600/30 transition flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+              >
+                <FaSave />
+                <span>{savingSecurity ? 'Salvando...' : 'Salvar Alterações Remotas'}</span>
+              </button>
+            </div>
+
+            {/* Grid Principal de Configurações */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+              {/* Card 1: Controle de Versão do APK (Force Update) */}
+              <div className="bg-[#10141f] border border-gray-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-gray-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-red-600/20 border border-red-500/30 flex items-center justify-center text-red-400">
+                      <FaShieldAlt />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Versão Obrigatória do Aplicativo</h3>
+                      <p className="text-[11px] text-gray-400">Forçar atualização nas TV Boxes e celulares</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-300 block mb-1">
+                      Versão Mínima Permitida:
+                    </label>
+                    <input
+                      type="text"
+                      value={securityConfig.minVersion}
+                      onChange={(e) => setSecurityConfig({ ...securityConfig, minVersion: e.target.value })}
+                      placeholder="Ex: 1.0.0"
+                      className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-xl text-xs text-white focus:border-red-500 focus:outline-none"
+                    />
+                    <span className="text-[10px] text-gray-500 mt-1 block">APKs abaixo desta versão serão travados</span>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-300 block mb-1">
+                      Versão Mais Recente (Último APK):
+                    </label>
+                    <input
+                      type="text"
+                      value={securityConfig.latestVersion}
+                      onChange={(e) => setSecurityConfig({ ...securityConfig, latestVersion: e.target.value })}
+                      placeholder="Ex: 1.0.0"
+                      className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-xl text-xs text-white focus:border-red-500 focus:outline-none"
+                    />
+                    <span className="text-[10px] text-gray-500 mt-1 block">Exibida no badge de atualização</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-gray-300 block mb-1">
+                    Link Direto para Download do APK:
+                  </label>
+                  <input
+                    type="url"
+                    value={securityConfig.apkDownloadUrl}
+                    onChange={(e) => setSecurityConfig({ ...securityConfig, apkDownloadUrl: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-xl text-xs text-white focus:border-red-500 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-gray-500 mt-1 block">O botão do controle remoto abrirá este link para download</span>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-gray-300 block mb-1">
+                    Mensagem de Atualização Exibida na TV Box:
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={securityConfig.updateMessage}
+                    onChange={(e) => setSecurityConfig({ ...securityConfig, updateMessage: e.target.value })}
+                    className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-xl text-xs text-white focus:border-red-500 focus:outline-none resize-none"
+                  />
+                </div>
+
+                {/* Switch: Forçar Atualização Imediata */}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-black/30 border border-gray-800">
+                  <div>
+                    <span className="text-xs font-bold text-white block">Forçar Atualização Imediata</span>
+                    <span className="text-[10px] text-gray-400">Bloqueia qualquer APK cuja versão for diferente da mais recente</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSecurityConfig({ ...securityConfig, forceUpdate: !securityConfig.forceUpdate })}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
+                      securityConfig.forceUpdate ? 'bg-red-600' : 'bg-gray-700'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        securityConfig.forceUpdate ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 2: Modo Manutenção e Bloqueio de IP */}
+              <div className="space-y-6">
+
+                {/* Modo Manutenção (Kill Switch) */}
+                <div className="bg-[#10141f] border border-gray-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-800">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-amber-600/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                        <FaBolt />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-white">Modo Manutenção Geral</h3>
+                        <p className="text-[11px] text-gray-400">Suspende temporariamente o uso do aplicativo</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSecurityConfig({ ...securityConfig, maintenanceMode: !securityConfig.maintenanceMode })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
+                        securityConfig.maintenanceMode ? 'bg-amber-600' : 'bg-gray-700'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          securityConfig.maintenanceMode ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-300 block mb-1">
+                      Mensagem de Manutenção:
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={securityConfig.maintenanceMessage}
+                      onChange={(e) => setSecurityConfig({ ...securityConfig, maintenanceMessage: e.target.value })}
+                      className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-xl text-xs text-white focus:border-amber-500 focus:outline-none resize-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Bloqueador de Endereço IP */}
+                <div className="bg-[#10141f] border border-gray-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
+                  <div className="flex items-center gap-2.5 pb-3 border-b border-gray-800">
+                    <div className="w-9 h-9 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                      <FaBan />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Lista Negra de IPs Bloqueados</h3>
+                      <p className="text-[11px] text-gray-400">Impede acessos fraudulentos ou revendas não autorizadas</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newIpToBlock}
+                      onChange={(e) => setNewIpToBlock(e.target.value)}
+                      placeholder="Digite o IP (ex: 189.54.12.8)"
+                      className="flex-1 px-3 py-2 bg-black/50 border border-gray-700 rounded-xl text-xs text-white focus:border-purple-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!newIpToBlock.trim()) return;
+                        const ip = newIpToBlock.trim();
+                        if (securityConfig.blockedIps.includes(ip)) return;
+                        setSecurityConfig({
+                          ...securityConfig,
+                          blockedIps: [...securityConfig.blockedIps, ip]
+                        });
+                        setNewIpToBlock('');
+                      }}
+                      className="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      <FaPlus />
+                      <span>Bloquear</span>
+                    </button>
+                  </div>
+
+                  {securityConfig.blockedIps.length === 0 ? (
+                    <p className="text-xs text-gray-500 italic py-2 text-center">Nenhum IP bloqueado no momento.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto pt-1">
+                      {securityConfig.blockedIps.map((ip) => (
+                        <span
+                          key={ip}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-600/20 border border-red-500/30 text-red-300 text-xs font-mono font-bold"
+                        >
+                          <span>{ip}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSecurityConfig({
+                                ...securityConfig,
+                                blockedIps: securityConfig.blockedIps.filter((item) => item !== ip)
+                              });
+                            }}
+                            className="text-red-400 hover:text-white ml-1 p-0.5 cursor-pointer"
+                            title="Desbloquear IP"
+                          >
+                            <FaTimes className="text-[10px]" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* Caixa Informativa Spartan Guard */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-red-950/30 via-black to-purple-950/30 border border-white/10 flex items-start gap-3">
+              <FaShieldAlt className="text-red-400 text-xl shrink-0 mt-0.5" />
+              <div className="text-xs text-gray-300 leading-relaxed space-y-1">
+                <span className="font-bold text-white block">Como funciona a Trava Remota na TV Box:</span>
+                <p>
+                  Ao modificar a <strong>Versão Mínima</strong> ou ativar o <strong>Forçar Atualização</strong> e clicar em Salvar, qualquer TV Box ou smartphone com a versão desatualizada receberá a tela de bloqueio vermelha imediatamente ao abrir o aplicativo. O usuário só conseguirá continuar assistindo após instalar a nova versão pelo botão de download.
+                </p>
+              </div>
             </div>
           </div>
         )}
