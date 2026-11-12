@@ -5,6 +5,8 @@ import { useLanguage } from '../../../context/LanguageContext';
 import { useAuthProfile } from '../../../hooks/useAuthProfile';
 import SubscriptionLockGate from '../../../components/SubscriptionLockGate';
 import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
+import { isTvBoxOrApk } from '../../../hooks/useAppUpdateGuard';
+import VideoPlayerTVBox from '../../../components/player/VideoPlayerTVBox';
 
 // Servidores separados por modalidade real de reprodução: Dublado BR e Legendado (Original HD)
 const SERVERS = {
@@ -50,6 +52,20 @@ const SERVERS = {
 };
 
 const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster }) => {
+    // Se estiver rodando no APK ou TV Box Android, utiliza o player turbo exclusivo da TV Box
+    if (isTvBoxOrApk()) {
+        return (
+            <VideoPlayerTVBox
+                tvId={tvId}
+                season={season}
+                episode={episode}
+                title={title}
+                backdrop={backdrop}
+                poster={poster}
+            />
+        );
+    }
+
     const { language } = useLanguage();
     const { isActive, isAdmin, isSuspended, refreshProfile } = useAuthProfile();
     const [hasStarted, setHasStarted] = useState(false);

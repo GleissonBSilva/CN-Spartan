@@ -130,7 +130,10 @@ public class MainActivity extends BridgeActivity {
             "adsterra", "popads", "clickadu", "propellerads", "monetag",
             "exoclick", "adnxs", "histats", "adkeep", "syndication",
             "doubleclick", "trafficjunky", "richaudience", "bet365",
-            "1xbet", "blaze", "betano", "onclkds", "clkmc", "go.redirect"
+            "1xbet", "blaze", "betano", "onclkds", "clkmc", "go.redirect",
+            "directrev", "adtrue", "yllix", "hilltopads", "galaksion",
+            "a-ads", "pushwhoosh", "notix", "tsyndicate", "admaven",
+            "coinhive", "realsrv", "mcclp", "trafficfactory"
         };
 
         public StreamProxyWebViewClient(Bridge bridge) {
