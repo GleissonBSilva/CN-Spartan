@@ -261,6 +261,26 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       // Se por algum motivo o trigger não criou o perfil ainda (ex: usuário existente antigo)
       if (userEmail) {
+        // Verifica se a conta foi excluída ou suspensa pelo Administrador
+        let isLocallyDeleted = false;
+        try {
+          const rawDel = JSON.parse(localStorage.getItem('spartan_deleted_profiles') || '[]');
+          if (Array.isArray(rawDel) && (rawDel.includes(userId) || rawDel.includes(cleanEmail))) {
+            isLocallyDeleted = true;
+          }
+        } catch {}
+
+        if (isLocallyDeleted || isCloudDeleted) {
+          console.warn('[Spartan Security] Conta excluída/revogada. Impedindo recriação de perfil ativo.');
+          localStorage.removeItem('weflix_user');
+          localStorage.removeItem('spartan_registered_profiles');
+          await supabase.auth.signOut().catch(() => {});
+          setUser(null);
+          setSession(null);
+          setProfile(null);
+          return null;
+        }
+
         const isMaster = userEmail.toLowerCase() === ADMIN_MASTER_EMAIL;
         const savedTrialDays = Number(localStorage.getItem('spartan_trial_days') || 3);
         const trialEnabled = localStorage.getItem('spartan_trial_enabled') !== 'false';

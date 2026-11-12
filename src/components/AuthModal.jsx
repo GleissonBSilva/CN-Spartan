@@ -324,6 +324,25 @@ export default function AuthModal({ isOpen, onClose }) {
 
         const newUserId = supaData?.user?.id || `usr-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
+        // Persiste o novo perfil diretamente no banco do Supabase se o usuário foi autenticado
+        if (supaData?.user?.id) {
+          try {
+            await supabase.from('profiles').upsert([
+              {
+                id: supaData.user.id,
+                email: cleanEmail,
+                role: 'client',
+                status: initialStatus,
+                plan_name: chosenPlanName,
+                max_screens: chosenPlanScreens,
+                expires_at: expiryDate,
+              }
+            ]);
+          } catch (e) {
+            console.error('Falha ao gravar perfil no Supabase:', e);
+          }
+        }
+
         const createdProfile = {
           id: newUserId,
           email: cleanEmail,

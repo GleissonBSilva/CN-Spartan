@@ -544,18 +544,6 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           max_screens: 1,
           created_at: new Date().toISOString(),
         },
-        {
-          id: 'usr-amandha-1',
-          email: 'amandha.azevedo19@gmail.com',
-          full_name: 'Amandha Azevedo',
-          whatsapp: '',
-          role: 'client',
-          status: 'ativo',
-          plan_name: 'SPARTAN PRO (Teste Grátis)',
-          expires_at: new Date(Date.now() + 3 * 86400000).toISOString(),
-          max_screens: 2,
-          created_at: new Date().toISOString(),
-        },
       ];
 
       const { data, error } = await supabase
@@ -906,6 +894,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profile.id);
       if (isUuid) {
         try {
+          await supabase.from('profiles').update({ status: 'suspenso' }).eq('id', profile.id);
           await supabase.from('profiles').delete().eq('id', profile.id);
         } catch {
           // ignore

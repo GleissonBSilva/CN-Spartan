@@ -46,20 +46,6 @@ const SEED_PROFILES = [
     trial_used: true,
     expires_at: new Date(Date.now() + 12 * 86400000).toISOString(),
     created_at: '2026-11-05T09:15:00.000Z'
-  },
-  {
-    id: '377f12ee-d2df-4979-86e6-4d8be1a387e6',
-    email: 'amandha.azevedo19@gmail.com',
-    full_name: 'Amandha Azevedo',
-    whatsapp: '',
-    role: 'client',
-    status: 'suspenso',
-    plan_name: 'SPARTAN PRO',
-    max_screens: 2,
-    is_trial: false,
-    trial_used: true,
-    expires_at: '2026-11-12T00:00:00.000Z',
-    created_at: new Date().toISOString()
   }
 ];
 
