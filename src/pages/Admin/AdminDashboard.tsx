@@ -112,7 +112,7 @@ const DEFAULT_PLANS: PlanTier[] = [
 ];
 
 // Configurações de Segurança e Trava do APK
-export interface AppSecurityConfig {
+interface AppSecurityConfig {
   minVersion: string;
   latestVersion: string;
   forceUpdate: boolean;
@@ -123,7 +123,7 @@ export interface AppSecurityConfig {
   blockedIps: string[];
 }
 
-export const DEFAULT_SECURITY_CONFIG: AppSecurityConfig = {
+const DEFAULT_SECURITY_CONFIG: AppSecurityConfig = {
   minVersion: '1.0.0',
   latestVersion: '1.0.0',
   forceUpdate: false,
