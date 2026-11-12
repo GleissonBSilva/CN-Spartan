@@ -426,6 +426,15 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
   // Persiste alterações no Supabase de forma resiliente (ignora IDs mock/locais e faz fallback se colunas novas ainda não existirem no banco)
   const persistProfileToSupabase = useCallback(async (profileId: string, fullPayload: Record<string, any>) => {
+    // Sincroniza sempre na nuvem em tempo real
+    try {
+      fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: profileId, ...fullPayload })
+      }).catch(() => {});
+    } catch {}
+
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profileId);
     if (!isUuid) return;
 
@@ -464,6 +473,24 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       } catch {
         localList = [];
       }
+
+      // Sincroniza clientes cadastrados na nuvem (api/clients) para unificar todas as TV Boxes e aparelhos
+      try {
+        const clientRes = await fetch('/api/clients').catch(() => fetch('https://cn-spartan.vercel.app/api/clients'));
+        if (clientRes && clientRes.ok) {
+          const cloudClients = await clientRes.json();
+          if (Array.isArray(cloudClients)) {
+            for (const cc of cloudClients) {
+              const existingIdx = localList.findIndex(lp => lp.id === cc.id || (cc.email && lp.email?.toLowerCase() === cc.email.toLowerCase()));
+              if (existingIdx >= 0) {
+                localList[existingIdx] = { ...localList[existingIdx], ...cc };
+              } else {
+                localList.unshift(cc);
+              }
+            }
+          }
+        }
+      } catch {}
 
       let deletedList: string[] = [];
       try {
@@ -947,18 +974,24 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         created_at: new Date().toISOString(),
       };
 
-      // Tenta salvar diretamente no Supabase se tabela existir
+      // Sincroniza na nuvem para unificar com todos os aparelhos
       try {
-        await supabase.from('profiles').insert([
+        fetch('/api/clients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newProf)
+        }).catch(() => {});
+      } catch {}
+
+      // Tenta salvar diretamente no Supabase com colunas válidas
+      try {
+        await supabase.from('profiles').upsert([
           {
             id: dummyId,
             email: newProf.email,
-            whatsapp: newProf.whatsapp,
             role: newProf.role,
             status: newProf.status,
             plan_name: newProf.plan_name,
-            is_trial: newProf.is_trial,
-            trial_used: newProf.trial_used,
             max_screens: newProf.max_screens,
             expires_at: newProf.expires_at,
           },

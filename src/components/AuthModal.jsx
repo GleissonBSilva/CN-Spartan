@@ -414,35 +414,50 @@ export default function AuthModal({ isOpen, onClose }) {
           // ignore
         }
 
-        // 4. Sincroniza na tabela profiles do Supabase (com fallback para colunas base se a tabela remota ainda não tiver todas as colunas)
+        // 4. Sincroniza o cliente na nuvem (api/clients) para aparecer imediatamente no Painel Admin em qualquer aparelho
+        const clientSyncPayload = {
+          id: newUserId,
+          email: cleanEmail,
+          full_name: cleanName,
+          whatsapp: cleanPhone,
+          role: 'client',
+          plan_name: chosenPlanName,
+          max_screens: chosenPlanScreens,
+          is_trial: isTrialActive,
+          trial_used: true,
+          status: initialStatus,
+          expires_at: expiryDate,
+          created_at: nowIso,
+        };
+
+        try {
+          fetch('/api/clients', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(clientSyncPayload)
+          }).catch(() => {});
+
+          fetch('https://cn-spartan.vercel.app/api/clients', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(clientSyncPayload)
+          }).catch(() => {});
+        } catch {}
+
+        // Sincroniza na tabela profiles do Supabase com colunas válidas
         if (supaData?.user?.id) {
           try {
-            const { error: updateErr } = await supabase
+            await supabase
               .from('profiles')
-              .update({
-                full_name: cleanName,
-                whatsapp: cleanPhone,
+              .upsert({
+                id: supaData.user.id,
+                email: cleanEmail,
+                role: 'client',
                 plan_name: chosenPlanName,
                 max_screens: chosenPlanScreens,
-                is_trial: isTrialActive,
-                trial_used: true,
                 status: initialStatus,
                 expires_at: expiryDate,
-              })
-              .eq('id', supaData.user.id);
-
-            if (updateErr) {
-              // Tenta atualizar apenas as colunas base originais da tabela profiles
-              await supabase
-                .from('profiles')
-                .update({
-                  plan_name: chosenPlanName,
-                  max_screens: chosenPlanScreens,
-                  status: initialStatus,
-                  expires_at: expiryDate,
-                })
-                .eq('id', supaData.user.id);
-            }
+              }, { onConflict: 'id' });
           } catch {
             // Silencioso
           }
