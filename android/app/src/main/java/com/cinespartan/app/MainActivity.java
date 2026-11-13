@@ -207,29 +207,12 @@ public class MainActivity extends BridgeActivity {
             super(bridge);
         }
 
-        private static boolean isAllowedStreamingHost(String host) {
-            if (host == null) return false;
-            String h = host.toLowerCase();
-            return h.contains("superflix") ||
-                   h.contains("multiembed") ||
-                   h.contains("streamingnow") ||
-                   h.contains("vidlink") ||
-                   h.contains("vidsrc") ||
-                   h.contains("youtube") ||
-                   h.contains("googlevideo") ||
-                   h.contains("ytimg") ||
-                   h.contains("tmdb") ||
-                   h.contains("themoviedb") ||
-                   h.contains("cloudflare") ||
-                   h.contains("gstatic");
-        }
-
         private boolean handleUrlLoading(WebView view, Uri url, boolean isForMainFrame) {
             if (url == null) return true;
             String scheme = url.getScheme();
             String host = url.getHost();
 
-            // 1. Bloqueia esquemas externos (intent://, market://, vnd://, whatsapp://)
+            // 1. Bloqueia esquemas externos que tentam abrir outros apps (intent://, market://, vnd://, whatsapp://)
             if (scheme != null && !scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https") && !scheme.equalsIgnoreCase("capacitor")) {
                 return true;
             }
@@ -239,15 +222,22 @@ public class MainActivity extends BridgeActivity {
                 return false;
             }
 
-            // 3. Se for navegação dentro de um sub-frame (iframe) para um host de streaming autorizado, permite
-            if (!isForMainFrame && isAllowedStreamingHost(host)) {
+            // 3. Bloqueia qualquer rede de anúncio invasiva conhecida
+            String urlStr = url.toString().toLowerCase();
+            for (String adPattern : BLOCKED_AD_PATTERNS) {
+                if (urlStr.contains(adPattern)) {
+                    return true;
+                }
+            }
+
+            // 4. Se for navegação dentro de um sub-frame (o iframe do player carregando servidores, CDNs e players de streaming):
+            // Permite carregar livremente dentro do iframe para que o filme/série e todos os servidores funcionem perfeitamente!
+            if (!isForMainFrame) {
                 return false;
             }
 
-            // 4. Bloqueia QUALQUER outra tentativa de navegação externa ou popups de anúncios.
-            // NUNCA chamamos super.shouldOverrideUrlLoading para URLs externas, pois o Capacitor
-            // dispara Intent(ACTION_VIEW) abrindo o navegador do celular ou o prompt "Escolher navegador"!
-            // Retornar true cancela a navegação silenciosamente mantendo o usuário 100% no player.
+            // 5. Se for tentativa de navegação no frame principal (o app inteiro) para um site externo:
+            // Bloqueia com 'true' para impedir que anúncios sequestrem o app e NUNCA abre o navegador do celular!
             return true;
         }
 
