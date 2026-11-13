@@ -14,96 +14,96 @@ const TV_SERVERS = {
   movie: {
     dublado: [
       {
-        id: 'tv_superflix_dub',
-        name: '🍿 SuperFlix Dublado BR (Principal)',
-        tag: 'DUBLADO BR',
-        url: (id) => `https://superflixapi.boats/filme/${id}`
-      },
-      {
         id: 'tv_vidlink_dub',
-        name: '⭐ VidLink Ultra HD',
+        name: '⭐ VidLink Ultra HD (Sem Anúncios)',
         tag: 'RECOMENDADO',
         url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+      },
+      {
+        id: 'tv_vidsrc_dub',
+        name: '⚡ VidSrc Rápido HD',
+        tag: 'VELOZ',
+        url: (id) => `https://vidsrc.sh/embed/movie?tmdb=${id}`
+      },
+      {
+        id: 'tv_superflix_dub',
+        name: '🍿 SuperFlix Dublado BR',
+        tag: 'DUBLADO BR',
+        url: (id) => `https://superflixapi.boats/filme/${id}`
       },
       {
         id: 'tv_multiembed_dub',
         name: '📺 MultiEmbed TV',
         tag: 'ALTERNATIVA HD',
         url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
-      },
-      {
-        id: 'tv_vidsrc_dub',
-        name: '⚡ VidSrc Rápido',
-        tag: 'VELOZ',
-        url: (id) => `https://vidsrc.me/embed/movie?tmdb=${id}`
       }
     ],
     legendado: [
       {
         id: 'tv_vidlink_orig',
-        name: '⭐ VidLink Original',
+        name: '⭐ VidLink Original (Sem Anúncios)',
         tag: 'RECOMENDADO',
         url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+      },
+      {
+        id: 'tv_vidsrc_orig',
+        name: '⚡ VidSrc Original HD',
+        tag: 'ALTA DEFINIÇÃO',
+        url: (id) => `https://vidsrc.sh/embed/movie?tmdb=${id}`
       },
       {
         id: 'tv_multiembed_orig',
         name: '📺 MultiEmbed Leg',
         tag: 'ORIGINAL HD',
         url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
-      },
-      {
-        id: 'tv_vidsrc_orig',
-        name: '⚡ VidSrc Original',
-        tag: 'ALTA DEFINIÇÃO',
-        url: (id) => `https://vidsrc.to/embed/movie/${id}`
       }
     ]
   },
   tv: {
     dublado: [
       {
-        id: 'tv_superflix_tv_dub',
-        name: '🍿 SuperFlix Séries BR (Principal)',
-        tag: 'DUBLADO BR',
-        url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
-      },
-      {
         id: 'tv_vidlink_tv_dub',
-        name: '⭐ VidLink Ultra HD',
+        name: '⭐ VidLink Séries HD (Sem Anúncios)',
         tag: 'RECOMENDADO',
         url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+      },
+      {
+        id: 'tv_vidsrc_tv_dub',
+        name: '⚡ VidSrc Séries Fast',
+        tag: 'VELOZ',
+        url: (id, s, e) => `https://vidsrc.sh/embed/tv?tmdb=${id}&season=${s}&episode=${e}`
+      },
+      {
+        id: 'tv_superflix_tv_dub',
+        name: '🍿 SuperFlix Séries BR',
+        tag: 'DUBLADO BR',
+        url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
       },
       {
         id: 'tv_multiembed_tv_dub',
         name: '📺 MultiEmbed Séries',
         tag: 'ALTERNATIVA HD',
         url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
-      },
-      {
-        id: 'tv_vidsrc_tv_dub',
-        name: '⚡ VidSrc Séries Fast',
-        tag: 'VELOZ',
-        url: (id, s, e) => `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}`
       }
     ],
     legendado: [
       {
         id: 'tv_vidlink_tv_orig',
-        name: '⭐ VidLink Séries Leg',
+        name: '⭐ VidLink Original (Sem Anúncios)',
         tag: 'RECOMENDADO',
         url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+      },
+      {
+        id: 'tv_vidsrc_tv_orig',
+        name: '⚡ VidSrc Original Fast',
+        tag: 'VELOZ',
+        url: (id, s, e) => `https://vidsrc.sh/embed/tv?tmdb=${id}&season=${s}&episode=${e}`
       },
       {
         id: 'tv_multiembed_tv_orig',
         name: '📺 MultiEmbed Leg',
         tag: 'ORIGINAL HD',
         url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
-      },
-      {
-        id: 'tv_vidsrc_tv_orig',
-        name: '⚡ VidSrc Original',
-        tag: 'ALTA DEFINIÇÃO',
-        url: (id, s, e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}`
       }
     ]
   }

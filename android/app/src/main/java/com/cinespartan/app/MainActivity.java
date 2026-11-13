@@ -50,15 +50,31 @@ public class MainActivity extends BridgeActivity {
             settings.setDatabaseEnabled(true);
             
             // ANTI-AD & ANTI-REDIRECT SHIELD:
-            settings.setSupportMultipleWindows(false);
-            settings.setJavaScriptCanOpenWindowsAutomatically(false);
+            // Permite múltiplos windows para que o player JS não quebre, mas engole popups em WebView fantasma
+            settings.setSupportMultipleWindows(true);
+            settings.setJavaScriptCanOpenWindowsAutomatically(true);
 
             // Fullscreen & Security WebChromeClient
             webView.setWebChromeClient(new WebChromeClient() {
                 @Override
                 public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg) {
-                    // Block all popup windows (ads / betting links) from iframes
-                    return false;
+                    // Engole silenciosamente popups e anúncios em um WebView invisível descartável
+                    try {
+                        WebView dummy = new WebView(view.getContext());
+                        dummy.setWebViewClient(new android.webkit.WebViewClient() {
+                            @Override
+                            public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest req) {
+                                v.destroy();
+                                return true;
+                            }
+                        });
+                        WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
+                        transport.setWebView(dummy);
+                        resultMsg.sendToTarget();
+                        return true;
+                    } catch (Exception e) {
+                        return false;
+                    }
                 }
 
                 @Override
@@ -172,10 +188,10 @@ public class MainActivity extends BridgeActivity {
             if (uri != null) {
                 String uriStr = uri.toString().toLowerCase();
 
-                // 1. Block known ad scripts before they can download or execute
+                // 1. Block known ad scripts before they can download or execute (MIME seguro para evitar quebra no player)
                 for (String pattern : BLOCKED_AD_PATTERNS) {
                     if (uriStr.contains(pattern)) {
-                        return new WebResourceResponse("text/plain", "UTF-8", new ByteArrayInputStream(new byte[0]));
+                        return new WebResourceResponse("application/javascript", "UTF-8", new ByteArrayInputStream("/* blocked */".getBytes(StandardCharsets.UTF_8)));
                     }
                 }
 

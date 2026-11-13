@@ -12,40 +12,40 @@ import VideoPlayerTVBox from '../../../components/player/VideoPlayerTVBox';
 const SERVERS = {
   dublado: [
     {
-      id: 'superflix_dub',
-      name: 'SuperFlix (Dublado BR)',
-      url: (id) => `https://superflixapi.boats/filme/${id}`
-    },
-    {
       id: 'vidlink_direct',
-      name: 'VidLink Ultra HD (Multi-Áudio & Legendas PT)',
+      name: '⭐ VidLink Ultra HD (Sem Anúncios • Dublado BR)',
       url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
     },
     {
-      id: 'multiembed_dub',
-      name: 'MultiEmbed (Multi-Áudio)',
-      url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
+      id: 'vidsrc_sh',
+      name: '⚡ VidSrc Rápido HD (Multi-Áudio)',
+      url: (id) => `https://vidsrc.sh/embed/movie?tmdb=${id}`
     },
     {
-      id: 'vidsrc_me',
-      name: 'VidSrc HD (Multi-Áudio)',
-      url: (id) => `https://vidsrc.me/embed/movie?tmdb=${id}`
+      id: 'superflix_dub',
+      name: '🍿 SuperFlix Dublado BR',
+      url: (id) => `https://superflixapi.boats/filme/${id}`
+    },
+    {
+      id: 'multiembed_dub',
+      name: '📺 MultiEmbed (Multi-Áudio)',
+      url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
     }
   ],
   legendado: [
     {
       id: 'vidlink_orig',
-      name: 'VidLink Ultra HD (Áudio Original)',
+      name: '⭐ VidLink Ultra HD (Áudio Original)',
       url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
     },
     {
       id: 'vidsrc_orig',
-      name: 'VidSrc To (Original)',
-      url: (id) => `https://vidsrc.to/embed/movie/${id}`
+      name: '⚡ VidSrc To (Original HD)',
+      url: (id) => `https://vidsrc.sh/embed/movie?tmdb=${id}`
     },
     {
       id: 'multiembed_orig',
-      name: 'MultiEmbed (Original / Leg)',
+      name: '📺 MultiEmbed (Original / Leg)',
       url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
     }
   ]
