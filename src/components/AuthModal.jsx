@@ -226,6 +226,39 @@ export default function AuthModal({ isOpen, onClose }) {
             return;
           }
 
+          // Se o Supabase bloqueou por pendência de e-mail de confirmação, busca perfil ativo no banco
+          if (supaError.message?.toLowerCase().includes('email not confirmed')) {
+            try {
+              const { data: dbProf } = await supabase
+                .from('profiles')
+                .select('*')
+                .ilike('email', cleanLoginEmail)
+                .maybeSingle();
+
+              if (dbProf) {
+                localStorage.setItem('weflix_user', JSON.stringify({
+                  uid: dbProf.id,
+                  id: dbProf.id,
+                  email: dbProf.email,
+                  displayName: dbProf.full_name || dbProf.email.split('@')[0],
+                  full_name: dbProf.full_name || dbProf.email.split('@')[0],
+                  whatsapp: dbProf.whatsapp,
+                  plan_name: dbProf.plan_name,
+                  max_screens: dbProf.max_screens,
+                  is_trial: dbProf.is_trial,
+                  status: dbProf.status,
+                  expires_at: dbProf.expires_at,
+                }));
+                window.dispatchEvent(new Event('spartan_auth_updated'));
+                await refreshProfile();
+                onClose();
+                return;
+              }
+            } catch {
+              // fallback segue adiante
+            }
+          }
+
           // Se não estiver no registro local, tenta o Firebase como fallback
           try {
             const result = await signInWithEmailAndPassword(auth, cleanLoginEmail, password);

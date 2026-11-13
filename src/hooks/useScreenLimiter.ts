@@ -109,25 +109,16 @@ export function useScreenLimiter(isPlaying: boolean = true) {
         try {
           localStorage.setItem(storageKey, JSON.stringify(updatedSessions));
         } catch {}
-
-        // Atualizar no Supabase auth metadata em background (para sincronizar entre dispositivos)
-        supabase.auth.updateUser({
-          data: { active_devices: updatedSessions }
-        }).catch(() => {});
       } else {
         // Remover este dispositivo ao fechar/pausar
         try {
           localStorage.setItem(storageKey, JSON.stringify(validSessions));
         } catch {}
-
-        supabase.auth.updateUser({
-          data: { active_devices: validSessions }
-        }).catch(() => {});
       }
     } catch (err) {
       console.warn('[ScreenLimiter] Falha ao sincronizar sessões:', err);
     }
-  }, [user, isAdmin, deviceId, deviceName, maxScreens]);
+  }, [isAdmin, deviceId, deviceName, maxScreens]);
 
   // Forçar desconexão de todos os outros aparelhos e assumir esta tela
   const disconnectOtherDevices = useCallback(async () => {
@@ -140,17 +131,11 @@ export function useScreenLimiter(isPlaying: boolean = true) {
       localStorage.setItem(storageKey, JSON.stringify(mySession));
     } catch {}
 
-    try {
-      await supabase.auth.updateUser({
-        data: { active_devices: mySession }
-      });
-    } catch {}
-
     setIsScreenBlocked(false);
     setActiveDevices(mySession);
   }, [user, deviceId, deviceName]);
 
-  // Iniciar e manter batimentos cardíacos (Heartbeat) enquanto o vídeo estiver ativo
+  // Iniciar e manter batimentos cardíacos (Heartbeat) de forma leve sem travar a thread
   useEffect(() => {
     if (!user || isAdmin || !isPlaying) {
       if (heartbeatTimerRef.current) clearInterval(heartbeatTimerRef.current);
@@ -160,10 +145,10 @@ export function useScreenLimiter(isPlaying: boolean = true) {
     // Registro inicial
     syncSessions(true);
 
-    // Intervalo de batimento cardíaco
+    // Intervalo de batimento cardíaco (30s)
     heartbeatTimerRef.current = setInterval(() => {
       syncSessions(true);
-    }, HEARTBEAT_INTERVAL_MS);
+    }, 30000);
 
     // Desregistrar ao sair da página / fechar navegador
     const handleUnload = () => {
@@ -177,7 +162,7 @@ export function useScreenLimiter(isPlaying: boolean = true) {
       window.removeEventListener('beforeunload', handleUnload);
       syncSessions(false);
     };
-  }, [user, isAdmin, isPlaying, syncSessions]);
+  }, [user?.id, isAdmin, isPlaying]);
 
   return {
     isScreenBlocked,

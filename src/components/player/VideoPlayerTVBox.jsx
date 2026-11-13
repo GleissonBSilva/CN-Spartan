@@ -14,16 +14,16 @@ const TV_SERVERS = {
   movie: {
     dublado: [
       {
+        id: 'tv_superflix_dub',
+        name: '🍿 SuperFlix Dublado BR (Principal)',
+        tag: 'DUBLADO BR',
+        url: (id) => `https://superflixapi.boats/filme/${id}`
+      },
+      {
         id: 'tv_vidlink_dub',
         name: '⭐ VidLink Ultra HD',
         tag: 'RECOMENDADO',
         url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
-      },
-      {
-        id: 'tv_superflix_dub',
-        name: '🍿 SuperFlix Dublado BR',
-        tag: 'DUBLADO BR',
-        url: (id) => `https://superflixapi.bond/filme/${id}`
       },
       {
         id: 'tv_multiembed_dub',
@@ -62,16 +62,16 @@ const TV_SERVERS = {
   tv: {
     dublado: [
       {
+        id: 'tv_superflix_tv_dub',
+        name: '🍿 SuperFlix Séries BR (Principal)',
+        tag: 'DUBLADO BR',
+        url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
+      },
+      {
         id: 'tv_vidlink_tv_dub',
         name: '⭐ VidLink Ultra HD',
         tag: 'RECOMENDADO',
         url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
-      },
-      {
-        id: 'tv_superflix_tv_dub',
-        name: '🍿 SuperFlix Séries BR',
-        tag: 'DUBLADO BR',
-        url: (id, s, e) => `https://superflixapi.bond/serie/${id}/${s}/${e}`
       },
       {
         id: 'tv_multiembed_tv_dub',

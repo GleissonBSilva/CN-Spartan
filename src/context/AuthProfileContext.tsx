@@ -385,22 +385,19 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     initAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted) return;
-      if (newSession?.user) {
+      if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setLoading(false);
+        return;
+      }
+      if (newSession?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION')) {
         setSession(newSession);
         setUser(newSession.user);
         await fetchProfile(newSession.user.id, newSession.user.email, newSession.user.user_metadata);
-      } else {
-        const fallbackUser = getFallbackCachedUser();
-        if (fallbackUser) {
-          setUser(fallbackUser);
-          await fetchProfile(fallbackUser.id, fallbackUser.email, fallbackUser.user_metadata);
-        } else {
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-        }
       }
       setLoading(false);
     });
@@ -504,7 +501,6 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
 
     const interval = setInterval(() => {
-      setNowTick(Date.now());
       if (profile && profile.role !== 'admin') {
         const expTime = new Date(profile.expires_at).getTime();
         if (expTime <= Date.now() && profile.status === 'ativo') {
@@ -515,7 +511,7 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
       }
       checkCloudStatus();
-    }, 10000);
+    }, 25000);
 
     // Verificação inicial rápida
     checkCloudStatus();

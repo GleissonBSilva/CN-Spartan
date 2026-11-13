@@ -14,7 +14,7 @@ const SERVERS = {
     {
       id: 'superflix_dub',
       name: 'SuperFlix (Dublado BR)',
-      url: (id) => `https://superflixapi.bond/filme/${id}`
+      url: (id) => `https://superflixapi.boats/filme/${id}`
     },
     {
       id: 'vidlink_direct',
