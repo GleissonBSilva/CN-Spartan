@@ -218,13 +218,15 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           ...raw,
           email: hasAdminEdit && localStoredProfile?.email ? localStoredProfile.email : raw.email,
           full_name:
-            hasAdminEdit && localStoredProfile?.full_name
-              ? localStoredProfile.full_name
-              : raw.full_name || metaName || undefined,
+            localStoredProfile?.full_name ||
+            raw.full_name ||
+            metaName ||
+            undefined,
           whatsapp:
-            hasAdminEdit && localStoredProfile
-              ? localStoredProfile.whatsapp
-              : raw.whatsapp || metaPhone || undefined,
+            localStoredProfile?.whatsapp ||
+            raw.whatsapp ||
+            metaPhone ||
+            undefined,
           plan_name: resolvedPlan,
           max_screens: resolvedScreens,
           status: resolvedStatus,
@@ -233,12 +235,14 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           admin_updated_at: localStoredProfile?.admin_updated_at,
         };
 
-        // Se o banco estava sem o plano/telas escolhidos no cadastro, tenta sincronizar no Supabase
+        // Se o banco estava sem o plano/telas/whatsapp escolhidos no cadastro, sincroniza no Supabase
         if (
           data &&
           (data.plan_name !== mergedProfile.plan_name ||
             data.max_screens !== mergedProfile.max_screens ||
-            data.status !== mergedProfile.status)
+            data.status !== mergedProfile.status ||
+            (mergedProfile.whatsapp && !data.whatsapp) ||
+            (mergedProfile.full_name && !data.full_name))
         ) {
           try {
             await supabase
@@ -247,6 +251,8 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 plan_name: mergedProfile.plan_name,
                 max_screens: mergedProfile.max_screens,
                 status: mergedProfile.status,
+                whatsapp: mergedProfile.whatsapp || data.whatsapp || null,
+                full_name: mergedProfile.full_name || data.full_name || null,
               })
               .eq('id', mergedProfile.id);
           } catch {

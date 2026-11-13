@@ -380,6 +380,8 @@ export default function AuthModal({ isOpen, onClose }) {
               {
                 id: supaData.user.id,
                 email: cleanEmail,
+                full_name: cleanName,
+                whatsapp: cleanPhone,
                 role: 'client',
                 status: initialStatus,
                 plan_name: chosenPlanName,
@@ -388,7 +390,20 @@ export default function AuthModal({ isOpen, onClose }) {
               }
             ]);
           } catch (e) {
-            console.error('Falha ao gravar perfil no Supabase:', e);
+            console.error('Falha ao gravar perfil com whatsapp no Supabase, tentando simplificado:', e);
+            try {
+              await supabase.from('profiles').upsert([
+                {
+                  id: supaData.user.id,
+                  email: cleanEmail,
+                  role: 'client',
+                  status: initialStatus,
+                  plan_name: chosenPlanName,
+                  max_screens: chosenPlanScreens,
+                  expires_at: expiryDate,
+                }
+              ]);
+            } catch {}
           }
         }
 
@@ -502,6 +517,8 @@ export default function AuthModal({ isOpen, onClose }) {
               .upsert({
                 id: supaData.user.id,
                 email: cleanEmail,
+                full_name: cleanName,
+                whatsapp: cleanPhone,
                 role: 'client',
                 plan_name: chosenPlanName,
                 max_screens: chosenPlanScreens,
@@ -509,7 +526,19 @@ export default function AuthModal({ isOpen, onClose }) {
                 expires_at: expiryDate,
               }, { onConflict: 'id' });
           } catch {
-            // Silencioso
+            try {
+              await supabase
+                .from('profiles')
+                .upsert({
+                  id: supaData.user.id,
+                  email: cleanEmail,
+                  role: 'client',
+                  plan_name: chosenPlanName,
+                  max_screens: chosenPlanScreens,
+                  status: initialStatus,
+                  expires_at: expiryDate,
+                }, { onConflict: 'id' });
+            } catch {}
           }
         }
 

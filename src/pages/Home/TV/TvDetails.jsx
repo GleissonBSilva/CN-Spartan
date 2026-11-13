@@ -641,12 +641,12 @@ const TvDetails = ({ tvId: tvIdProp }) => {
       </div>
 
       {/* ── PLAYER SECTION ── */}
-      <div className="relative z-20 max-w-7xl mx-auto px-2 sm:px-6 md:px-12 -mt-2 sm:-mt-4 md:-mt-10 mb-12">
+      <div className="relative z-20 max-w-7xl mx-auto px-0.5 sm:px-6 md:px-12 -mt-2 sm:-mt-4 md:-mt-10 mb-12">
         <div className="relative mb-6">
           {/* Subtle Video Player Glow Backdrop */}
           <div className="absolute -inset-1 bg-gradient-to-r from-red-600/30 to-blue-600/30 blur-2xl opacity-50 z-0 rounded-xl sm:rounded-2xl md:rounded-[2rem]"></div>
           
-          <div className="relative z-10 bg-[#0f1117]/95 border border-white/5 rounded-xl sm:rounded-2xl md:rounded-[2rem] p-1.5 sm:p-2 md:p-4 shadow-2xl ring-1 ring-white/5">
+          <div className="relative z-10 bg-[#0f1117]/95 border border-white/5 rounded-xl sm:rounded-2xl md:rounded-[2rem] p-1 sm:p-2 md:p-4 shadow-2xl ring-1 ring-white/5">
             {isBlocked || (isFamilyMode && isContentRestricted(tv)) ? (
               <div className="w-full aspect-video bg-black/90 rounded-xl border border-red-500/30 flex flex-col items-center justify-center p-6 text-center shadow-2xl">
                 <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 text-3xl mb-4 shadow-inner">

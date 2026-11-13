@@ -30,7 +30,8 @@ export const isTvBoxOrApk = () => {
     window?.Capacitor?.getPlatform?.() === 'android' ||
     window?.Capacitor?.getPlatform?.() === 'ios' ||
     window.location.protocol === 'capacitor:' ||
-    window.location.protocol === 'file:'
+    window.location.protocol === 'file:' ||
+    (window.location.hostname === 'localhost' && /Android/i.test(navigator.userAgent))
   ) {
     return true;
   }

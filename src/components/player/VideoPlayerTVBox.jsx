@@ -218,6 +218,12 @@ function VideoPlayerTVBox({
     if (!el) return;
 
     if (!isFullscreen && !isCssFullscreen) {
+      try {
+        if (window.screen?.orientation?.lock) {
+          window.screen.orientation.lock('landscape').catch(() => {});
+        }
+      } catch {}
+
       if (el.requestFullscreen) {
         el.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => setIsCssFullscreen(true));
       } else if (el.webkitRequestFullscreen) {
@@ -228,6 +234,12 @@ function VideoPlayerTVBox({
       }
       showToast('Modo Tela Cheia Ativado');
     } else {
+      try {
+        if (window.screen?.orientation?.unlock) {
+          window.screen.orientation.unlock();
+        }
+      } catch {}
+
       if (document.exitFullscreen) {
         document.exitFullscreen().catch(() => {});
       } else if (document.webkitExitFullscreen) {
@@ -319,7 +331,7 @@ function VideoPlayerTVBox({
         className={`relative w-full bg-black rounded-2xl overflow-hidden border border-white/10 shadow-2xl shadow-black group ${
           isCssFullscreen 
             ? '!fixed !inset-0 !z-[999999] !h-[100dvh] !w-screen !rounded-none !border-0' 
-            : 'aspect-video min-h-[260px] xs:min-h-[290px] sm:min-h-[360px] md:min-h-[460px]'
+            : 'w-full aspect-video min-h-[340px] xs:min-h-[380px] sm:min-h-[440px] md:min-h-[520px]'
         }`}
       >
         {/* Toast Flutuante de Notificação */}

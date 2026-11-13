@@ -453,12 +453,24 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       if (fullPayload.max_screens !== undefined) basePayload.max_screens = fullPayload.max_screens;
       if (fullPayload.role !== undefined) basePayload.role = fullPayload.role;
       if (fullPayload.email !== undefined) basePayload.email = fullPayload.email;
+      if (fullPayload.whatsapp !== undefined) basePayload.whatsapp = fullPayload.whatsapp;
+      if (fullPayload.full_name !== undefined) basePayload.full_name = fullPayload.full_name;
 
       if (Object.keys(basePayload).length > 0) {
-        await supabase
-          .from('profiles')
-          .update(basePayload)
-          .eq('id', profileId);
+        try {
+          await supabase
+            .from('profiles')
+            .update(basePayload)
+            .eq('id', profileId);
+        } catch {
+          // Fallback resiliente caso as colunas whatsapp ou full_name não existam na instância remota
+          delete basePayload.whatsapp;
+          delete basePayload.full_name;
+          await supabase
+            .from('profiles')
+            .update(basePayload)
+            .eq('id', profileId);
+        }
       }
     } catch (err) {
       console.warn('Aviso ao sincronizar alteração no Supabase (mantido localmente):', err);
@@ -626,13 +638,9 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
               ? dbP.max_screens
               : localMatch?.max_screens || dbP.max_screens || 1;
           const mergedWhatsapp =
-            hasAdminEdit && localMatch
-              ? localMatch.whatsapp
-              : dbP.whatsapp || localMatch?.whatsapp || undefined;
+            localMatch?.whatsapp || dbP.whatsapp || undefined;
           const mergedName =
-            hasAdminEdit && localMatch?.full_name
-              ? localMatch.full_name
-              : dbP.full_name || localMatch?.full_name || undefined;
+            localMatch?.full_name || dbP.full_name || undefined;
           const mergedIsTrial =
             hasAdminEdit && localMatch?.is_trial !== undefined
               ? localMatch.is_trial
@@ -1052,6 +1060,8 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           {
             id: dummyId,
             email: newProf.email,
+            full_name: newProf.full_name,
+            whatsapp: newProf.whatsapp,
             role: newProf.role,
             status: newProf.status,
             plan_name: newProf.plan_name,
@@ -1060,7 +1070,21 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           },
         ]);
       } catch {
-        // Fallback local
+        try {
+          await supabase.from('profiles').upsert([
+            {
+              id: dummyId,
+              email: newProf.email,
+              role: newProf.role,
+              status: newProf.status,
+              plan_name: newProf.plan_name,
+              max_screens: newProf.max_screens,
+              expires_at: newProf.expires_at,
+            },
+          ]);
+        } catch {
+          // Fallback local
+        }
       }
 
       setProfiles((prev) => {
