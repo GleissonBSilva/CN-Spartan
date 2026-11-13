@@ -2,7 +2,8 @@ import React, { memo, useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { 
   FaPlay, FaExpand, FaCompress, FaVolumeUp, FaClosedCaptioning, 
-  FaSyncAlt, FaTv, FaBolt, FaShieldAlt, FaMobileAlt
+  FaSyncAlt, FaTv, FaBolt, FaShieldAlt, FaMobileAlt, FaFilm,
+  FaQuestionCircle, FaCheck, FaTimes
 } from 'react-icons/fa';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuthProfile } from '../../hooks/useAuthProfile';
@@ -14,46 +15,46 @@ const TV_SERVERS = {
   movie: {
     dublado: [
       {
-        id: 'tv_vidlink_dub',
-        name: '⭐ VidLink Ultra HD (Sem Anúncios)',
-        tag: 'RECOMENDADO',
-        url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
-      },
-      {
-        id: 'tv_vidsrc_dub',
-        name: '⚡ VidSrc Rápido HD',
-        tag: 'VELOZ',
-        url: (id) => `https://vidsrc.sh/embed/movie?tmdb=${id}`
-      },
-      {
         id: 'tv_superflix_dub',
-        name: '🍿 SuperFlix Dublado BR',
+        name: '🍿 SuperFlix Dublado BR (100% Áudio PT-BR)',
         tag: 'DUBLADO BR',
         url: (id) => `https://superflixapi.boats/filme/${id}`
       },
       {
         id: 'tv_multiembed_dub',
-        name: '📺 MultiEmbed TV',
+        name: '📺 MultiEmbed Dublado (Multi-Áudio BR)',
         tag: 'ALTERNATIVA HD',
         url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
+      },
+      {
+        id: 'tv_vidlink_dub',
+        name: '⭐ VidLink Multi-Áudio HD (Sem Anúncios)',
+        tag: 'ULTRA HD',
+        url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
+      },
+      {
+        id: 'tv_vidsrc_dub',
+        name: '⚡ VidSrc Fast HD (Multi-Áudio)',
+        tag: 'VELOZ',
+        url: (id) => `https://vidsrc.sh/embed/movie?tmdb=${id}`
       }
     ],
     legendado: [
       {
         id: 'tv_vidlink_orig',
-        name: '⭐ VidLink Original (Sem Anúncios)',
-        tag: 'RECOMENDADO',
-        url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+        name: '⭐ VidLink Ultra HD (Sem Anúncios • CC Legendas)',
+        tag: 'RECOMENDADO CC',
+        url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
       },
       {
         id: 'tv_vidsrc_orig',
-        name: '⚡ VidSrc Original HD',
+        name: '⚡ VidSrc Original Fast (Legendas CC)',
         tag: 'ALTA DEFINIÇÃO',
         url: (id) => `https://vidsrc.sh/embed/movie?tmdb=${id}`
       },
       {
         id: 'tv_multiembed_orig',
-        name: '📺 MultiEmbed Leg',
+        name: '📺 MultiEmbed Original (Multi-Legendas CC)',
         tag: 'ORIGINAL HD',
         url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
       }
@@ -62,46 +63,46 @@ const TV_SERVERS = {
   tv: {
     dublado: [
       {
+        id: 'tv_superflix_tv_dub',
+        name: '🍿 SuperFlix Séries BR (100% Áudio PT-BR)',
+        tag: 'DUBLADO BR',
+        url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
+      },
+      {
+        id: 'tv_multiembed_tv_dub',
+        name: '📺 MultiEmbed Séries (Multi-Áudio BR)',
+        tag: 'ALTERNATIVA HD',
+        url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
+      },
+      {
         id: 'tv_vidlink_tv_dub',
         name: '⭐ VidLink Séries HD (Sem Anúncios)',
-        tag: 'RECOMENDADO',
-        url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+        tag: 'ULTRA HD',
+        url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
       },
       {
         id: 'tv_vidsrc_tv_dub',
         name: '⚡ VidSrc Séries Fast',
         tag: 'VELOZ',
         url: (id, s, e) => `https://vidsrc.sh/embed/tv?tmdb=${id}&season=${s}&episode=${e}`
-      },
-      {
-        id: 'tv_superflix_tv_dub',
-        name: '🍿 SuperFlix Séries BR',
-        tag: 'DUBLADO BR',
-        url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
-      },
-      {
-        id: 'tv_multiembed_tv_dub',
-        name: '📺 MultiEmbed Séries',
-        tag: 'ALTERNATIVA HD',
-        url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
       }
     ],
     legendado: [
       {
         id: 'tv_vidlink_tv_orig',
-        name: '⭐ VidLink Original (Sem Anúncios)',
-        tag: 'RECOMENDADO',
-        url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+        name: '⭐ VidLink Séries HD (Sem Anúncios • CC Legendas)',
+        tag: 'RECOMENDADO CC',
+        url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
       },
       {
         id: 'tv_vidsrc_tv_orig',
-        name: '⚡ VidSrc Original Fast',
+        name: '⚡ VidSrc Séries Original Fast (Legendas CC)',
         tag: 'VELOZ',
         url: (id, s, e) => `https://vidsrc.sh/embed/tv?tmdb=${id}&season=${s}&episode=${e}`
       },
       {
         id: 'tv_multiembed_tv_orig',
-        name: '📺 MultiEmbed Leg',
+        name: '📺 MultiEmbed Séries Leg (Multi-Legendas CC)',
         tag: 'ORIGINAL HD',
         url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
       }
@@ -131,6 +132,8 @@ function VideoPlayerTVBox({
   const [toastMessage, setToastMessage] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isCssFullscreen, setIsCssFullscreen] = useState(false);
+  const [isTheaterMode, setIsTheaterMode] = useState(false);
+  const [showCcModal, setShowCcModal] = useState(false);
 
   const containerRef = useRef(null);
   const iframeRef = useRef(null);
@@ -382,10 +385,12 @@ function VideoPlayerTVBox({
         onMouseMove={resetControlsTimer}
         onTouchStart={resetControlsTimer}
         style={isCssFullscreen ? { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', zIndex: 9999999, margin: 0, padding: 0, borderRadius: 0 } : {}}
-        className={`relative w-full bg-black rounded-2xl overflow-hidden border border-white/10 shadow-2xl shadow-black group ${
+        className={`relative w-full bg-black rounded-2xl overflow-hidden border border-white/10 shadow-2xl shadow-black group transition-all duration-300 ${
           isCssFullscreen 
             ? '!fixed !inset-0 !z-[9999999] !h-[100dvh] !h-screen !w-screen !rounded-none !border-0 !m-0 !p-0' 
-            : 'w-full aspect-video min-h-[340px] xs:min-h-[380px] sm:min-h-[440px] md:min-h-[520px]'
+            : isTheaterMode
+            ? 'w-full aspect-video min-h-[290px] xs:min-h-[350px] sm:min-h-[480px] md:min-h-[620px] lg:min-h-[720px] shadow-[0_0_50px_rgba(239,68,68,0.25)] ring-2 ring-red-500/30'
+            : 'w-full aspect-video min-h-[210px] xs:min-h-[250px] sm:min-h-[380px] md:min-h-[480px] lg:min-h-[560px]'
         }`}
       >
         {/* Toast Flutuante de Notificação */}
@@ -408,20 +413,41 @@ function VideoPlayerTVBox({
           </span>
         </div>
 
-        {/* Botão de Tela Cheia Rápido no Topo Direito */}
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          className={`absolute top-3 right-3 p-2 sm:px-3 sm:py-1.5 rounded-xl text-white text-xs font-bold border backdrop-blur-md transition-all shadow-lg active:scale-95 flex items-center gap-1.5 cursor-pointer ${
-            isFullscreen || isCssFullscreen
-              ? 'z-[99999999] bg-red-600/95 hover:bg-red-600 border-red-400/60 shadow-red-950/70'
-              : 'z-30 bg-black/70 hover:bg-black/95 border-white/15'
-          }`}
-          title="Alternar Tela Cheia"
-        >
-          {isFullscreen || isCssFullscreen ? <FaCompress className="text-xs" /> : <FaExpand className="text-xs" />}
-          <span>{isFullscreen || isCssFullscreen ? 'Sair Tela Cheia' : 'Tela Cheia'}</span>
-        </button>
+        {/* Botões de Controle no Topo Direito (Cinema & Tela Cheia) */}
+        <div className="absolute top-3 right-3 z-30 flex items-center gap-1.5 sm:gap-2">
+          {!isFullscreen && !isCssFullscreen && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsTheaterMode(prev => !prev);
+                showToast(isTheaterMode ? 'Modo Normal Ativado' : '🎬 Modo Cinema Expandido Ativado');
+              }}
+              className={`p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-bold border backdrop-blur-md transition-all shadow-lg active:scale-95 flex items-center gap-1.5 cursor-pointer ${
+                isTheaterMode 
+                  ? 'bg-amber-500 text-black border-amber-300 font-black' 
+                  : 'bg-black/70 hover:bg-black/95 text-white border-white/15'
+              }`}
+              title="Expandir tamanho do Player para Modo Cinema"
+            >
+              <FaFilm className="text-xs" />
+              <span className="hidden sm:inline">{isTheaterMode ? 'Reduzir' : 'Modo Cinema'}</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className={`p-2 sm:px-3 sm:py-1.5 rounded-xl text-white text-xs font-bold border backdrop-blur-md transition-all shadow-lg active:scale-95 flex items-center gap-1.5 cursor-pointer ${
+              isFullscreen || isCssFullscreen
+                ? 'z-[99999999] bg-red-600/95 hover:bg-red-600 border-red-400/60 shadow-red-950/70'
+                : 'bg-black/70 hover:bg-black/95 border-white/15'
+            }`}
+            title="Alternar Tela Cheia"
+          >
+            {isFullscreen || isCssFullscreen ? <FaCompress className="text-xs" /> : <FaExpand className="text-xs" />}
+            <span>{isFullscreen || isCssFullscreen ? 'Sair' : 'Tela Cheia'}</span>
+          </button>
+        </div>
 
         {/* TELA DE INÍCIO COM ÁREA DE CLIQUE TOTAL (Toque em qualquer lugar para dar Play) */}
         {!hasStarted ? (
@@ -516,7 +542,7 @@ function VideoPlayerTVBox({
               onClick={() => {
                 setStreamMode('legendado');
                 setSourceIdx(0);
-                showToast('Áudio alternado para Legendado');
+                showToast('Áudio alternado para Legendado com Legendas CC');
               }}
               className={`min-h-[38px] px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 streamMode === 'legendado'
@@ -529,8 +555,18 @@ function VideoPlayerTVBox({
             </button>
           </div>
 
-          {/* Botão de Tela Cheia e Troca Rápida */}
+          {/* Botão de Tela Cheia, Ajuda CC e Troca Rápida */}
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowCcModal(true)}
+              className="min-h-[38px] px-3 py-1.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/40 text-purple-300 hover:text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+              title="Ajuda de Áudio e Instruções de Legendas CC"
+            >
+              <FaClosedCaptioning className="text-xs" />
+              <span>Legendas CC</span>
+            </button>
+
             <button
               type="button"
               onClick={() => {
@@ -552,7 +588,7 @@ function VideoPlayerTVBox({
               className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-md active:scale-95"
             >
               <FaExpand className="text-xs" />
-              <span>Expandir</span>
+              <span>Tela Cheia</span>
             </button>
           </div>
         </div>
@@ -593,6 +629,85 @@ function VideoPlayerTVBox({
           })}
         </div>
       </div>
+
+      {/* ── MODAL EXPLICATIVO DE LEGENDAS (CC) & ÁUDIO ── */}
+      {showCcModal && (
+        <div className="fixed inset-0 z-[999999999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+          <div className="bg-[#12151f] border border-white/15 rounded-3xl p-5 sm:p-6 max-w-lg w-full shadow-2xl relative text-left">
+            <button
+              type="button"
+              onClick={() => setShowCcModal(false)}
+              className="absolute top-4 right-4 p-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <FaTimes className="text-sm" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-2xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400 text-lg">
+                <FaClosedCaptioning />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-white">Áudio Dublado & Legendas (CC)</h3>
+                <p className="text-xs text-gray-400">Como funciona o áudio e legendas no Spartan</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs sm:text-sm text-gray-300">
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5">
+                <h4 className="font-bold text-red-400 flex items-center gap-2 mb-1">
+                  <FaVolumeUp className="text-xs" />
+                  <span>1. Áudio Dublado em Português BR</span>
+                </h4>
+                <p className="text-gray-300/90 text-xs leading-relaxed">
+                  Basta selecionar a aba <strong className="text-white">"🇧🇷 Dublado BR"</strong>. O <strong>Servidor 1 (SuperFlix)</strong> e o <strong>Servidor 2 (MultiEmbed)</strong> já iniciam diretamente com áudio falado em Português do Brasil.
+                </p>
+              </div>
+
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5">
+                <h4 className="font-bold text-amber-400 flex items-center gap-2 mb-1">
+                  <FaClosedCaptioning className="text-xs" />
+                  <span>2. Legendas (CC) em Português ou Inglês</span>
+                </h4>
+                <p className="text-gray-300/90 text-xs leading-relaxed mb-2">
+                  Selecione a aba <strong className="text-white">"🌐 Legendado"</strong>. O <strong>Servidor 1 (VidLink)</strong> e o <strong>Servidor 2 (VidSrc)</strong> possuem o menu oficial de Closed Captions:
+                </p>
+                <div className="bg-black/60 rounded-xl p-2.5 border border-white/5 text-[11px] text-gray-300 space-y-1">
+                  <p>👉 Dentro do vídeo em reprodução, toque na tela para abrir os controles do player.</p>
+                  <p>👉 No canto inferior direito do vídeo, toque no botão <strong>[CC]</strong> (ou no ícone de balão de fala).</p>
+                  <p>👉 Escolha <strong className="text-emerald-400">Portuguese (Português)</strong> para ativar a legenda desejada.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setStreamMode('dublado');
+                  setSourceIdx(0);
+                  setShowCcModal(false);
+                  showToast('Conectado ao Servidor Dublado BR');
+                }}
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all shadow-md cursor-pointer"
+              >
+                Assistir Dublado BR
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStreamMode('legendado');
+                  setSourceIdx(0);
+                  setShowCcModal(false);
+                  showToast('Modo Legendado ativado! Clique em [CC] no player');
+                }}
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs transition-all shadow-md cursor-pointer"
+              >
+                Ativar Legendado com CC
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

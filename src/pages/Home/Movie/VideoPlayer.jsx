@@ -8,44 +8,44 @@ import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
 import { isTvBoxOrApk } from '../../../hooks/useAppUpdateGuard';
 import VideoPlayerTVBox from '../../../components/player/VideoPlayerTVBox';
 
-// Servidores separados por modalidade real de reprodução: Dublado BR e Legendado (Original HD)
+// Servidores separados por modalidade real de reprodução: Dublado BR e Legendado (Original HD com CC)
 const SERVERS = {
   dublado: [
     {
-      id: 'vidlink_direct',
-      name: '⭐ VidLink Ultra HD (Sem Anúncios • Dublado BR)',
-      url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
-    },
-    {
-      id: 'vidsrc_sh',
-      name: '⚡ VidSrc Rápido HD (Multi-Áudio)',
-      url: (id) => `https://vidsrc.sh/embed/movie?tmdb=${id}`
-    },
-    {
       id: 'superflix_dub',
-      name: '🍿 SuperFlix Dublado BR',
+      name: '🍿 SuperFlix Dublado BR (100% Áudio PT-BR)',
       url: (id) => `https://superflixapi.boats/filme/${id}`
     },
     {
       id: 'multiembed_dub',
-      name: '📺 MultiEmbed (Multi-Áudio)',
+      name: '📺 MultiEmbed Dublado (Multi-Áudio BR)',
       url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
+    },
+    {
+      id: 'vidlink_direct',
+      name: '⭐ VidLink Ultra HD (Sem Anúncios)',
+      url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
+    },
+    {
+      id: 'vidsrc_sh',
+      name: '⚡ VidSrc Rápido HD',
+      url: (id) => `https://vidsrc.sh/embed/movie?tmdb=${id}`
     }
   ],
   legendado: [
     {
       id: 'vidlink_orig',
-      name: '⭐ VidLink Ultra HD (Áudio Original)',
-      url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+      name: '⭐ VidLink Ultra HD (Sem Anúncios • CC Legendas)',
+      url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
     },
     {
       id: 'vidsrc_orig',
-      name: '⚡ VidSrc To (Original HD)',
+      name: '⚡ VidSrc To (Original HD • CC)',
       url: (id) => `https://vidsrc.sh/embed/movie?tmdb=${id}`
     },
     {
       id: 'multiembed_orig',
-      name: '📺 MultiEmbed (Original / Leg)',
+      name: '📺 MultiEmbed (Original / Legendas CC)',
       url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
     }
   ]

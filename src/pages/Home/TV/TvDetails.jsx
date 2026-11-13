@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { fetchSeriesDetails, fetchAllEpisodes, fetchRelatedSeries } from "../Fetcher";
 import { getIdFromDetailSlug, toDetailPath } from "../urlUtils";
 import { saveToContinueWatching } from "../../../utils/continueWatching";
-import { FaRedo, FaStar, FaArrowLeft, FaTv, FaStepBackward, FaStepForward, FaInfoCircle, FaBookmark, FaShieldAlt, FaLock, FaBan, FaClosedCaptioning } from "react-icons/fa";
+import { FaRedo, FaStar, FaArrowLeft, FaTv, FaStepBackward, FaStepForward, FaInfoCircle, FaBookmark, FaShieldAlt, FaLock, FaBan, FaClosedCaptioning, FaPlay } from "react-icons/fa";
 import { BiCalendar, BiGlobe, BiTv, BiChevronLeft, BiChevronRight, BiSearch } from "react-icons/bi";
 import DetailPageSkeleton from "../reused/DetailPageSkeleton";
 import VideoPlayer from "./VideoPlayer";
@@ -89,6 +89,7 @@ const TvDetails = ({ tvId: tvIdProp }) => {
     navigate(-1);
   };
 
+  const playerSectionRef = useRef(null);
   const activeEpisodeRef = useRef(null);
   const episodeListRef = useRef(null);
   const dragStateRef = useRef({ active: false, startX: 0, startScrollLeft: 0, moved: false });
@@ -581,6 +582,17 @@ const TvDetails = ({ tvId: tvIdProp }) => {
             {/* Actions */}
             <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 mb-4 sm:mb-6">
                <button
+                 type="button"
+                 onClick={() => {
+                   playerSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                 }}
+                 className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white font-black px-5 py-2.5 sm:px-6 sm:py-3 text-xs sm:text-sm rounded-xl shadow-lg shadow-red-600/40 transition-all active:scale-[0.98] cursor-pointer"
+               >
+                 <FaPlay className="text-xs" />
+                 <span>Assistir Série</span>
+               </button>
+
+               <button
                  onClick={toggleWatchlist}
                  className={`flex items-center gap-2 backdrop-blur-md text-white font-bold px-4 py-2.5 sm:px-6 sm:py-3 text-xs sm:text-sm rounded-xl transition-all active:scale-[0.98] ${
                    inWatchlist 
@@ -641,7 +653,7 @@ const TvDetails = ({ tvId: tvIdProp }) => {
       </div>
 
       {/* ── PLAYER SECTION ── */}
-      <div className="relative z-20 max-w-7xl mx-auto px-0.5 sm:px-6 md:px-12 -mt-2 sm:-mt-4 md:-mt-10 mb-12">
+      <div ref={playerSectionRef} className="relative z-20 max-w-7xl mx-auto px-0.5 sm:px-4 md:px-8 -mt-2 sm:-mt-4 md:-mt-10 mb-12 scroll-mt-6">
         <div className="relative mb-6">
           {/* Subtle Video Player Glow Backdrop */}
           <div className="absolute -inset-1 bg-gradient-to-r from-red-600/30 to-blue-600/30 blur-2xl opacity-50 z-0 rounded-xl sm:rounded-2xl md:rounded-[2rem]"></div>

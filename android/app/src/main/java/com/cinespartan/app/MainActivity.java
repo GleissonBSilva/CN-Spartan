@@ -260,15 +260,23 @@ public class MainActivity extends BridgeActivity {
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
             Uri uri = request.getUrl();
             if (uri != null) {
+                String host = uri.getHost();
+
+                // NUNCA intercepta arquivos internos do app (localhost, 127.0.0.1, cinespartan)
+                // Isso evita erros 400 e previne corrupção de bundles JS/CSS da aplicação
+                if (host == null || host.equals("localhost") || host.equals("127.0.0.1") || host.contains("cinespartan")) {
+                    return super.shouldInterceptRequest(view, request);
+                }
+
                 String uriStr = uri.toString().toLowerCase();
 
-                // 1. Intercepta comerciais de vídeo VAST / VPAID / Mid-roll / Preroll / DoubleClick ads
-                // e responde com XML vazio VAST 3.0 para pular o anúncio instantaneamente
-                if (uriStr.contains("vast") || uriStr.contains("vpaid") || uriStr.contains("midroll") 
-                        || uriStr.contains("preroll") || uriStr.contains("postroll") 
+                // 1. Intercepta estritamente comerciais de vídeo VAST / VPAID / Mid-roll / Preroll / DoubleClick ads
+                // e responde com XML vazio VAST 3.0 para pular o anúncio instantaneamente sem quebrar requests de mídia normais
+                if (uriStr.contains("vast.xml") || uriStr.contains("/vast") || uriStr.contains("/vpaid") 
+                        || uriStr.contains("midroll") || uriStr.contains("preroll") || uriStr.contains("postroll") 
                         || uriStr.contains("gampad/ads") || uriStr.contains("doubleclick.net/gampad")
                         || uriStr.contains("video-ads") || uriStr.contains("instream") 
-                        || uriStr.contains("linear-ad") || uriStr.contains("/ad/")
+                        || uriStr.contains("linear-ad") || uriStr.contains("/ads/vast")
                         || (uriStr.contains("imasdk") && !uriStr.endsWith(".js"))) {
                     String emptyVast = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><VAST version=\"3.0\"/>";
                     Map<String, String> headers = new HashMap<>();

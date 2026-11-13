@@ -4,7 +4,7 @@ import PropTypes from "prop-types";
 import { fetchMovieDetails, fetchRelatedMovies } from "../Fetcher";
 import { getIdFromDetailSlug, toDetailPath } from "../urlUtils";
 import { saveToContinueWatching } from "../../../utils/continueWatching";
-import { FaRedo, FaStar, FaArrowLeft, FaInfoCircle, FaBookmark, FaShieldAlt, FaLock, FaBan, FaClosedCaptioning } from "react-icons/fa";
+import { FaRedo, FaStar, FaArrowLeft, FaInfoCircle, FaBookmark, FaShieldAlt, FaLock, FaBan, FaClosedCaptioning, FaPlay } from "react-icons/fa";
 import { BiCalendar, BiTime, BiGlobe } from "react-icons/bi";
 import DetailPageSkeleton from "../reused/DetailPageSkeleton";
 import VideoPlayer from "./VideoPlayer";
@@ -49,6 +49,7 @@ const MovieDetails = ({ movieId: movieIdProp }) => {
   const inWatchlist = movie?.id ? watchlistIds.has(String(movie.id)) : false;
   const isBlocked = movie?.id ? isTitleBlocked(movie.id) : false;
 
+  const playerSectionRef = useRef(null);
   const relatedListRef = useRef(null);
   const relatedDragStateRef = useRef({ active: false, startX: 0, startScrollLeft: 0, moved: false });
   const suppressRelatedClickRef = useRef(false);
@@ -334,6 +335,17 @@ const MovieDetails = ({ movieId: movieIdProp }) => {
             {/* Actions */}
             <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 mb-4 sm:mb-6">
                <button
+                 type="button"
+                 onClick={() => {
+                   playerSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                 }}
+                 className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white font-black px-5 py-2.5 sm:px-6 sm:py-3 text-xs sm:text-sm rounded-xl shadow-lg shadow-red-600/40 transition-all active:scale-[0.98] cursor-pointer"
+               >
+                 <FaPlay className="text-xs" />
+                 <span>Assistir Agora</span>
+               </button>
+
+               <button
                  onClick={toggleWatchlist}
                  className={`flex items-center gap-2 backdrop-blur-md text-white font-bold px-4 py-2.5 sm:px-6 sm:py-3 text-xs sm:text-sm rounded-xl transition-all active:scale-[0.98] ${
                    inWatchlist 
@@ -394,7 +406,7 @@ const MovieDetails = ({ movieId: movieIdProp }) => {
       </div>
 
       {/* ── PLAYER & EXTRA CONTENT ── */}
-      <div className="relative z-20 max-w-7xl mx-auto px-0.5 sm:px-6 md:px-12 -mt-2 sm:-mt-4 md:-mt-10 mb-16 sm:mb-20">
+      <div ref={playerSectionRef} className="relative z-20 max-w-7xl mx-auto px-0.5 sm:px-4 md:px-8 -mt-2 sm:-mt-4 md:-mt-10 mb-16 sm:mb-20 scroll-mt-6">
         
         {/* Video Player Container */}
         <div className="relative">

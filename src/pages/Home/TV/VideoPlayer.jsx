@@ -12,40 +12,40 @@ import VideoPlayerTVBox from '../../../components/player/VideoPlayerTVBox';
 const SERVERS = {
   dublado: [
     {
-      id: 'vidlink_direct',
-      name: '⭐ VidLink Ultra HD (Sem Anúncios • Séries BR)',
-      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
-    },
-    {
-      id: 'vidsrc_sh',
-      name: '⚡ VidSrc Séries Fast (Multi-Áudio)',
-      url: (id, s, e) => `https://vidsrc.sh/embed/tv?tmdb=${id}&season=${s}&episode=${e}`
-    },
-    {
       id: 'superflix_dub',
-      name: '🍿 SuperFlix Séries BR',
+      name: '🍿 SuperFlix Séries BR (100% Áudio PT-BR)',
       url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
     },
     {
       id: 'multiembed_dub',
-      name: '📺 MultiEmbed Séries (Multi-Áudio)',
+      name: '📺 MultiEmbed Séries (Multi-Áudio BR)',
       url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
+    },
+    {
+      id: 'vidlink_direct',
+      name: '⭐ VidLink Séries HD (Sem Anúncios)',
+      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
+    },
+    {
+      id: 'vidsrc_sh',
+      name: '⚡ VidSrc Séries Fast',
+      url: (id, s, e) => `https://vidsrc.sh/embed/tv?tmdb=${id}&season=${s}&episode=${e}`
     }
   ],
   legendado: [
     {
       id: 'vidlink_orig',
-      name: '⭐ VidLink Ultra HD (Áudio Original)',
-      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&iconColor=ef4444`
+      name: '⭐ VidLink Séries HD (Sem Anúncios • CC Legendas)',
+      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
     },
     {
       id: 'vidsrc_orig',
-      name: '⚡ VidSrc To (Original Fast)',
+      name: '⚡ VidSrc Séries Original (Legendas CC)',
       url: (id, s, e) => `https://vidsrc.sh/embed/tv?tmdb=${id}&season=${s}&episode=${e}`
     },
     {
       id: 'multiembed_orig',
-      name: '📺 MultiEmbed (Original / Leg)',
+      name: '📺 MultiEmbed (Original / Legendas CC)',
       url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
     }
   ]
