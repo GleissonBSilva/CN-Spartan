@@ -489,6 +489,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                             mozallowfullscreen="true"
                             title={title || 'Player de Série'}
                             referrerPolicy="no-referrer-when-downgrade"
+                            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-popups allow-popups-to-escape-sandbox"
                             className="w-full h-full border-0"
                             style={{ userSelect: 'none' }}
                         />

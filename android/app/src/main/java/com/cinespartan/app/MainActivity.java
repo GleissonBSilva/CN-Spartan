@@ -59,8 +59,9 @@ public class MainActivity extends BridgeActivity {
             } catch (Exception ignored) {}
 
             // ANTI-AD & ANTI-REDIRECT SHIELD NATIVO:
-            // Desativa múltiplas janelas para bloquear popups nativamente sem custo de CPU nem alocação de WebViews na UI thread
-            settings.setSupportMultipleWindows(false);
+            // Ativa suporte a múltiplas janelas para que window.open() e target="_blank"
+            // caiam obrigatoriamente no WebChromeClient.onCreateWindow, onde são bloqueados com 100% de sucesso!
+            settings.setSupportMultipleWindows(true);
             settings.setJavaScriptCanOpenWindowsAutomatically(false);
 
             // Fullscreen & Security WebChromeClient
@@ -206,25 +207,60 @@ public class MainActivity extends BridgeActivity {
             super(bridge);
         }
 
-        @Override
-        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-            Uri url = request.getUrl();
-            if (url == null) return false;
+        private static boolean isAllowedStreamingHost(String host) {
+            if (host == null) return false;
+            String h = host.toLowerCase();
+            return h.contains("superflix") ||
+                   h.contains("multiembed") ||
+                   h.contains("streamingnow") ||
+                   h.contains("vidlink") ||
+                   h.contains("vidsrc") ||
+                   h.contains("youtube") ||
+                   h.contains("googlevideo") ||
+                   h.contains("ytimg") ||
+                   h.contains("tmdb") ||
+                   h.contains("themoviedb") ||
+                   h.contains("cloudflare") ||
+                   h.contains("gstatic");
+        }
+
+        private boolean handleUrlLoading(WebView view, Uri url, boolean isForMainFrame) {
+            if (url == null) return true;
+            String scheme = url.getScheme();
             String host = url.getHost();
-            
-            // Allow internal app navigation
-            if (host == null || host.equals("localhost") || host.equals("127.0.0.1") || host.contains("cinespartan")) {
+
+            // 1. Bloqueia esquemas externos (intent://, market://, vnd://, whatsapp://)
+            if (scheme != null && !scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https") && !scheme.equalsIgnoreCase("capacitor")) {
+                return true;
+            }
+
+            // 2. Permite navegação interna legítima do app CineSpartan
+            if (host == null || host.equals("localhost") || host.equals("127.0.0.1") || host.contains("cinespartan") || "capacitor".equalsIgnoreCase(scheme)) {
                 return false;
             }
 
-            // Block any iframe attempt to redirect our app out to an ad site
-            for (String adPattern : BLOCKED_AD_PATTERNS) {
-                if (url.toString().toLowerCase().contains(adPattern)) {
-                    return true; // Cancel and swallow the ad redirect!
-                }
+            // 3. Se for navegação dentro de um sub-frame (iframe) para um host de streaming autorizado, permite
+            if (!isForMainFrame && isAllowedStreamingHost(host)) {
+                return false;
             }
 
-            return super.shouldOverrideUrlLoading(view, request);
+            // 4. Bloqueia QUALQUER outra tentativa de navegação externa ou popups de anúncios.
+            // NUNCA chamamos super.shouldOverrideUrlLoading para URLs externas, pois o Capacitor
+            // dispara Intent(ACTION_VIEW) abrindo o navegador do celular ou o prompt "Escolher navegador"!
+            // Retornar true cancela a navegação silenciosamente mantendo o usuário 100% no player.
+            return true;
+        }
+
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+            if (request == null || request.getUrl() == null) return true;
+            return handleUrlLoading(view, request.getUrl(), request.isForMainFrame());
+        }
+
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, String url) {
+            if (url == null) return true;
+            return handleUrlLoading(view, Uri.parse(url), false);
         }
 
         @Override
