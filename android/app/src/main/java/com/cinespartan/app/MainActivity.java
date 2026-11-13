@@ -180,22 +180,6 @@ public class MainActivity extends BridgeActivity {
             return;
         }
 
-        Bridge bridge = getBridge();
-        if (bridge != null && bridge.getWebView() != null) {
-            bridge.getWebView().evaluateJavascript(
-                "(function() { if (window.__cineSpartanExitFullscreen && window.__cineSpartanExitFullscreen()) { return 'true'; } return 'false'; })()",
-                new android.webkit.ValueCallback<String>() {
-                    @Override
-                    public void onReceiveValue(String value) {
-                        if ("\"true\"".equals(value) || "true".equals(value)) {
-                            return; // Back handled exiting fullscreen!
-                        }
-                        MainActivity.super.onBackPressed();
-                    }
-                }
-            );
-            return;
-        }
         super.onBackPressed();
     }
 
@@ -240,11 +224,6 @@ public class MainActivity extends BridgeActivity {
                 }
             }
 
-            // If an external page redirect is attempted from an embed, block it to keep user inside the app
-            if (request.isForMainFrame()) {
-                return true; // Block top-level frame hijacking by ads!
-            }
-
             return super.shouldOverrideUrlLoading(view, request);
         }
 
@@ -269,30 +248,14 @@ public class MainActivity extends BridgeActivity {
                     return super.shouldInterceptRequest(view, request);
                 }
 
-                // 1. Intercepta estritamente comerciais de vídeo VAST / VPAID / Mid-roll / Preroll / DoubleClick ads
-                // e responde com XML vazio VAST 3.0 para pular o anúncio instantaneamente sem quebrar requests de mídia normais
-                if (uriStr.contains("vast.xml") || uriStr.contains("/vast") || uriStr.contains("/vpaid") 
-                        || uriStr.contains("midroll") || uriStr.contains("preroll") || uriStr.contains("postroll") 
-                        || uriStr.contains("gampad/ads") || uriStr.contains("doubleclick.net/gampad")
-                        || uriStr.contains("video-ads") || uriStr.contains("instream") 
-                        || uriStr.contains("linear-ad") || uriStr.contains("/ads/vast")
-                        || (uriStr.contains("imasdk") && !uriStr.endsWith(".js"))) {
-                    String emptyVast = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><VAST version=\"3.0\"/>";
-                    Map<String, String> headers = new HashMap<>();
-                    headers.put("Access-Control-Allow-Origin", "*");
-                    headers.put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
-                    headers.put("Access-Control-Allow-Headers", "*");
-                    return new WebResourceResponse("application/xml", "UTF-8", 200, "OK", headers, new ByteArrayInputStream(emptyVast.getBytes(StandardCharsets.UTF_8)));
-                }
-
-                // 2. Block known ad scripts before they can download or execute (MIME seguro para evitar quebra no player)
+                // Bloqueia scripts de anúncios invasivos conhecidos de forma limpa sem quebrar a execução de players
                 for (String pattern : BLOCKED_AD_PATTERNS) {
                     if (uriStr.contains(pattern)) {
-                        return new WebResourceResponse("application/javascript", "UTF-8", new ByteArrayInputStream("/* blocked */".getBytes(StandardCharsets.UTF_8)));
+                        return new WebResourceResponse("text/plain", "UTF-8", new ByteArrayInputStream(new byte[0]));
                     }
                 }
 
-                // 2. Handle native HLS/IPTV Stream Proxy
+                // Handle native HLS/IPTV Stream Proxy
                 if (uri.getPath() != null && uri.getPath().contains("/api/proxy-stream")) {
                     String targetUrl = uri.getQueryParameter("url");
                     if (targetUrl != null && !targetUrl.isEmpty()) {

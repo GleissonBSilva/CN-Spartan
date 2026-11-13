@@ -5,8 +5,6 @@ import { useLanguage } from '../../../context/LanguageContext';
 import { useAuthProfile } from '../../../hooks/useAuthProfile';
 import SubscriptionLockGate from '../../../components/SubscriptionLockGate';
 import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
-import { isTvBoxOrApk } from '../../../hooks/useAppUpdateGuard';
-import VideoPlayerTVBox from '../../../components/player/VideoPlayerTVBox';
 
 // Servidores separados por modalidade real de reprodução: Dublado BR e Legendado (Original HD com CC)
 const SERVERS = {
@@ -52,26 +50,26 @@ const SERVERS = {
 };
 
 const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, videos }) => {
-    // Se estiver rodando no APK ou TV Box Android, utiliza o player turbo exclusivo da TV Box
-    if (isTvBoxOrApk()) {
-        return (
-            <VideoPlayerTVBox
-                movieId={movieId}
-                title={title}
-                backdrop={backdrop}
-                poster={poster}
-                releaseDate={releaseDate}
-                status={status}
-                videos={videos}
-            />
-        );
-    }
-
     const { language } = useLanguage();
     const { isActive, isAdmin, isSuspended, refreshProfile } = useAuthProfile();
     const [hasStarted, setHasStarted] = useState(false);
     const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
     const [showAudioHelp, setShowAudioHelp] = useState(false);
+
+    // Suporte direto e leve a controle remoto de TV Box (Enter, OK, D-Pad Center)
+    useEffect(() => {
+        const handleRemoteKeyDown = (e) => {
+            const code = e.keyCode || e.which;
+            if (code === 13 || code === 23 || code === 66 || code === 85 || code === 126) {
+                if (!hasStarted) {
+                    e.preventDefault();
+                    handleStartPlay(false);
+                }
+            }
+        };
+        window.addEventListener('keydown', handleRemoteKeyDown);
+        return () => window.removeEventListener('keydown', handleRemoteKeyDown);
+    }, [hasStarted]);
 
     useEffect(() => {
         refreshProfile?.();
