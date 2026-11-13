@@ -21,6 +21,8 @@ alter table public.profiles add column if not exists full_name text;
 alter table public.profiles add column if not exists whatsapp text;
 alter table public.profiles add column if not exists is_trial boolean default false;
 alter table public.profiles add column if not exists trial_used boolean default false;
+alter table public.profiles add column if not exists active_devices jsonb default '[]'::jsonb;
+alter table public.profiles add column if not exists admin_updated_at timestamptz;
 
 -- 2. Tabela Permanente Anti-Fraude de Teste Grátis ('used_trials')
 -- Impede que um usuário receba novo teste grátis mesmo se o seu perfil for excluído
@@ -37,6 +39,12 @@ create index if not exists idx_used_trials_email on public.used_trials(lower(ema
 create index if not exists idx_used_trials_whatsapp on public.used_trials(whatsapp);
 
 alter table public.used_trials enable row level security;
+
+drop policy if exists "Admin pode gerenciar used_trials" on public.used_trials;
+create policy "Admin pode gerenciar used_trials"
+  on public.used_trials for all
+  using (public.is_admin())
+  with check (public.is_admin());
 
 -- Índices para otimização de consultas e relatórios
 create index if not exists idx_profiles_email on public.profiles(email);
@@ -99,7 +107,8 @@ with check (
   public.is_admin()
 );
 
--- Política 3b: O próprio usuário pode sincronizar dados de cadastro/bloqueio de expiração do próprio perfil
+-- Política 3b: O próprio usuário pode sincronizar dados de cadastro/dispositivos/expiração do próprio perfil
+-- (Colunas sensíveis de assinatura são protegidas pelo trigger protect_profile_sensitive_columns abaixo)
 create policy "Usuario pode atualizar seu proprio perfil"
 on public.profiles
 for update
@@ -109,6 +118,47 @@ using (
 with check (
   auth.uid() = id
 );
+
+-- Trigger de Segurança (Anti-Escalação de Privilégio):
+-- Impede que usuários comuns (não-admin) alterem seu próprio role, validade, limite de telas ou reativem contas vencidas/suspensas
+create or replace function public.protect_profile_sensitive_columns()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  -- Se a operação vem do service_role/postgres (auth.uid() nulo) ou de um Administrador, permite tudo
+  if auth.uid() is null or public.is_admin() then
+    return new;
+  end if;
+
+  -- Preserva colunas administrativas críticas contra adulteração no client-side
+  new.role := old.role;
+  new.expires_at := old.expires_at;
+  new.max_screens := old.max_screens;
+  new.is_trial := old.is_trial;
+  new.trial_used := old.trial_used;
+  new.admin_updated_at := old.admin_updated_at;
+
+  -- O cliente só pode mudar o próprio status para 'vencido' quando o prazo realmente expirou;
+  -- nunca pode promover a própria conta para 'ativo' se estava 'vencido' ou 'suspenso'.
+  if new.status <> old.status then
+    if new.status = 'vencido' and old.expires_at <= now() then
+      new.status := 'vencido';
+    else
+      new.status := old.status;
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_protect_profile_sensitive_columns on public.profiles;
+create trigger trg_protect_profile_sensitive_columns
+  before update on public.profiles
+  for each row execute function public.protect_profile_sensitive_columns();
 
 -- Política 4: O Administrador pode criar e deletar perfis se necessário
 create policy "Admin pode inserir perfis"
@@ -307,16 +357,17 @@ create trigger on_profile_deleted_record_trial
 -- 6. Garantir extensão pgcrypto para criptografia de senhas
 create extension if not exists pgcrypto;
 
--- 7. Atualizar a senha e confirmar o e-mail do Administrador (gleisson1984@gmail.com)
+-- 7. Confirmar o e-mail e metadados do Administrador Master (gleisson1984@gmail.com)
+-- NOTA DE SEGURANÇA: A senha do administrador deve ser definida/alterada pelo painel do Supabase Auth
+-- ou via variável de ambiente segura, nunca exposta em texto plano no versionamento.
 update auth.users
 set 
-  encrypted_password = crypt('SpartanAg@200624', gen_salt('bf')),
   email_confirmed_at = coalesce(email_confirmed_at, now()),
   raw_user_meta_data = coalesce(raw_user_meta_data, '{}'::jsonb) || '{"whatsapp": "5592993746740"}'::jsonb,
   updated_at = now()
 where lower(email) = 'gleisson1984@gmail.com';
 
--- 8. Tabela de Configurações Dinâmicas do Sistema (Trial, Pix e Plataforma)
+-- 8. Tabela de Configurações Dinâmicas do Sistema (Trial, Pix, Planos e Segurança do App)
 create table if not exists public.system_settings (
   key text primary key,
   value jsonb not null,
@@ -331,12 +382,12 @@ create policy "Configuracoes publicas para leitura"
   on public.system_settings for select
   using (true);
 
--- Apenas o administrador Master pode alterar configurações
+-- Apenas administradores podem alterar configurações
 drop policy if exists "Apenas admin master pode gerenciar configuracoes" on public.system_settings;
 create policy "Apenas admin master pode gerenciar configuracoes"
   on public.system_settings for all
-  using (auth.jwt()->>'email' = 'gleisson1984@gmail.com')
-  with check (auth.jwt()->>'email' = 'gleisson1984@gmail.com');
+  using (public.is_admin())
+  with check (public.is_admin());
 
 -- Inserir configuração padrão de teste grátis (3 dias ativo)
 insert into public.system_settings (key, value)

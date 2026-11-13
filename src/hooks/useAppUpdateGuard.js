@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { CURRENT_APP_VERSION, isVersionOlder } from '../config/appVersion';
 import { App as CapApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
+import { supabase } from '../lib/supabase';
 
 const CONFIG_URLS = [
   '/api/app-config',
@@ -52,12 +53,54 @@ export const isTvBoxOrApk = () => {
 
 export function useAppUpdateGuard() {
   const [isBlocked, setIsBlocked] = useState(false);
-  const [blockReason, setBlockReason] = useState(null); // 'UPDATE_REQUIRED' | 'MAINTENANCE' | 'IP_BLOCKED' | 'DEVICE_BLOCKED'
+  const [blockReason, setBlockReason] = useState(null); // 'UPDATE_REQUIRED' | 'MAINTENANCE' | 'IP_BLOCKED' | 'DEVICE_BLOCKED' | 'WEB_DISABLED' | 'APK_DISABLED'
   const [appConfig, setAppConfig] = useState(null);
   const [isChecking, setIsChecking] = useState(true);
 
   const fetchRemoteConfig = async () => {
-    // 1. Tenta carregar do cache local/admin se existir
+    let baseConfig = null;
+
+    // 1. Busca a configuração persistente no Supabase (system_settings -> app_security_config)
+    try {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'app_security_config')
+        .maybeSingle();
+
+      if (!error && data && data.value && typeof data.value === 'object') {
+        baseConfig = data.value;
+      }
+    } catch {}
+
+    // 2. Busca nas rotas de API e arquivos remotos (também obtém clientIp)
+    for (const url of CONFIG_URLS) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+        const fetchUrl = url.includes('?') ? `${url}&_t=${Date.now()}` : `${url}?_t=${Date.now()}`;
+        const res = await fetch(fetchUrl, {
+          signal: controller.signal,
+          headers: { 'Cache-Control': 'no-cache' }
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const data = await res.json();
+          if (baseConfig) {
+            return { ...data, ...baseConfig, clientIp: data.clientIp };
+          }
+          return data;
+        }
+      } catch {
+        // Tenta a próxima URL de fallback
+      }
+    }
+
+    if (baseConfig) return baseConfig;
+
+    // 3. Fallback para cache local se offline
     try {
       const localSaved = localStorage.getItem('spartan_app_config');
       if (localSaved) {
@@ -68,28 +111,6 @@ export function useAppUpdateGuard() {
       }
     } catch {}
 
-    // 2. Busca nas rotas de API e arquivos remotos
-    for (const url of CONFIG_URLS) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
-        
-        // Cache-busting para garantir leitura em tempo real
-        const fetchUrl = url.includes('?') ? `${url}&_t=${Date.now()}` : `${url}?_t=${Date.now()}`;
-        const res = await fetch(fetchUrl, {
-          signal: controller.signal,
-          headers: { 'Cache-Control': 'no-cache' }
-        });
-        clearTimeout(timeoutId);
-
-        if (res.ok) {
-          const data = await res.json();
-          return data;
-        }
-      } catch (e) {
-        // Tenta a próxima URL de fallback
-      }
-    }
     return null;
   };
 
@@ -122,7 +143,7 @@ export function useAppUpdateGuard() {
 
       // 2. Verificação de IP Bloqueado
       if (config.clientIp && Array.isArray(config.blockedIps) && config.blockedIps.length > 0) {
-        const isIpBlocked = config.blockedIps.some(blocked => 
+        const isIpBlocked = config.blockedIps.some(blocked =>
           blocked.trim() === config.clientIp.trim()
         );
         if (isIpBlocked) {
@@ -133,13 +154,45 @@ export function useAppUpdateGuard() {
         }
       }
 
+      // 2b. Verificação de Aparelho (deviceId) Bloqueado Individualmente pelo Admin
+      try {
+        const myDeviceId = localStorage.getItem('cinespartan_device_id');
+        if (myDeviceId && Array.isArray(config.blockedDevices) && config.blockedDevices.length > 0) {
+          const isDevBlocked = config.blockedDevices.some(blocked =>
+            String(blocked).trim() === myDeviceId.trim()
+          );
+          if (isDevBlocked) {
+            setIsBlocked(true);
+            setBlockReason('DEVICE_BLOCKED');
+            setIsChecking(false);
+            return;
+          }
+        }
+      } catch {}
+
+      // 2c. Controle de Acesso por Plataforma (Web vs APK/TV Box)
+      const runningOnApk = isTvBoxOrApk();
+      if (runningOnApk && config.apkAccessEnabled === false) {
+        setIsBlocked(true);
+        setBlockReason('APK_DISABLED');
+        setIsChecking(false);
+        return;
+      }
+      if (!runningOnApk && config.webAccessEnabled === false) {
+        setIsBlocked(true);
+        setBlockReason('WEB_DISABLED');
+        setIsChecking(false);
+        return;
+      }
+
       // 3. Verificação de Versão Obrigatória / Forçar Download de Atualização do APK
       // REGRA: O bloqueio de versão do APK é EXCLUSIVO para CineSpartan TV Box / Android APK!
       // Usuários acessando pelo computador / navegador web no PC NÃO são bloqueados.
-      if (isTvBoxOrApk()) {
+      if (runningOnApk) {
         const minVer = config.minVersion || '1.0.0';
-        const needsUpdate = isVersionOlder(CURRENT_APP_VERSION, minVer) || 
-                            (config.forceUpdate && config.latestVersion && CURRENT_APP_VERSION !== config.latestVersion);
+        const needsUpdate =
+          isVersionOlder(CURRENT_APP_VERSION, minVer) ||
+          (config.forceUpdate && config.latestVersion && CURRENT_APP_VERSION !== config.latestVersion);
 
         if (needsUpdate) {
           setIsBlocked(true);

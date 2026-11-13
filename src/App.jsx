@@ -84,6 +84,11 @@ function App() {
           onRecheck={recheck}
         />
       )}
+      {!isBlocked && appConfig?.globalBroadcastMessage && (
+        <div className="fixed top-0 left-0 right-0 z-[9999] bg-gradient-to-r from-purple-900/95 via-red-900/95 to-purple-900/95 border-b border-red-500/40 text-white text-xs font-bold py-1.5 px-4 text-center shadow-lg backdrop-blur-md">
+          📢 {appConfig.globalBroadcastMessage}
+        </div>
+      )}
       <Routes>
         <Route path="/admin" element={<AdminDashboard defaultTab="overview" />} />
         <Route path="/admin/users" element={<AdminDashboard defaultTab="users" />} />

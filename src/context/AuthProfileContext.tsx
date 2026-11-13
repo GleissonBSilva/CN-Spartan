@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../types/supabase';
+import { getLocalDeviceId, getLocalDeviceName, getLocalPlatformType } from '../hooks/useScreenLimiter';
+import { CURRENT_APP_VERSION } from '../config/appVersion';
 
 const ADMIN_MASTER_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL || 'gleisson1984@gmail.com').toLowerCase();
 
@@ -429,9 +431,25 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     const checkCloudStatus = async () => {
       if (!user) return;
-      const cleanEmail = (user.email || '').toLowerCase();
+      const cleanEmail = (user.email || '').toLowerCase().trim();
       const isMaster = cleanEmail === ADMIN_MASTER_EMAIL;
       if (isMaster) return;
+
+      // 0. Verifica se este usuário foi excluído localmente
+      try {
+        const rawLocalDeleted = JSON.parse(localStorage.getItem('spartan_deleted_profiles') || '[]');
+        if (Array.isArray(rawLocalDeleted) && (rawLocalDeleted.includes(user.id) || rawLocalDeleted.includes(cleanEmail))) {
+          console.warn('[Spartan Security] Usuário excluído localmente. Encerrando sessão...');
+          localStorage.removeItem('weflix_user');
+          await supabase.auth.signOut().catch(() => {});
+          if (active) {
+            setUser(null);
+            setSession(null);
+            setProfile(null);
+          }
+          return;
+        }
+      } catch {}
 
       try {
         const controller = new AbortController();
@@ -465,6 +483,7 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           );
 
           if (cp && active) {
+            // Se o perfil na nuvem foi colocado como suspenso ou vencido, aplica imediatamente no state
             setProfile((current) => {
               const base: Profile = current || {
                 id: cp.id || user.id,
@@ -480,26 +499,56 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 status: cp.status,
               };
 
-              if (
-                !current ||
-                current.status !== cp.status ||
-                current.expires_at !== cp.expires_at ||
-                current.plan_name !== cp.plan_name ||
-                current.max_screens !== cp.max_screens
-              ) {
-                const updated: Profile = {
-                  ...base,
-                  status: cp.status,
-                  expires_at: cp.expires_at,
-                  plan_name: cp.plan_name || base.plan_name,
-                  max_screens: cp.max_screens || base.max_screens,
-                };
-                syncLocalProfileRegistry(updated);
-                return updated;
-              }
-              return current;
+              const updated: Profile = {
+                ...base,
+                status: cp.status,
+                expires_at: cp.expires_at || base.expires_at,
+                plan_name: cp.plan_name || base.plan_name,
+                max_screens: cp.max_screens || base.max_screens,
+                active_devices: cp.active_devices || base.active_devices,
+                last_platform: cp.last_platform || base.last_platform,
+                last_ip: cp.last_ip || base.last_ip,
+                last_seen_at: cp.last_seen_at || base.last_seen_at,
+              };
+              syncLocalProfileRegistry(updated);
+              return updated;
             });
           }
+
+          // 3. Envia telemetria do aparelho atual (Web, Mobile Web, APK Android ou TV Box) para controle total do Admin
+          try {
+            const myDeviceId = getLocalDeviceId();
+            const myDeviceName = getLocalDeviceName();
+            const myPlatform = getLocalPlatformType();
+            const now = Date.now();
+            const existingDevices = Array.isArray(cp?.active_devices) ? cp.active_devices : [];
+            const validOthers = existingDevices.filter(
+              (d: any) => d && d.deviceId !== myDeviceId && now - Number(d.lastPing || 0) < 65000
+            );
+            const updatedDevices = [
+              ...validOthers,
+              {
+                deviceId: myDeviceId,
+                deviceName: myDeviceName,
+                lastPing: now,
+                platform: myPlatform,
+                appVersion: CURRENT_APP_VERSION,
+                currentPath: typeof window !== 'undefined' ? window.location.pathname : '/',
+              },
+            ];
+
+            fetch('/api/clients', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: cp?.id || user.id,
+                email: cleanEmail,
+                active_devices: updatedDevices,
+                last_platform: myPlatform,
+                last_seen_at: new Date().toISOString(),
+              }),
+            }).catch(() => {});
+          } catch {}
         }
       } catch {
         // Fallback offline
@@ -517,7 +566,7 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
       }
       checkCloudStatus();
-    }, 25000);
+    }, 10000);
 
     // Verificação inicial rápida
     checkCloudStatus();

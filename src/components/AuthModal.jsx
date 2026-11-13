@@ -1,55 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaTimes, FaGoogle, FaEnvelope, FaLock, FaUser, FaSpinner, FaExclamationCircle, FaCheckCircle, FaWhatsapp, FaTv } from 'react-icons/fa';
-import { BiMoviePlay } from 'react-icons/bi';
 import { supabase } from '../lib/supabase';
 import { getSavedPlans } from '../constants/plans';
 import { useAuthProfile } from '../hooks/useAuthProfile';
-import { auth, googleProvider, db } from '../firebase';
-import { 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  signInWithPopup,
-  fetchSignInMethodsForEmail,
-  linkWithCredential,
-  EmailAuthProvider,
-  sendPasswordResetEmail,
-  updateProfile 
-} from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-
-const FIREBASE_ERRORS = {
-  'auth/invalid-email':               'That email address doesn\'t look right.',
-  'auth/user-not-found':              'No account found with that email.',
-  'auth/wrong-password':              'Incorrect password. Please try again.',
-  'auth/invalid-credential':          'Email or password is incorrect.',
-  'auth/email-already-in-use':        'An account with this email already exists.',
-  'auth/weak-password':               'Password must be at least 6 characters.',
-  'auth/too-many-requests':           'Too many attempts. Please wait a moment and try again.',
-  'auth/network-request-failed':      'Network error. Please check your connection.',
-  'auth/popup-closed-by-user':        'Sign-in popup was closed. Please try again.',
-  'auth/cancelled-popup-request':     'Another sign-in popup is already open.',
-  'auth/popup-blocked':               'Popup was blocked by your browser. Please allow popups and try again.',
-  'auth/user-disabled':               'This account has been disabled. Contact support.',
-};
-
-const getFirebaseError = (err) => {
-  const code = err?.code || '';
-  return FIREBASE_ERRORS[code] || 'Something went wrong. Please try again.';
-};
-
-// Upsert user profile in Firestore (merge so existing data is not overwritten)
-const saveUserToFirestore = async (user) => {
-  const ref = doc(db, 'users', user.uid);
-  await setDoc(ref, {
-    uid: user.uid,
-    displayName: user.displayName || null,
-    email: user.email,
-    photoURL: user.photoURL || null,
-    emailVerified: user.emailVerified || false,
-    lastLoginAt: serverTimestamp(),
-  }, { merge: true });
-};
 
 const formatAuthError = (msg) => {
   if (!msg) return 'E-mail ou senha incorretos.';
@@ -168,11 +122,11 @@ export default function AuthModal({ isOpen, onClose }) {
         redirectTo: `${window.location.origin}/reset-password`,
       });
       if (supaResetErr) {
-        await sendPasswordResetEmail(auth, resetEmail.trim());
+        throw supaResetErr;
       }
       setResetSent(true);
     } catch (err) {
-      setError(getFirebaseError(err));
+      setError(formatAuthError(err?.message || 'Não foi possível enviar o link de recuperação.'));
     } finally {
       setLoading(false);
     }
@@ -259,21 +213,9 @@ export default function AuthModal({ isOpen, onClose }) {
             }
           }
 
-          // Se não estiver no registro local, tenta o Firebase como fallback
-          try {
-            const result = await signInWithEmailAndPassword(auth, cleanLoginEmail, password);
-            await result.user.reload();
-            if (!result.user.emailVerified) {
-              await auth.signOut();
-              setError('Por favor, verifique seu e-mail antes de entrar.');
-              setLoading(false);
-              return;
-            }
-          } catch {
-            setError(formatAuthError(supaError.message));
-            setLoading(false);
-            return;
-          }
+          setError(formatAuthError(supaError.message));
+          setLoading(false);
+          return;
         }
 
         if (supaData?.user) {
@@ -572,56 +514,15 @@ export default function AuthModal({ isOpen, onClose }) {
     setError('');
     setLoading(true);
     try {
-      if (isFirebaseConfigured) {
-        const result = await signInWithPopup(auth, googleProvider);
-        // Save/update user profile in Firestore
-        saveUserToFirestore(result.user).catch(console.error);
-
-        // Sincroniza imediatamente o usuário do Google na nuvem (/api/clients) para aparecer no Painel Admin
-        const googleEmail = (result.user.email || '').toLowerCase();
-        const googleName = result.user.displayName || googleEmail.split('@')[0];
-        const configuredDays = Math.max(1, Number(trialDays) || 3);
-        const expiryDate = new Date(Date.now() + configuredDays * 24 * 60 * 60 * 1000).toISOString();
-
-        const profilePayload = {
-          id: result.user.uid,
-          email: googleEmail,
-          full_name: googleName,
-          role: 'client',
-          plan_name: 'SPARTAN PRO (Google)',
-          max_screens: 2,
-          is_trial: true,
-          trial_used: true,
-          status: 'ativo',
-          expires_at: expiryDate,
-          created_at: new Date().toISOString(),
-        };
-
-        try {
-          fetch('/api/clients', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(profilePayload)
-          }).catch(() => fetch('https://cn-spartan.vercel.app/api/clients', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(profilePayload)
-          }));
-        } catch {}
-
-        onClose();
-      } else {
-        // Fallback nativo oficial pelo Supabase OAuth (Google)
-        const { error: supaOAuthErr } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: {
-            redirectTo: window.location.origin
-          }
-        });
-        if (supaOAuthErr) throw supaOAuthErr;
-      }
+      const { error: supaOAuthErr } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+      if (supaOAuthErr) throw supaOAuthErr;
     } catch (err) {
-      setError(err?.message?.replace('Firebase:', '')?.trim() || 'Erro ao autenticar com o Google.');
+      setError(err?.message || 'Erro ao autenticar com o Google.');
     } finally {
       setLoading(false);
     }
@@ -733,8 +634,8 @@ export default function AuthModal({ isOpen, onClose }) {
                         className="flex flex-col items-center gap-3 py-4 text-center"
                       >
                         <FaCheckCircle className="text-green-400 text-4xl" />
-                        <p className="text-green-300 font-semibold text-sm">Reset email sent!</p>
-                        <p className="text-gray-500 text-xs">Check your inbox for a password reset link from Firebase.</p>
+                        <p className="text-green-300 font-semibold text-sm">Link de recuperação enviado!</p>
+                        <p className="text-gray-500 text-xs">Verifique sua caixa de entrada para redefinir sua senha.</p>
                         <button
                           type="button"
                           onClick={() => { setShowReset(false); setResetSent(false); setError(''); }}

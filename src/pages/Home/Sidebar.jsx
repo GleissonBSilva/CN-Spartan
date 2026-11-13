@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -12,8 +12,6 @@ import {
 import { FaSignOutAlt, FaUserCircle, FaShieldAlt, FaBroadcastTower } from 'react-icons/fa';
 import { GENRES, SPECIAL_CATEGORIES } from './tmdb';
 import { CATEGORIES as TV_CATEGORIES } from './LiveTV/channelsData';
-import { onAuthStateChanged, signOut } from "firebase/auth";
-import { auth } from "../../firebase";
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuthProfile } from '../../hooks/useAuthProfile';
 import LanguageSelector from '../../components/LanguageSelector';
@@ -27,24 +25,21 @@ const NAV_ITEMS = [
   { id: 'watchlist', icon: BiBookmark, action: 'navigate', label: 'Watchlist' },
 ];
 
-// Read cached auth flag from localStorage for instant render
-const getCachedUser = () => {
-  try { return JSON.parse(localStorage.getItem('weflix_user')) ?? null; } catch { return null; }
-};
-
 function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpenAuthModal, onOpenAccountModal, isMobileOpen = false, onCloseMobile }) {
   const navigate = useNavigate();
   const { user: supaUser, isAdmin, profile, daysRemaining, isActive, signOut: supaSignOut } = useAuthProfile();
-  const [fbUser, setFbUser] = useState(getCachedUser);
   const { t, getGenreName } = useLanguage();
 
   const user = supaUser
     ? {
         uid: supaUser.id,
         email: supaUser.email,
-        displayName: supaUser.user_metadata?.display_name || supaUser.email?.split('@')[0],
+        displayName:
+          supaUser.user_metadata?.display_name ||
+          supaUser.user_metadata?.full_name ||
+          supaUser.email?.split('@')[0],
       }
-    : fbUser;
+    : null;
 
   const getNavLabel = (id, fallback) => {
     if (id === 'home') return t('home');
@@ -56,24 +51,9 @@ function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpe
     return fallback;
   };
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (currentUser) {
-        const cached = { uid: currentUser.uid, displayName: currentUser.displayName, email: currentUser.email };
-        localStorage.setItem('weflix_user', JSON.stringify(cached));
-        setFbUser(currentUser);
-      } else {
-        setFbUser(null);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
   const handleLogout = async () => {
     try {
       await supaSignOut();
-      await signOut(auth);
-      setFbUser(null);
       if (onCloseMobile) onCloseMobile();
     } catch (error) {
       console.error('Logout error:', error);

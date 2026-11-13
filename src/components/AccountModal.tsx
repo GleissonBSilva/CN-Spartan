@@ -20,6 +20,7 @@ import {
   FaMobileAlt,
 } from 'react-icons/fa';
 import { useAuthProfile } from '../hooks/useAuthProfile';
+import { getLocalDeviceId, getLocalDeviceName, type ActiveDevice } from '../hooks/useScreenLimiter';
 import { supabase } from '../lib/supabase';
 import { DEFAULT_PLANS, getSavedPlans, type PlanTier } from '../constants/plans';
 
@@ -291,20 +292,39 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   const handleDisconnectOtherScreens = async () => {
     setDisconnecting(true);
     try {
-      const myDeviceId = localStorage.getItem('cinespartan_device_id') || 'current';
-      const myDevicePlatform = localStorage.getItem('cinespartan_device_platform') || 'Aparelho Atual';
-
-      await supabase.auth.updateUser({
-        data: {
-          active_devices: [
-            {
-              id: myDeviceId,
-              platform: myDevicePlatform,
-              last_seen: Date.now(),
-            },
-          ],
+      const myDeviceId = getLocalDeviceId();
+      const myDeviceName = getLocalDeviceName();
+      const mySession: ActiveDevice[] = [
+        {
+          deviceId: myDeviceId,
+          deviceName: myDeviceName,
+          lastPing: Date.now(),
         },
-      });
+      ];
+
+      const targetId = profile?.id || user?.id;
+      if (targetId) {
+        try {
+          localStorage.setItem(`cinespartan_active_devices_${targetId}`, JSON.stringify(mySession));
+        } catch {}
+
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId)) {
+          try {
+            await supabase
+              .from('profiles')
+              .update({ active_devices: mySession })
+              .eq('id', targetId);
+          } catch {}
+        }
+      }
+
+      try {
+        await supabase.auth.updateUser({
+          data: {
+            active_devices: mySession,
+          },
+        });
+      } catch {}
 
       setMessage({ type: 'success', text: 'Todas as outras telas foram desconectadas com sucesso!' });
     } catch {

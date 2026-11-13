@@ -122,12 +122,15 @@ export default async function handler(req, res) {
     });
   }
 
-  // 2. POST / PUT: Registra ou atualiza status do cliente (ativo, suspenso, vencido)
+  // 2. POST / PUT: Registra ou atualiza status do cliente (ativo, suspenso, vencido) e telemetria Web/APK
   if (req.method === 'POST' || req.method === 'PUT') {
-    const profile = req.body;
+    const profile = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     if (!profile || (!profile.id && !profile.email)) {
       return res.status(400).json({ error: 'Dados de perfil inválidos' });
     }
+
+    const forwarded = req.headers['x-forwarded-for'];
+    const clientIp = forwarded ? forwarded.split(',')[0].trim() : (req.socket?.remoteAddress || '127.0.0.1');
 
     const cleanEmail = profile.email ? String(profile.email).toLowerCase().trim() : '';
     const cleanId = profile.id ? String(profile.id) : `usr-${Date.now()}`;
@@ -135,6 +138,15 @@ export default async function handler(req, res) {
     // Se estiver ativando ou reativando, remove da lista de deletados
     if (profile.status === 'ativo') {
       deletedAccounts = deletedAccounts.filter(x => x !== cleanId && x !== cleanEmail);
+    }
+
+    // Se active_devices foi enviado, injeta o IP do aparelho no último dispositivo atualizado
+    let nextDevices = profile.active_devices;
+    if (Array.isArray(nextDevices)) {
+      nextDevices = nextDevices.map((d) => ({
+        ...d,
+        ip: d.ip || clientIp
+      }));
     }
 
     const existingIdx = memoryProfiles.findIndex(
@@ -145,6 +157,8 @@ export default async function handler(req, res) {
       memoryProfiles[existingIdx] = {
         ...memoryProfiles[existingIdx],
         ...profile,
+        ...(nextDevices !== undefined ? { active_devices: nextDevices } : {}),
+        last_ip: profile.last_ip || clientIp || memoryProfiles[existingIdx].last_ip,
         id: cleanId || memoryProfiles[existingIdx].id,
         email: cleanEmail || memoryProfiles[existingIdx].email,
         updated_at: new Date().toISOString()
@@ -161,6 +175,10 @@ export default async function handler(req, res) {
         max_screens: Number(profile.max_screens || 2),
         is_trial: Boolean(profile.is_trial),
         trial_used: Boolean(profile.trial_used),
+        active_devices: Array.isArray(nextDevices) ? nextDevices : [],
+        last_platform: profile.last_platform || 'web',
+        last_ip: clientIp,
+        last_seen_at: profile.last_seen_at || new Date().toISOString(),
         expires_at: profile.expires_at || new Date(Date.now() + 30 * 86400000).toISOString(),
         created_at: profile.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString()

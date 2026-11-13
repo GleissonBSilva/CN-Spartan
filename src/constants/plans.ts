@@ -33,11 +33,11 @@ export const DEFAULT_PLANS: PlanTier[] = [
     id: 'business',
     name: 'SPARTAN BUSINESS',
     badge: 'Família VIP',
-    monthlyPrice: 99.9,
-    annualPrice: 79.9,
-    screens: 4,
+    monthlyPrice: 119.9,
+    annualPrice: 99.9,
+    screens: 5,
     quality: 'Full HD & 4K Ultra HD',
-    description: '4 telas simultâneas em qualquer dispositivo com suporte prioritário.',
+    description: '5 telas simultâneas em qualquer dispositivo com suporte prioritário.',
   },
 ];
 
@@ -50,4 +50,10 @@ export const getSavedPlans = (): PlanTier[] => {
     }
   } catch {}
   return DEFAULT_PLANS;
+};
+
+export const savePlansConfig = (plans: PlanTier[]): void => {
+  try {
+    localStorage.setItem('spartan_plans_config', JSON.stringify(plans));
+  } catch {}
 };

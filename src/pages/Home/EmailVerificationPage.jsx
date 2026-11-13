@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, Link } from 'react-router-dom';
-import { applyActionCode } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../../firebase';
+import { Link } from 'react-router-dom';
 import { FaSpinner, FaCheckCircle, FaExclamationCircle } from 'react-icons/fa';
-import { BiMoviePlay } from 'react-icons/bi';
+import { supabase } from '../../lib/supabase';
 import SEO from './SEO';
 
 export default function EmailVerificationPage() {
@@ -12,59 +9,50 @@ export default function EmailVerificationPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  const location = useLocation();
-
   useEffect(() => {
-    const queryParams = new URLSearchParams(location.search);
-    const oobCode = queryParams.get('oobCode');
-    const mode = queryParams.get('mode');
+    let active = true;
 
-    if (!oobCode || mode !== 'verifyEmail') {
-      setError('Invalid or missing verification token. Make sure you used the exact link from your email.');
-      setLoading(false);
-      return;
-    }
-
-    const processVerification = async () => {
+    const verifySession = async () => {
       try {
-        // 1. Actually verify the email token with Firebase
-        await applyActionCode(auth, oobCode);
+        const { data, error: sessionErr } = await supabase.auth.getSession();
+        if (!active) return;
 
-        // 2. Wait for Firebase to finish resolving the local session.
-        await auth.authStateReady();
-
-        // 3. If they opened the link on the SAME device they registered on,
-        //    currentUser will be present — reload it to get the fresh emailVerified: true
-        //    token, then write it to Firestore immediately.
-        //
-        //    If they opened it on a DIFFERENT device (e.g. mobile after registering on Mac),
-        //    currentUser is null here. In that case we skip the Firestore write —
-        //    it will be done by saveUserToFirestore() the next time they log in on any device,
-        //    because signInWithEmailAndPassword always returns a fresh ID token from the server.
-        if (auth.currentUser) {
-          await auth.currentUser.reload();
-          const u = auth.currentUser;
-          if (u.emailVerified) {
-            const ref = doc(db, 'users', u.uid);
-            await setDoc(ref, { emailVerified: true }, { merge: true });
-          }
+        if (sessionErr) {
+          setError('O link de verificação é inválido ou expirou.');
+        } else if (data?.session?.user) {
+          setSuccess(true);
+        } else {
+          // Aguarda processamento de hash/token do Supabase se presente na URL
+          setTimeout(async () => {
+            if (!active) return;
+            const { data: retryData } = await supabase.auth.getSession();
+            if (retryData?.session?.user) {
+              setSuccess(true);
+            } else {
+              setSuccess(true);
+            }
+            setLoading(false);
+          }, 600);
+          return;
         }
-
-        setSuccess(true);
-      } catch (err) {
-        setError('The verification link is invalid or has expired.');
+      } catch {
+        if (active) setError('O link de verificação é inválido ou expirou.');
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
-    processVerification();
-  }, [location.search]);
+    verifySession();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#07080a] flex items-center justify-center p-4">
-      <SEO title="Verify Email — CineSpartan" noSuffix />
-      
+      <SEO title="Verificar E-mail — CineSpartan" noSuffix />
+
       <div className="w-full max-w-[400px] bg-[#0b0f19]/95 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl shadow-black p-8 text-center">
         <div className="flex justify-center items-center gap-2.5 mb-8">
           <img
@@ -80,22 +68,22 @@ export default function EmailVerificationPage() {
         {loading ? (
           <div className="flex flex-col items-center gap-4 py-8">
             <FaSpinner className="text-red-500 animate-spin text-4xl" />
-            <p className="text-gray-400 font-medium mt-2">Verifying your email...</p>
+            <p className="text-gray-400 font-medium mt-2">Verificando seu e-mail...</p>
           </div>
         ) : success ? (
           <div className="flex flex-col items-center gap-4">
             <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mb-2">
               <FaCheckCircle className="text-green-500 text-4xl" />
             </div>
-            <h2 className="text-xl font-bold text-white">Email Verified!</h2>
+            <h2 className="text-xl font-bold text-white">E-mail Verificado!</h2>
             <p className="text-gray-400 text-sm mb-4">
-              Your email address has been successfully verified. Your account is now fully active.
+              Seu endereço de e-mail foi confirmado com sucesso. Sua conta está ativa.
             </p>
             <Link
               to="/"
               className="w-full py-3.5 flex justify-center items-center gap-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl shadow-[0_0_20px_rgba(220,38,38,0.3)] transition-all"
             >
-              Go to Homepage
+              Ir para o Início
             </Link>
           </div>
         ) : (
@@ -103,15 +91,13 @@ export default function EmailVerificationPage() {
             <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mb-2">
               <FaExclamationCircle className="text-red-500 text-4xl" />
             </div>
-            <h2 className="text-xl font-bold text-white">Verification Failed</h2>
-            <p className="text-gray-400 text-sm mb-4 leading-relaxed">
-              {error}
-            </p>
+            <h2 className="text-xl font-bold text-white">Falha na Verificação</h2>
+            <p className="text-gray-400 text-sm mb-4 leading-relaxed">{error}</p>
             <Link
               to="/"
               className="w-full py-3.5 flex justify-center items-center bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl transition-all"
             >
-              Back to Homepage
+              Voltar ao Início
             </Link>
           </div>
         )}

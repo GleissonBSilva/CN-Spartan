@@ -7,23 +7,13 @@ export default function AuthActionPage() {
   const location = useLocation();
 
   useEffect(() => {
-    const mode = searchParams.get('mode');
-    const oobCode = searchParams.get('oobCode');
+    const mode = searchParams.get('mode') || searchParams.get('type');
 
-    if (!mode || !oobCode) {
-      // Missing required params, send home
-      navigate('/', { replace: true });
-      return;
-    }
-
-    // Redirect to the correct feature page based on Firebase mode
-    // We pass `location.search` to forward all parameters (?mode=...&oobCode=...&apiKey=...)
-    if (mode === 'resetPassword') {
-      navigate(`/reset-password${location.search}`, { replace: true });
-    } else if (mode === 'verifyEmail') {
-      navigate(`/verify-email${location.search}`, { replace: true });
+    if (mode === 'resetPassword' || mode === 'recovery') {
+      navigate(`/reset-password${location.search}${location.hash}`, { replace: true });
+    } else if (mode === 'verifyEmail' || mode === 'signup') {
+      navigate(`/verify-email${location.search}${location.hash}`, { replace: true });
     } else {
-      // Fallback for unhandled modes like 'recoverEmail'
       navigate('/', { replace: true });
     }
   }, [navigate, searchParams, location]);

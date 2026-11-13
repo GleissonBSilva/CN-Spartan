@@ -29,23 +29,17 @@ import {
   FaBolt,
   FaSave,
   FaEdit,
+  FaDesktop,
+  FaMobileAlt,
+  FaGlobe,
+  FaPowerOff,
+  FaEye,
 } from 'react-icons/fa';
 import { supabase } from '../../lib/supabase';
 import { useAuthProfile } from '../../hooks/useAuthProfile';
 import type { Profile, ProfileStatus } from '../../types/supabase';
+import { DEFAULT_PLANS, getSavedPlans, savePlansConfig, type PlanTier } from '../../constants/plans';
 import SEO from '../Home/SEO';
-
-// Tipagem dos Planos SaaS
-interface PlanTier {
-  id: string;
-  name: string;
-  badge?: string;
-  monthlyPrice: number;
-  annualPrice: number;
-  screens: number;
-  quality: string;
-  description: string;
-}
 
 // Tipagem de Cobrança Pix
 interface PixCharge {
@@ -78,40 +72,7 @@ const DEFAULT_PIX_CONFIG: PixConfig = {
   customMessage: 'Olá! Segue sua cobrança Pix Cine Spartan para ativação ou renovação imediata:',
 };
 
-// Planos padrão para streaming Cine Spartan
-const DEFAULT_PLANS: PlanTier[] = [
-  {
-    id: 'start',
-    name: 'SPARTAN START',
-    monthlyPrice: 29.9,
-    annualPrice: 25.0,
-    screens: 1,
-    quality: 'Full HD & 4K Ultra HD',
-    description: '1 tela individual para smartphone, tablet, PC ou TV Box.',
-  },
-  {
-    id: 'pro',
-    name: 'SPARTAN PRO',
-    badge: 'Mais Popular',
-    monthlyPrice: 59.9,
-    annualPrice: 50.0,
-    screens: 2,
-    quality: 'Full HD & 4K Ultra HD',
-    description: '2 telas simultâneas para Smart TV, TV Box e família.',
-  },
-  {
-    id: 'business',
-    name: 'SPARTAN BUSINESS',
-    badge: 'Ilimitado',
-    monthlyPrice: 119.9,
-    annualPrice: 99.9,
-    screens: 5,
-    quality: 'Full HD & 4K Ultra HD',
-    description: '5 telas simultâneas em qualquer dispositivo com suporte VIP.',
-  },
-];
-
-// Configurações de Segurança e Trava do APK
+// Configurações de Segurança e Trava do APK & Web
 interface AppSecurityConfig {
   minVersion: string;
   latestVersion: string;
@@ -120,7 +81,11 @@ interface AppSecurityConfig {
   maintenanceMode: boolean;
   maintenanceMessage: string;
   updateMessage: string;
+  webAccessEnabled: boolean;
+  apkAccessEnabled: boolean;
+  globalBroadcastMessage: string;
   blockedIps: string[];
+  blockedDevices: string[];
 }
 
 const DEFAULT_SECURITY_CONFIG: AppSecurityConfig = {
@@ -131,7 +96,11 @@ const DEFAULT_SECURITY_CONFIG: AppSecurityConfig = {
   maintenanceMode: false,
   maintenanceMessage: 'Estamos realizando melhorias programadas nos servidores do Cine Spartan. O aplicativo retornará em instantes!',
   updateMessage: 'Uma nova versão com melhorias e correções obrigatórias está disponível. Atualize seu aplicativo para continuar assistindo.',
+  webAccessEnabled: true,
+  apkAccessEnabled: true,
+  globalBroadcastMessage: '',
   blockedIps: [],
+  blockedDevices: [],
 };
 
 // Cobranças Pix padrão conforme especificação (Total Faturado R$ 99,00 / Inadimplência R$ 0,00)
@@ -214,6 +183,8 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'all' | ProfileStatus | 'trial'>('all');
+  const [platformFilter, setPlatformFilter] = useState<'all' | 'online' | 'apk' | 'web'>('all');
+  const [devicesModalProfile, setDevicesModalProfile] = useState<Profile | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -236,20 +207,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   const [trialsModalOpen, setTrialsModalOpen] = useState(false);
 
   // Estados dos Planos
-  const [plans, setPlans] = useState<PlanTier[]>(() => {
-    const saved = localStorage.getItem('spartan_plans_config');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0 && 'screens' in parsed[0]) {
-          return parsed;
-        }
-      } catch {
-        // fallback
-      }
-    }
-    return DEFAULT_PLANS;
-  });
+  const [plans, setPlans] = useState<PlanTier[]>(() => getSavedPlans());
   const [savingPlanId, setSavingPlanId] = useState<string | null>(null);
 
   // Estados do Financeiro Pix
@@ -337,15 +295,17 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           ...DEFAULT_SECURITY_CONFIG,
           ...parsed,
           blockedIps: Array.isArray(parsed?.blockedIps) ? parsed.blockedIps : [],
+          blockedDevices: Array.isArray(parsed?.blockedDevices) ? parsed.blockedDevices : [],
         };
       }
     } catch {}
     return DEFAULT_SECURITY_CONFIG;
   });
   const [newIpToBlock, setNewIpToBlock] = useState('');
+  const [newDeviceToBlock, setNewDeviceToBlock] = useState('');
   const [savingSecurity, setSavingSecurity] = useState(false);
 
-  // Carrega configuração de segurança do servidor /api/app-config
+  // Carrega configuração de segurança e sistema do servidor /api/app-config e Supabase system_settings
   useEffect(() => {
     fetch('/api/app-config')
       .then((r) => (r.ok ? r.json() : null))
@@ -356,6 +316,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
               ...prev,
               ...remote,
               blockedIps: Array.isArray(remote.blockedIps) ? remote.blockedIps : (prev.blockedIps || []),
+              blockedDevices: Array.isArray(remote.blockedDevices) ? remote.blockedDevices : (prev.blockedDevices || []),
             };
             try {
               localStorage.setItem('spartan_app_config', JSON.stringify(merged));
@@ -365,19 +326,71 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         }
       })
       .catch(() => {});
+
+    // Também carrega do banco Supabase system_settings para persistência permanente em nuvem
+    supabase
+      .from('system_settings')
+      .select('key, value')
+      .then(({ data }) => {
+        if (!Array.isArray(data)) return;
+        for (const row of data) {
+          const val = row.value as any;
+          if (!val) continue;
+          if (row.key === 'app_security_config') {
+            setSecurityConfig((prev) => {
+              const merged = {
+                ...prev,
+                ...val,
+                blockedIps: Array.isArray(val.blockedIps) ? val.blockedIps : (prev.blockedIps || []),
+                blockedDevices: Array.isArray(val.blockedDevices) ? val.blockedDevices : (prev.blockedDevices || []),
+              };
+              try {
+                localStorage.setItem('spartan_app_config', JSON.stringify(merged));
+              } catch {}
+              return merged;
+            });
+          } else if (row.key === 'trial_config') {
+            const days = typeof val.trial_days === 'number' ? val.trial_days : (typeof val.days === 'number' ? val.days : 3);
+            const enabled = typeof val.enabled === 'boolean' ? val.enabled : true;
+            setTrialConfig({ days, enabled });
+            try {
+              localStorage.setItem('spartan_trial_days', String(days));
+              localStorage.setItem('spartan_trial_enabled', String(enabled));
+            } catch {}
+          } else if (row.key === 'pix_config' && val.key) {
+            setPixConfig((prev) => ({ ...prev, ...val }));
+            try {
+              localStorage.setItem('spartan_pix_config', JSON.stringify(val));
+            } catch {}
+          } else if (row.key === 'plans_config' && Array.isArray(val) && val.length > 0) {
+            setPlans(val);
+            savePlansConfig(val);
+          }
+        }
+      })
+      .catch(() => {});
   }, []);
 
-  const handleSaveSecurity = async () => {
+  const persistSecurityConfig = async (nextConfig: AppSecurityConfig, toastMsg?: string) => {
     setSavingSecurity(true);
     try {
-      const cleanConfig = {
+      const cleanConfig: AppSecurityConfig = {
         ...DEFAULT_SECURITY_CONFIG,
-        ...securityConfig,
-        blockedIps: Array.isArray(securityConfig?.blockedIps) ? securityConfig.blockedIps : [],
+        ...nextConfig,
+        blockedIps: Array.isArray(nextConfig?.blockedIps) ? nextConfig.blockedIps : [],
+        blockedDevices: Array.isArray(nextConfig?.blockedDevices) ? nextConfig.blockedDevices : [],
       };
+      setSecurityConfig(cleanConfig);
       localStorage.setItem('spartan_app_config', JSON.stringify(cleanConfig));
 
-      // Sincroniza via API /api/app-config (local e nuvem)
+      try {
+        await supabase.from('system_settings').upsert({
+          key: 'app_security_config',
+          value: cleanConfig as any,
+          updated_at: new Date().toISOString(),
+        });
+      } catch {}
+
       try {
         await fetch('/api/app-config', {
           method: 'POST',
@@ -392,7 +405,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
       setNotification({
         type: 'success',
-        message: 'Trava do APK e configurações de segurança salvas com sucesso!',
+        message: toastMsg || 'Controle Web/APK e configurações de segurança salvas com sucesso!',
       });
     } catch {
       setNotification({
@@ -402,6 +415,10 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     } finally {
       setSavingSecurity(false);
     }
+  };
+
+  const handleSaveSecurity = async () => {
+    await persistSecurityConfig(securityConfig);
   };
 
   // Modais Diagnóstico 360° e Churn
@@ -455,6 +472,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       if (fullPayload.email !== undefined) basePayload.email = fullPayload.email;
       if (fullPayload.whatsapp !== undefined) basePayload.whatsapp = fullPayload.whatsapp;
       if (fullPayload.full_name !== undefined) basePayload.full_name = fullPayload.full_name;
+      if (fullPayload.active_devices !== undefined) basePayload.active_devices = fullPayload.active_devices;
 
       if (Object.keys(basePayload).length > 0) {
         try {
@@ -463,9 +481,10 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             .update(basePayload)
             .eq('id', profileId);
         } catch {
-          // Fallback resiliente caso as colunas whatsapp ou full_name não existam na instância remota
+          // Fallback resiliente caso as colunas whatsapp, full_name ou active_devices não existam na instância remota
           delete basePayload.whatsapp;
           delete basePayload.full_name;
+          delete basePayload.active_devices;
           await supabase
             .from('profiles')
             .update(basePayload)
@@ -684,6 +703,15 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             is_trial: mergedIsTrial,
             expires_at: mergedExpiresAt,
             status: finalStatus,
+            active_devices:
+              Array.isArray(localMatch?.active_devices) && localMatch!.active_devices.length > 0
+                ? localMatch!.active_devices
+                : Array.isArray(dbP.active_devices)
+                ? dbP.active_devices
+                : [],
+            last_platform: localMatch?.last_platform || dbP.last_platform,
+            last_ip: localMatch?.last_ip || dbP.last_ip,
+            last_seen_at: localMatch?.last_seen_at || dbP.last_seen_at,
             admin_updated_at: localMatch?.admin_updated_at,
           };
         });
@@ -774,6 +802,157 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     };
   }, [isAdmin, loadProfiles, saveProfilesRegistry]);
 
+  // Atualização silenciosa em tempo real dos aparelhos Web / APK conectados
+  useEffect(() => {
+    if (!isAdmin) return;
+    const pollRemoteClients = async () => {
+      try {
+        const res = await fetch('/api/clients').catch(() => fetch('https://cn-spartan.vercel.app/api/clients'));
+        if (!res || !res.ok) return;
+        const remoteList = await res.json();
+        if (!Array.isArray(remoteList)) return;
+
+        setProfiles((prev) => {
+          let changed = false;
+          const next = prev.map((p) => {
+            const match = remoteList.find(
+              (r: any) =>
+                r.id === p.id ||
+                (r.email && p.email && String(r.email).toLowerCase() === String(p.email).toLowerCase())
+            );
+            if (!match) return p;
+
+            const remoteDevices = Array.isArray(match.active_devices) ? match.active_devices : p.active_devices || [];
+            const nextPlatform = match.last_platform || p.last_platform;
+            const nextIp = match.last_ip || p.last_ip;
+            const nextSeen = match.last_seen_at || p.last_seen_at;
+
+            if (
+              JSON.stringify(remoteDevices) !== JSON.stringify(p.active_devices || []) ||
+              nextPlatform !== p.last_platform ||
+              nextIp !== p.last_ip ||
+              nextSeen !== p.last_seen_at
+            ) {
+              changed = true;
+              return {
+                ...p,
+                active_devices: remoteDevices,
+                last_platform: nextPlatform,
+                last_ip: nextIp,
+                last_seen_at: nextSeen,
+              };
+            }
+            return p;
+          });
+          if (changed) {
+            saveProfilesRegistry(next);
+            return next;
+          }
+          return prev;
+        });
+
+        setDevicesModalProfile((curr) => {
+          if (!curr) return null;
+          const match = remoteList.find(
+            (r: any) =>
+              r.id === curr.id ||
+              (r.email && curr.email && String(r.email).toLowerCase() === String(curr.email).toLowerCase())
+          );
+          if (!match) return curr;
+          return {
+            ...curr,
+            active_devices: Array.isArray(match.active_devices) ? match.active_devices : curr.active_devices || [],
+            last_platform: match.last_platform || curr.last_platform,
+            last_ip: match.last_ip || curr.last_ip,
+            last_seen_at: match.last_seen_at || curr.last_seen_at,
+          };
+        });
+      } catch {
+        // ignore
+      }
+    };
+
+    const timer = setInterval(pollRemoteClients, 15000);
+    return () => clearInterval(timer);
+  }, [isAdmin, saveProfilesRegistry]);
+
+  // Controle de Sessões e Aparelhos (Web & APK)
+  const handleDisconnectDevices = async (profile: Profile, targetDeviceId?: string) => {
+    setActionLoadingId(profile.id);
+    try {
+      const currentDevices = Array.isArray(profile.active_devices) ? profile.active_devices : [];
+      const nextDevices = targetDeviceId
+        ? currentDevices.filter((d) => d.deviceId !== targetDeviceId)
+        : [];
+      const nowStamp = new Date().toISOString();
+
+      await persistProfileToSupabase(profile.id, {
+        email: profile.email,
+        full_name: profile.full_name,
+        whatsapp: profile.whatsapp,
+        plan_name: profile.plan_name,
+        max_screens: profile.max_screens,
+        status: profile.status,
+        expires_at: profile.expires_at,
+        active_devices: nextDevices,
+        last_platform: profile.last_platform,
+        last_ip: profile.last_ip,
+        last_seen_at: profile.last_seen_at,
+        admin_updated_at: nowStamp,
+      });
+
+      setProfiles((prev) => {
+        const next = prev.map((p) =>
+          p.id === profile.id ? { ...p, active_devices: nextDevices, admin_updated_at: nowStamp } : p
+        );
+        saveProfilesRegistry(next);
+        return next;
+      });
+
+      setDevicesModalProfile((curr) =>
+        curr && curr.id === profile.id ? { ...curr, active_devices: nextDevices } : curr
+      );
+
+      setNotification({
+        type: 'success',
+        message: targetDeviceId
+          ? `Aparelho desconectado de ${profile.full_name || profile.email}!`
+          : `Todas as telas de ${profile.full_name || profile.email} foram derrubadas!`,
+      });
+    } catch {
+      setNotification({
+        type: 'error',
+        message: 'Erro ao desconectar aparelho do cliente.',
+      });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleToggleBlockDevice = async (deviceId: string) => {
+    if (!deviceId) return;
+    const current = Array.isArray(securityConfig?.blockedDevices) ? securityConfig.blockedDevices : [];
+    const isBlocked = current.includes(deviceId);
+    const nextList = isBlocked ? current.filter((d) => d !== deviceId) : [...current, deviceId];
+    await persistSecurityConfig(
+      { ...securityConfig, blockedDevices: nextList },
+      isBlocked
+        ? `Aparelho ${deviceId} desbloqueado com sucesso!`
+        : `Aparelho ${deviceId} bloqueado permanentemente!`
+    );
+  };
+
+  const handleQuickBlockIp = async (ip: string) => {
+    if (!ip) return;
+    const current = Array.isArray(securityConfig?.blockedIps) ? securityConfig.blockedIps : [];
+    const isBlocked = current.includes(ip);
+    const nextList = isBlocked ? current.filter((i) => i !== ip) : [...current, ip];
+    await persistSecurityConfig(
+      { ...securityConfig, blockedIps: nextList },
+      isBlocked ? `IP ${ip} removido da lista negra!` : `IP ${ip} adicionado à lista negra!`
+    );
+  };
+
   // Toast automático
   useEffect(() => {
     if (notification) {
@@ -807,10 +986,25 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         admin_updated_at: nowStamp,
       });
 
+      // Se for suspenso, desconecta imediatamente todos os aparelhos ativos
+      if (newStatus === 'suspenso') {
+        try {
+          await persistProfileToSupabase(profile.id, {
+            active_devices: [],
+          });
+        } catch {}
+      }
+
       setProfiles((prev) => {
         const next = prev.map((p) =>
           p.id === profile.id
-            ? { ...p, status: newStatus, expires_at: newExpiresAt, admin_updated_at: nowStamp }
+            ? {
+                ...p,
+                status: newStatus,
+                expires_at: newExpiresAt,
+                admin_updated_at: nowStamp,
+                active_devices: newStatus === 'suspenso' ? [] : p.active_devices,
+              }
             : p
         );
         saveProfilesRegistry(next);
@@ -1104,16 +1298,24 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   };
 
   // Salvar Plano Editado
-  const handleSavePlan = (planId: string) => {
+  const handleSavePlan = async (planId: string) => {
     setSavingPlanId(planId);
-    setTimeout(() => {
-      localStorage.setItem('spartan_plans_config', JSON.stringify(plans));
-      setSavingPlanId(null);
+    try {
+      savePlansConfig(plans);
+      try {
+        await supabase.from('system_settings').upsert({
+          key: 'plans_config',
+          value: plans as any,
+          updated_at: new Date().toISOString(),
+        });
+      } catch {}
       setNotification({
         type: 'success',
         message: 'Regras e preços do plano atualizados com sucesso!',
       });
-    }, 400);
+    } finally {
+      setSavingPlanId(null);
+    }
   };
 
   // Alterar campos de um plano
@@ -1162,9 +1364,16 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   };
 
   // Salvar Configurações do Pix
-  const handleSavePixConfig = (e: React.FormEvent) => {
+  const handleSavePixConfig = async (e: React.FormEvent) => {
     e.preventDefault();
     localStorage.setItem('spartan_pix_config', JSON.stringify(pixConfig));
+    try {
+      await supabase.from('system_settings').upsert({
+        key: 'pix_config',
+        value: pixConfig as any,
+        updated_at: new Date().toISOString(),
+      });
+    } catch {}
     setPixConfigModalOpen(false);
     setNotification({
       type: 'success',
@@ -1247,6 +1456,14 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       setTrialConfig(updated);
       localStorage.setItem('spartan_trial_days', String(days));
       localStorage.setItem('spartan_trial_enabled', String(enabled));
+
+      try {
+        await supabase.from('system_settings').upsert({
+          key: 'trial_config',
+          value: { trial_days: days, enabled } as any,
+          updated_at: new Date().toISOString(),
+        });
+      } catch {}
 
       setNotification({
         type: 'success',
@@ -1505,6 +1722,44 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     const businessPct = Math.round((businessCount / totalForDist) * 100);
     const startPct = Math.max(0, 100 - proPct - businessPct);
 
+    // Métricas em tempo real de Web vs APK / TV Box
+    const ONLINE_THRESHOLD_MS = 120000; // 2 minutos
+    let onlineClientsCount = 0;
+    let onlineScreensCount = 0;
+    let apkClientsCount = 0;
+    let webClientsCount = 0;
+
+    for (const p of profiles) {
+      const devices = Array.isArray(p.active_devices) ? p.active_devices : [];
+      const liveDevices = devices.filter((d) => now - (d.lastPing || 0) < ONLINE_THRESHOLD_MS);
+      if (liveDevices.length > 0) {
+        onlineClientsCount += 1;
+        onlineScreensCount += liveDevices.length;
+      }
+
+      const hasApkDevice =
+        p.last_platform === 'apk' ||
+        p.last_platform === 'tvbox' ||
+        devices.some(
+          (d) =>
+            d.platform === 'apk' ||
+            d.platform === 'tvbox' ||
+            /tv box|apk|android/i.test(d.deviceName || '')
+        );
+      const hasWebDevice =
+        p.last_platform === 'web' ||
+        p.last_platform === 'mobile-web' ||
+        devices.some(
+          (d) =>
+            d.platform === 'web' ||
+            d.platform === 'mobile-web' ||
+            /web|windows|mac|linux/i.test(d.deviceName || '')
+        );
+
+      if (hasApkDevice) apkClientsCount += 1;
+      if (hasWebDevice || (!hasApkDevice && devices.length === 0)) webClientsCount += 1;
+    }
+
     return {
       totalClients: profiles.length,
       activeCount: activeClients.length,
@@ -1521,6 +1776,10 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       proPct,
       businessPct,
       startPct,
+      onlineClientsCount,
+      onlineScreensCount,
+      apkClientsCount,
+      webClientsCount,
       getPlanPrice,
     };
   }, [profiles, pixCharges, plans]);
@@ -1528,16 +1787,46 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   // Clientes filtrados
   const filteredProfiles = useMemo(() => {
     const now = Date.now();
+    const ONLINE_THRESHOLD_MS = 120000;
     return profiles.filter((p) => {
       const isExp = p.role !== 'admin' && new Date(p.expires_at).getTime() <= now;
       const effectiveStatus: ProfileStatus = isExp && p.status === 'ativo' ? 'vencido' : p.status;
       const isTrialUser = Boolean(p.is_trial || p.plan_name?.toLowerCase().includes('teste'));
+      const devices = Array.isArray(p.active_devices) ? p.active_devices : [];
+      const liveDevices = devices.filter((d) => now - (d.lastPing || 0) < ONLINE_THRESHOLD_MS);
 
+      const hasApk =
+        p.last_platform === 'apk' ||
+        p.last_platform === 'tvbox' ||
+        devices.some(
+          (d) =>
+            d.platform === 'apk' ||
+            d.platform === 'tvbox' ||
+            /tv box|apk|android/i.test(d.deviceName || '')
+        );
+      const hasWeb =
+        p.last_platform === 'web' ||
+        p.last_platform === 'mobile-web' ||
+        devices.some(
+          (d) =>
+            d.platform === 'web' ||
+            d.platform === 'mobile-web' ||
+            /web|windows|mac|linux/i.test(d.deviceName || '')
+        );
+
+      const q = searchTerm.toLowerCase();
       const matchSearch =
-        p.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (p.full_name && p.full_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        p.plan_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (p.whatsapp && p.whatsapp.includes(searchTerm));
+        p.email.toLowerCase().includes(q) ||
+        (p.full_name && p.full_name.toLowerCase().includes(q)) ||
+        p.plan_name.toLowerCase().includes(q) ||
+        (p.whatsapp && p.whatsapp.includes(searchTerm)) ||
+        (p.last_ip && p.last_ip.toLowerCase().includes(q)) ||
+        devices.some(
+          (d) =>
+            (d.deviceName && d.deviceName.toLowerCase().includes(q)) ||
+            (d.deviceId && d.deviceId.toLowerCase().includes(q)) ||
+            (d.ip && d.ip.toLowerCase().includes(q))
+        );
 
       const matchStatus =
         statusFilter === 'all'
@@ -1548,9 +1837,18 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           ? effectiveStatus === 'ativo' && !isTrialUser
           : effectiveStatus === statusFilter;
 
-      return matchSearch && matchStatus;
+      const matchPlatform =
+        platformFilter === 'all'
+          ? true
+          : platformFilter === 'online'
+          ? liveDevices.length > 0
+          : platformFilter === 'apk'
+          ? hasApk
+          : hasWeb || (!hasApk && devices.length === 0);
+
+      return matchSearch && matchStatus && matchPlatform;
     });
-  }, [profiles, searchTerm, statusFilter]);
+  }, [profiles, searchTerm, statusFilter, platformFilter]);
 
   // Login de fallback para Admin
   const handleAdminLoginSubmit = async (e: React.FormEvent) => {
@@ -1558,9 +1856,9 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     setLoginError('');
     setIsLoggingIn(true);
     try {
-      const res = await signInWithEmail('gleisson1984@gmail.com', adminPassword);
-      if (!res.success) {
-        setLoginError(res.error || 'Credenciais inválidas para o administrador.');
+      const { error } = await signInWithEmail('gleisson1984@gmail.com', adminPassword);
+      if (error) {
+        setLoginError(error.message || 'Credenciais inválidas para o administrador.');
       } else {
         loadProfiles();
       }
@@ -2056,44 +2354,186 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
               </div>
             </div>
 
-            {/* Barra de Filtros e Busca */}
-            <div className="bg-[#12121c] border border-purple-900/30 rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-              {/* Abas por Estado */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
-                {(
-                  [
-                    { key: 'all', label: 'Todos', count: dashboardStats.totalClients },
-                    { key: 'ativo', label: 'Ativos (Pagos)', count: dashboardStats.paidActiveCount },
-                    { key: 'trial', label: '⚡ Em Teste', count: dashboardStats.trialActiveCount },
-                    { key: 'vencido', label: 'Vencidos / Bloqueados', count: dashboardStats.expiredCount },
-                    { key: 'suspenso', label: 'Suspensos', count: dashboardStats.suspendedCount },
-                  ] as const
-                ).map((st) => (
-                  <button
-                    key={st.key}
-                    onClick={() => setStatusFilter(st.key as any)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                      statusFilter === st.key
-                        ? 'bg-purple-600 text-white shadow-sm'
-                        : 'text-gray-400 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    {st.label}
-                    <span className="ml-1.5 text-[10px] opacity-70">({st.count})</span>
-                  </button>
-                ))}
+            {/* Painel de Telemetria em Tempo Real (Web vs APK / TV Box) */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+              <div
+                onClick={() => setPlatformFilter(platformFilter === 'online' ? 'all' : 'online')}
+                className={`p-4 rounded-2xl border cursor-pointer transition ${
+                  platformFilter === 'online'
+                    ? 'bg-emerald-950/40 border-emerald-500/60 shadow-lg shadow-emerald-900/20'
+                    : 'bg-[#12121c] border-emerald-500/20 hover:border-emerald-500/40'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                    Online Agora
+                  </span>
+                  <FaTv className="text-emerald-400 text-sm" />
+                </div>
+                <div className="text-2xl font-black text-white">
+                  {dashboardStats.onlineScreensCount}{' '}
+                  <span className="text-xs font-semibold text-gray-400">
+                    {dashboardStats.onlineScreensCount === 1 ? 'tela' : 'telas'} ({dashboardStats.onlineClientsCount} clientes)
+                  </span>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">Clique para filtrar quem está assistindo agora</p>
               </div>
 
-              {/* Input de Busca */}
-              <div className="relative min-w-[260px]">
-                <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
-                <input
-                  type="text"
-                  placeholder="Buscar por e-mail ou plano..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-black/50 border border-gray-800 focus:border-purple-500 rounded-xl text-xs text-white outline-none transition"
-                />
+              <div
+                onClick={() => setPlatformFilter(platformFilter === 'apk' ? 'all' : 'apk')}
+                className={`p-4 rounded-2xl border cursor-pointer transition ${
+                  platformFilter === 'apk'
+                    ? 'bg-purple-950/40 border-purple-500/60 shadow-lg shadow-purple-900/20'
+                    : 'bg-[#12121c] border-purple-500/20 hover:border-purple-500/40'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-bold text-purple-300 uppercase tracking-wider">
+                    Clientes APK / TV Box
+                  </span>
+                  <FaMobileAlt className="text-purple-400 text-sm" />
+                </div>
+                <div className="text-2xl font-black text-white">
+                  {dashboardStats.apkClientsCount}{' '}
+                  <span className="text-xs font-semibold text-gray-400">contas</span>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Status APK:{' '}
+                  <strong className={securityConfig?.apkAccessEnabled !== false ? 'text-emerald-400' : 'text-red-400'}>
+                    {securityConfig?.apkAccessEnabled !== false ? 'Liberado' : 'Bloqueado'}
+                  </strong>
+                </p>
+              </div>
+
+              <div
+                onClick={() => setPlatformFilter(platformFilter === 'web' ? 'all' : 'web')}
+                className={`p-4 rounded-2xl border cursor-pointer transition ${
+                  platformFilter === 'web'
+                    ? 'bg-blue-950/40 border-blue-500/60 shadow-lg shadow-blue-900/20'
+                    : 'bg-[#12121c] border-blue-500/20 hover:border-blue-500/40'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-bold text-blue-300 uppercase tracking-wider">
+                    Clientes Navegador Web
+                  </span>
+                  <FaGlobe className="text-blue-400 text-sm" />
+                </div>
+                <div className="text-2xl font-black text-white">
+                  {dashboardStats.webClientsCount}{' '}
+                  <span className="text-xs font-semibold text-gray-400">contas</span>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Status Web:{' '}
+                  <strong className={securityConfig?.webAccessEnabled !== false ? 'text-emerald-400' : 'text-red-400'}>
+                    {securityConfig?.webAccessEnabled !== false ? 'Liberado' : 'Bloqueado (Só APK)'}
+                  </strong>
+                </p>
+              </div>
+
+              <div
+                onClick={() => setActiveTab('security')}
+                className="p-4 rounded-2xl border bg-[#12121c] border-red-500/25 hover:border-red-500/50 cursor-pointer transition flex flex-col justify-between"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-bold text-red-400 uppercase tracking-wider">
+                    Controle Geral Web & APK
+                  </span>
+                  <FaShieldAlt className="text-red-400 text-sm" />
+                </div>
+                <div className="flex items-center gap-2 my-1">
+                  <span className="px-2 py-0.5 rounded bg-red-500/15 border border-red-500/30 text-[10px] font-bold text-red-300">
+                    {(securityConfig?.blockedDevices || []).length} Aparelhos Banidos
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-purple-500/15 border border-purple-500/30 text-[10px] font-bold text-purple-300">
+                    {(securityConfig?.blockedIps || []).length} IPs
+                  </span>
+                </div>
+                <p className="text-[10px] text-purple-300 underline font-semibold">
+                  Configurar travas Web/APK e aviso global →
+                </p>
+              </div>
+            </div>
+
+            {/* Barra de Filtros e Busca */}
+            <div className="bg-[#12121c] border border-purple-900/30 rounded-2xl p-4 flex flex-col gap-3">
+              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+                {/* Abas por Estado */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+                  {(
+                    [
+                      { key: 'all', label: 'Todos', count: dashboardStats.totalClients },
+                      { key: 'ativo', label: 'Ativos (Pagos)', count: dashboardStats.paidActiveCount },
+                      { key: 'trial', label: '⚡ Em Teste', count: dashboardStats.trialActiveCount },
+                      { key: 'vencido', label: 'Vencidos / Bloqueados', count: dashboardStats.expiredCount },
+                      { key: 'suspenso', label: 'Suspensos', count: dashboardStats.suspendedCount },
+                    ] as const
+                  ).map((st) => (
+                    <button
+                      key={st.key}
+                      onClick={() => setStatusFilter(st.key as any)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                        statusFilter === st.key
+                          ? 'bg-purple-600 text-white shadow-sm'
+                          : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      {st.label}
+                      <span className="ml-1.5 text-[10px] opacity-70">({st.count})</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Input de Busca */}
+                <div className="relative min-w-[260px]">
+                  <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
+                  <input
+                    type="text"
+                    placeholder="Buscar por nome, e-mail, IP ou aparelho..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-black/50 border border-gray-800 focus:border-purple-500 rounded-xl text-xs text-white outline-none transition"
+                  />
+                </div>
+              </div>
+
+              {/* Filtro por Plataforma (Web vs APK / TV Box) */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-800/70">
+                <div className="flex items-center gap-1.5 overflow-x-auto">
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mr-1">
+                    Plataforma:
+                  </span>
+                  {(
+                    [
+                      { key: 'all', label: 'Todas as Plataformas', count: dashboardStats.totalClients },
+                      { key: 'online', label: '🟢 Online Agora', count: dashboardStats.onlineClientsCount },
+                      { key: 'apk', label: '📱 APK / TV Box', count: dashboardStats.apkClientsCount },
+                      { key: 'web', label: '🌐 Navegador Web / PC', count: dashboardStats.webClientsCount },
+                    ] as const
+                  ).map((pf) => (
+                    <button
+                      key={pf.key}
+                      onClick={() => setPlatformFilter(pf.key)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition whitespace-nowrap ${
+                        platformFilter === pf.key
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'bg-black/40 text-gray-400 hover:text-white border border-gray-800'
+                      }`}
+                    >
+                      {pf.label} ({pf.count})
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => loadProfiles()}
+                  className="text-[11px] font-bold text-purple-300 hover:text-white flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 transition"
+                  title="Atualizar conexões Web e APK agora"
+                >
+                  <FaSync className={loading ? 'animate-spin' : ''} />
+                  <span>Atualizar Sessões Ao Vivo</span>
+                </button>
               </div>
             </div>
 
@@ -2186,12 +2626,94 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                               </div>
                             </td>
 
-                            {/* Telas / Máquinas */}
+                            {/* Telas / Máquinas (Web & APK em Tempo Real) */}
                             <td className="py-3.5 px-4">
-                              <div className="flex items-center gap-1.5 text-gray-300 font-medium">
-                                <FaTv className="text-gray-400" />
-                                <span>{p.max_screens || 1} {p.max_screens > 1 ? 'Telas' : 'Tela'}</span>
-                              </div>
+                              {(() => {
+                                const devices = Array.isArray(p.active_devices) ? p.active_devices : [];
+                                const liveDevices = devices.filter(
+                                  (d) => Date.now() - (d.lastPing || 0) < 120000
+                                );
+                                const hasApk =
+                                  p.last_platform === 'apk' ||
+                                  p.last_platform === 'tvbox' ||
+                                  devices.some(
+                                    (d) =>
+                                      d.platform === 'apk' ||
+                                      d.platform === 'tvbox' ||
+                                      /tv box|apk|android/i.test(d.deviceName || '')
+                                  );
+                                const hasWeb =
+                                  p.last_platform === 'web' ||
+                                  p.last_platform === 'mobile-web' ||
+                                  devices.some(
+                                    (d) =>
+                                      d.platform === 'web' ||
+                                      d.platform === 'mobile-web' ||
+                                      /web|windows|mac|linux/i.test(d.deviceName || '')
+                                  );
+
+                                return (
+                                  <div className="flex flex-col items-start gap-1.5">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <button
+                                        type="button"
+                                        onClick={() => setDevicesModalProfile(p)}
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer ${
+                                          liveDevices.length > 0
+                                            ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/25'
+                                            : 'bg-gray-800/70 text-gray-300 border-gray-700 hover:bg-gray-800'
+                                        }`}
+                                        title="Clique para inspecionar e controlar os aparelhos Web e APK deste cliente"
+                                      >
+                                        {liveDevices.length > 0 ? (
+                                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                                        ) : (
+                                          <FaTv className="text-gray-400 text-[10px]" />
+                                        )}
+                                        <span>
+                                          {liveDevices.length}/{p.max_screens || 1}{' '}
+                                          {p.max_screens > 1 ? 'Telas' : 'Tela'}
+                                        </span>
+                                        {devices.length > 0 && (
+                                          <span className="text-[9px] text-purple-300 underline ml-0.5">
+                                            ({devices.length} reg.)
+                                          </span>
+                                        )}
+                                      </button>
+
+                                      {devices.length > 0 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDisconnectDevices(p)}
+                                          disabled={isActionBusy}
+                                          title="Derrubar todas as telas / aparelhos conectados agora"
+                                          className="p-1.5 rounded-lg bg-red-500/15 hover:bg-red-500/30 text-red-400 border border-red-500/30 text-[10px] transition cursor-pointer"
+                                        >
+                                          <FaPowerOff />
+                                        </button>
+                                      )}
+                                    </div>
+
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      {hasApk && (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/15 border border-purple-500/30 text-[9px] font-bold text-purple-300">
+                                          <FaMobileAlt className="text-[8px]" /> APK / TV Box
+                                        </span>
+                                      )}
+                                      {(hasWeb || (!hasApk && devices.length === 0)) && (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/15 border border-blue-500/30 text-[9px] font-bold text-blue-300">
+                                          <FaGlobe className="text-[8px]" /> Web
+                                        </span>
+                                      )}
+                                      {(p.last_ip || devices[0]?.ip) && (
+                                        <span className="px-1.5 py-0.5 rounded bg-black/50 border border-gray-800 text-[9px] font-mono text-gray-400">
+                                          IP: {p.last_ip || devices[0]?.ip}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </td>
 
                             {/* Status de Vigência */}
@@ -2823,7 +3345,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         )}
 
         {/* =========================================================================
-            5. ABA: TRAVA REMOTA DO APK, FORCE UPDATE & SEGURANÇA
+            5. ABA: TRAVA REMOTA DO APK, FORCE UPDATE & CONTROLE WEB / BROADCAST
            ========================================================================= */}
         {activeTab === 'security' && (
           <div className="space-y-8 animate-fadeIn">
@@ -2832,10 +3354,10 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
               <div>
                 <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
                   <FaShieldAlt className="text-red-500" />
-                  <span>Trava Remota do APK & Controle de Versão</span>
+                  <span>Trava APK, Controle de Navegador Web & Segurança Remota</span>
                 </h2>
                 <p className="text-xs sm:text-sm text-gray-400 mt-1">
-                  Gerencie a versão obrigatória para TV Box e Android, ative modo manutenção e bloqueie IPs indesejados remotamente.
+                  Gerencie o acesso de Navegadores Web vs APK TV Box, envie aviso broadcast em tempo real, defina a versão obrigatória e bloqueie aparelhos/IPs indesejados.
                 </p>
               </div>
 
@@ -2847,6 +3369,114 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                 <FaSave />
                 <span>{savingSecurity ? 'Salvando...' : 'Salvar Alterações Remotas'}</span>
               </button>
+            </div>
+
+            {/* Painel de Controle de Acesso: Web vs APK & Mensagem Global */}
+            <div className="bg-[#10141f] border border-purple-900/40 rounded-2xl p-5 sm:p-6 shadow-xl space-y-5">
+              <div className="flex items-center gap-2.5 pb-3 border-b border-gray-800">
+                <div className="w-9 h-9 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                  <FaGlobe />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Chaves de Acesso por Plataforma (Web & Aplicativo APK)</h3>
+                  <p className="text-[11px] text-gray-400">
+                    Ligue ou desligue o acesso pelo navegador do computador ou force todos a usarem o APK instalado no TV Box / Celular
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Switch: Acesso via Navegador Web */}
+                <div className="p-4 rounded-xl bg-black/40 border border-gray-800 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <FaGlobe className={securityConfig?.webAccessEnabled !== false ? 'text-blue-400' : 'text-gray-500'} />
+                      <span className="text-xs font-bold text-white">Acesso via Navegador Web (PC / Desktop / Mobile)</span>
+                    </div>
+                    <span className="text-[10px] text-gray-400 block mt-1">
+                      {securityConfig?.webAccessEnabled !== false
+                        ? 'Clientes podem assistir via navegador (Chrome, Edge, Firefox, etc.)'
+                        : 'BLOQUEADO: Exibe tela ordenando o download do APK oficial para TV Box / Android'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSecurityConfig({
+                        ...DEFAULT_SECURITY_CONFIG,
+                        ...securityConfig,
+                        webAccessEnabled: securityConfig?.webAccessEnabled === false ? true : false,
+                      })
+                    }
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer shrink-0 ${
+                      securityConfig?.webAccessEnabled !== false ? 'bg-emerald-600' : 'bg-red-600'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        securityConfig?.webAccessEnabled !== false ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Switch: Acesso via Aplicativo APK / TV Box */}
+                <div className="p-4 rounded-xl bg-black/40 border border-gray-800 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <FaMobileAlt className={securityConfig?.apkAccessEnabled !== false ? 'text-purple-400' : 'text-gray-500'} />
+                      <span className="text-xs font-bold text-white">Acesso via Aplicativo APK (TV Box & Android)</span>
+                    </div>
+                    <span className="text-[10px] text-gray-400 block mt-1">
+                      {securityConfig?.apkAccessEnabled !== false
+                        ? 'Permite conexões vindas do aplicativo Cine Spartan oficial'
+                        : 'SUSPENSO: Bloqueia imediatamente o aplicativo em todos os TV Boxes'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSecurityConfig({
+                        ...DEFAULT_SECURITY_CONFIG,
+                        ...securityConfig,
+                        apkAccessEnabled: securityConfig?.apkAccessEnabled === false ? true : false,
+                      })
+                    }
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer shrink-0 ${
+                      securityConfig?.apkAccessEnabled !== false ? 'bg-emerald-600' : 'bg-red-600'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        securityConfig?.apkAccessEnabled !== false ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Broadcast Global (Faixa de Aviso no Topo de Todos os Dispositivos) */}
+              <div className="pt-2 border-t border-gray-800/80">
+                <label className="text-[11px] font-bold text-purple-300 block mb-1">
+                  📢 Aviso Global em Tempo Real (Broadcast Web & APK):
+                </label>
+                <input
+                  type="text"
+                  value={securityConfig?.globalBroadcastMessage || ''}
+                  onChange={(e) =>
+                    setSecurityConfig({
+                      ...DEFAULT_SECURITY_CONFIG,
+                      ...securityConfig,
+                      globalBroadcastMessage: e.target.value,
+                    })
+                  }
+                  placeholder="Ex: ⚠️ Manutenção nos servidores às 23:00 para novos lançamentos 4K! | Ou deixe em branco para ocultar"
+                  className="w-full px-3.5 py-2.5 bg-black/60 border border-purple-500/40 focus:border-purple-500 rounded-xl text-xs text-white outline-none"
+                />
+                <span className="text-[10px] text-gray-500 mt-1 block">
+                  Exibido em destaque no topo da tela de todos os clientes assistindo na Web ou no APK da TV Box.
+                </span>
+              </div>
             </div>
 
             {/* Grid Principal de Configurações */}
@@ -2944,7 +3574,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                 </div>
               </div>
 
-              {/* Card 2: Modo Manutenção e Bloqueio de IP */}
+              {/* Card 2: Modo Manutenção, Bloqueio de IP e Bloqueio de Aparelhos (Device ID) */}
               <div className="space-y-6">
 
                 {/* Modo Manutenção (Kill Switch) */}
@@ -2985,6 +3615,64 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                       className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-xl text-xs text-white focus:border-amber-500 focus:outline-none resize-none"
                     />
                   </div>
+                </div>
+
+                {/* Bloqueador de Aparelhos Físicos (Device ID) */}
+                <div className="bg-[#10141f] border border-gray-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
+                  <div className="flex items-center gap-2.5 pb-3 border-b border-gray-800">
+                    <div className="w-9 h-9 rounded-xl bg-red-600/20 border border-red-500/30 flex items-center justify-center text-red-400">
+                      <FaDesktop />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Aparelhos Bloqueados (Device ID)</h3>
+                      <p className="text-[11px] text-gray-400">Bane um aparelho físico específico (TV Box, Celular ou PC) permanentemente</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newDeviceToBlock}
+                      onChange={(e) => setNewDeviceToBlock(e.target.value)}
+                      placeholder="Cole o Device ID do aparelho..."
+                      className="flex-1 px-3 py-2 bg-black/50 border border-gray-700 rounded-xl text-xs text-white focus:border-red-500 focus:outline-none font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!newDeviceToBlock.trim()) return;
+                        handleToggleBlockDevice(newDeviceToBlock.trim());
+                        setNewDeviceToBlock('');
+                      }}
+                      className="px-3.5 py-2 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      <FaBan />
+                      <span>Banir Aparelho</span>
+                    </button>
+                  </div>
+
+                  {(!Array.isArray(securityConfig?.blockedDevices) || securityConfig.blockedDevices.length === 0) ? (
+                    <p className="text-xs text-gray-500 italic py-1 text-center">Nenhum aparelho físico bloqueado.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto pt-1">
+                      {(securityConfig?.blockedDevices || []).map((devId) => (
+                        <span
+                          key={devId}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-600/20 border border-red-500/30 text-red-300 text-xs font-mono font-bold"
+                        >
+                          <span title={devId}>{devId.slice(0, 16)}...</span>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleBlockDevice(devId)}
+                            className="text-red-400 hover:text-white ml-1 p-0.5 cursor-pointer"
+                            title="Desbloquear Aparelho"
+                          >
+                            <FaTimes className="text-[10px]" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Bloqueador de Endereço IP */}
@@ -3067,12 +3755,15 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             <div className="p-4 rounded-2xl bg-gradient-to-r from-red-950/30 via-black to-purple-950/30 border border-white/10 flex items-start gap-3">
               <FaShieldAlt className="text-red-400 text-xl shrink-0 mt-0.5" />
               <div className="text-xs text-gray-300 leading-relaxed space-y-1">
-                <span className="font-bold text-white block">Como funciona a Trava Remota no CineSpartan TV Box:</span>
+                <span className="font-bold text-white block">Como funciona a Trava Remota & Controle de Plataforma:</span>
                 <p>
-                  Esta trava e a tela de forçar download do APK atuam <strong>exclusivamente nos aparelhos TV Box e celulares Android</strong> onde o APK está instalado. O acesso de clientes navegando pelo computador (PC/Desktop) <strong>nunca é bloqueado</strong> por atualização de versão.
+                  • <strong>Acesso Navegador Web:</strong> Permite desativar temporariamente o streaming pelo PC caso queira concentrar seus clientes 100% no APK oficial instalado no TV Box ou Android.
+                </p>
+                <p>
+                  • <strong>Aparelhos Bloqueados (Device ID):</strong> Se um cliente compartilhar a senha com terceiros, você pode derrubar ou banir apenas o aparelho intruso sem prejudicar o cliente principal.
                 </p>
                 <p className="text-gray-400">
-                  Ao modificar a <strong>Versão Mínima</strong> ou ativar o <strong>Forçar Atualização na TV Box</strong> e clicar em Salvar, qualquer aparelho com versão desatualizada exibirá imediatamente a tela de bloqueio com o botão de download do novo APK.
+                  • <strong>Atualização do APK:</strong> Ao alterar a <strong>Versão Mínima</strong> ou ativar <strong>Forçar Atualização na TV Box</strong>, qualquer aparelho com versão anterior é imediatamente bloqueado com um botão de download para a nova versão.
                 </p>
               </div>
             </div>
@@ -3864,6 +4555,208 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
               <div className="p-3 bg-amber-950/30 border border-amber-800/40 rounded-xl text-xs text-amber-200/90 leading-relaxed">
                 <strong>🛡️ Como funciona a proteção:</strong> Mesmo que você exclua um cliente da lista ativa para liberar telas ou espaço, o e-mail e o WhatsApp dele permanecem gravados aqui. Se ele tentar criar uma conta nova, o sistema detecta na hora e bloqueia o acesso, exigindo o pagamento via Pix.
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal 8: Gerenciador de Aparelhos e Telas Conectadas (Web & APK) */}
+      <AnimatePresence>
+        {devicesModalProfile && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-2xl bg-[#13131e] border border-purple-900/60 rounded-2xl p-6 shadow-2xl relative"
+            >
+              <button
+                onClick={() => setDevicesModalProfile(null)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-white"
+              >
+                <FaTimes />
+              </button>
+
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-purple-700 to-indigo-600 flex items-center justify-center text-white text-lg font-bold shadow-lg shadow-purple-900/30">
+                  <FaTv />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <span>Aparelhos & Telas de {devicesModalProfile.full_name || devicesModalProfile.email}</span>
+                  </h3>
+                  <p className="text-xs text-gray-400">
+                    Controle em tempo real de quem está assistindo via APK / TV Box ou Navegador Web
+                  </p>
+                </div>
+              </div>
+
+              {/* Informações da Conta */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4 p-3 rounded-xl bg-black/40 border border-gray-800 text-xs">
+                <div>
+                  <span className="text-[10px] text-gray-500 uppercase font-bold block">Plano</span>
+                  <span className="font-bold text-purple-300">{devicesModalProfile.plan_name}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-gray-500 uppercase font-bold block">Limite de Telas</span>
+                  <span className="font-bold text-white">{devicesModalProfile.max_screens || 1} Telas Simultâneas</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-gray-500 uppercase font-bold block">Último IP</span>
+                  <span className="font-mono text-gray-300">{devicesModalProfile.last_ip || 'Desconhecido'}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-gray-500 uppercase font-bold block">Visto por último</span>
+                  <span className="text-gray-300">
+                    {devicesModalProfile.last_seen_at
+                      ? new Date(devicesModalProfile.last_seen_at).toLocaleTimeString('pt-BR')
+                      : 'Agora'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Lista de Aparelhos Registrados */}
+              <div className="space-y-2 mb-5 max-h-72 overflow-y-auto">
+                {(!Array.isArray(devicesModalProfile.active_devices) || devicesModalProfile.active_devices.length === 0) ? (
+                  <div className="p-8 text-center bg-black/30 rounded-xl border border-gray-800 text-gray-400 text-xs">
+                    <FaTv className="mx-auto text-2xl text-gray-600 mb-2" />
+                    <span>Nenhum aparelho ativo ou tela conectada no momento.</span>
+                  </div>
+                ) : (
+                  devicesModalProfile.active_devices.map((device, idx) => {
+                    const isOnline = Date.now() - (device.lastPing || 0) < 120000;
+                    const isApk =
+                      device.platform === 'apk' ||
+                      device.platform === 'tvbox' ||
+                      /tv box|apk|android/i.test(device.deviceName || '');
+                    const isDeviceBanned = (securityConfig?.blockedDevices || []).includes(device.deviceId);
+                    const isIpBanned = device.ip && (securityConfig?.blockedIps || []).includes(device.ip);
+
+                    return (
+                      <div
+                        key={device.deviceId || idx}
+                        className={`p-3.5 rounded-xl border transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                          isOnline
+                            ? 'bg-emerald-950/20 border-emerald-500/30'
+                            : 'bg-black/40 border-gray-800'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-9 h-9 rounded-lg flex items-center justify-center text-base shrink-0 ${
+                              isApk
+                                ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30'
+                                : 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                            }`}
+                          >
+                            {isApk ? <FaMobileAlt /> : <FaDesktop />}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-white text-xs">{device.deviceName || 'Aparelho Cine Spartan'}</span>
+                              <span
+                                className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                  isOnline
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                    : 'bg-gray-800 text-gray-400 border border-gray-700'
+                                }`}
+                              >
+                                {isOnline ? 'Online Agora' : 'Inativo / Recente'}
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded bg-black/60 border border-gray-800 text-[9px] text-gray-400 font-bold uppercase">
+                                {isApk ? 'APK / TV Box' : 'Navegador Web'}
+                              </span>
+                              {isDeviceBanned && (
+                                <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 text-[9px] font-bold border border-red-500/30">
+                                  Aparelho Banido
+                                </span>
+                              )}
+                              {isIpBanned && (
+                                <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 text-[9px] font-bold border border-red-500/30">
+                                  IP Banido
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-gray-400 font-mono flex items-center gap-2 mt-0.5 flex-wrap">
+                              <span>ID: {device.deviceId ? `${device.deviceId.slice(0, 12)}...` : 'N/A'}</span>
+                              {device.ip && <span>IP: {device.ip}</span>}
+                              {device.appVersion && <span>Versão: {device.appVersion}</span>}
+                              {device.currentPath && <span>Página: {device.currentPath}</span>}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Ações por Aparelho */}
+                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                          <button
+                            type="button"
+                            onClick={() => handleDisconnectDevices(devicesModalProfile, device.deviceId)}
+                            className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
+                            title="Desconectar esta tela imediatamente"
+                          >
+                            <FaPowerOff className="text-[9px]" />
+                            <span>Derrubar Tela</span>
+                          </button>
+
+                          {device.deviceId && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleBlockDevice(device.deviceId)}
+                              className={`p-1.5 rounded-lg border text-[10px] transition cursor-pointer ${
+                                isDeviceBanned
+                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                  : 'bg-red-500/15 text-red-400 border-red-500/30 hover:bg-red-500/30'
+                              }`}
+                              title={isDeviceBanned ? 'Desbanir este aparelho' : 'Banir este aparelho (Device ID)'}
+                            >
+                              <FaBan />
+                            </button>
+                          )}
+
+                          {device.ip && (
+                            <button
+                              type="button"
+                              onClick={() => handleQuickBlockIp(device.ip!)}
+                              className={`p-1.5 rounded-lg border text-[10px] transition cursor-pointer ${
+                                isIpBanned
+                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                  : 'bg-purple-500/15 text-purple-300 border-purple-500/30 hover:bg-purple-500/30'
+                              }`}
+                              title={isIpBanned ? 'Desbanir IP deste aparelho' : 'Banir endereço IP'}
+                            >
+                              <FaShieldAlt />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Botões do Rodapé */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-gray-800">
+                <button
+                  type="button"
+                  onClick={() => handleDisconnectDevices(devicesModalProfile)}
+                  disabled={
+                    !Array.isArray(devicesModalProfile.active_devices) ||
+                    devicesModalProfile.active_devices.length === 0
+                  }
+                  className="w-full sm:w-auto px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 disabled:opacity-40 cursor-pointer shadow-lg shadow-red-900/30"
+                >
+                  <FaPowerOff />
+                  <span>Derrubar Todas as Telas Deste Cliente</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDevicesModalProfile(null)}
+                  className="w-full sm:w-auto px-5 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl text-xs font-semibold transition"
+                >
+                  Fechar
+                </button>
               </div>
             </motion.div>
           </div>

@@ -169,6 +169,18 @@ function apiServerlessPlugin() {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), streamProxyPlugin(), apiServerlessPlugin()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+          'vendor-hls': ['hls.js'],
+          'vendor-ui': ['framer-motion', 'react-icons'],
+        },
+      },
+    },
+  },
   server: {
     host: '0.0.0.0', // Expose on all network interfaces
     watch: {

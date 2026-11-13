@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { BiChevronLeft, BiChevronRight, BiTime } from 'react-icons/bi';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth, db } from '../../firebase';
 import { useAuthProfile } from '../../hooks/useAuthProfile';
 import ContentCard from './ContentCard';
 
@@ -17,22 +14,14 @@ export default function ContinueWatchingRow({ onSelect }) {
       return [];
     }
   });
-  const [fbUser, setFbUser] = useState(null);
   const rowRef = useRef(null);
   const dragStateRef = useRef({ active: false, startX: 0, startScrollLeft: 0, moved: false });
   const suppressClickRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  const activeUid = supaUser?.id || fbUser?.uid || null;
+  const activeUid = supaUser?.id || null;
 
-  // Track Firebase auth fallback
-  useEffect(() => {
-    return onAuthStateChanged(auth, (u) => {
-      setFbUser(u);
-    });
-  }, []);
-
-  // Load and sync from localStorage for Supabase/local users
+  // Load and sync from localStorage for authenticated users
   useEffect(() => {
     const loadFromStorage = () => {
       if (!activeUid) {
@@ -40,7 +29,10 @@ export default function ContinueWatchingRow({ onSelect }) {
         return;
       }
       try {
-        const raw = localStorage.getItem(`wf_cw_cache_items_${activeUid}`) || localStorage.getItem('wf_cw_cache_items') || '[]';
+        const raw =
+          localStorage.getItem(`wf_cw_cache_items_${activeUid}`) ||
+          localStorage.getItem('wf_cw_cache_items') ||
+          '[]';
         setItems(JSON.parse(raw));
       } catch {
         setItems([]);
@@ -51,27 +43,6 @@ export default function ContinueWatchingRow({ onSelect }) {
     window.addEventListener('continueWatchingUpdated', loadFromStorage);
     return () => window.removeEventListener('continueWatchingUpdated', loadFromStorage);
   }, [activeUid]);
-
-  // Sync from Firestore if authenticated via Firebase
-  useEffect(() => {
-    if (!fbUser?.uid || supaUser) return;
-    const q = query(
-      collection(db, 'users', fbUser.uid, 'continue_watching'),
-      orderBy('updatedAt', 'desc'),
-      limit(20)
-    );
-    const unsub = onSnapshot(q, (snapshot) => {
-      const data = [];
-      snapshot.forEach(doc => data.push(doc.data()));
-      setItems(data);
-      try {
-        localStorage.setItem('wf_cw_cache_items', JSON.stringify(data));
-      } catch {
-        // limit reached
-      }
-    }, () => {});
-    return unsub;
-  }, [fbUser, supaUser]);
 
   const scroll = (dir) => {
     const el = rowRef.current;
@@ -163,7 +134,6 @@ export default function ContinueWatchingRow({ onSelect }) {
       >
         {items.map((item) => {
           const releaseDate = item.release_date || '';
-          const isTv = item.mediaType === 'tv';
           return (
             <div
               key={item.id}

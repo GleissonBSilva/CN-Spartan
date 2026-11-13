@@ -1,58 +1,95 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { verifyPasswordResetCode, confirmPasswordReset } from 'firebase/auth';
-import { auth } from '../../firebase';
+import { Link } from 'react-router-dom';
 import { FaLock, FaSpinner, FaCheckCircle, FaExclamationCircle } from 'react-icons/fa';
-import { BiMoviePlay } from 'react-icons/bi';
+import { supabase } from '../../lib/supabase';
 import SEO from './SEO';
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [email, setEmail] = useState('');
   const [validating, setValidating] = useState(true);
 
-  const location = useLocation();
-
-  const queryParams = new URLSearchParams(location.search);
-  const oobCode = queryParams.get('oobCode');
-  const mode = queryParams.get('mode');
-
   useEffect(() => {
-    if (!oobCode || mode !== 'resetPassword') {
-      setError('Invalid or missing reset token. Make sure you used the exact link from your email.');
-      setValidating(false);
-      return;
-    }
+    let active = true;
 
-    // Verify the password reset code
-    verifyPasswordResetCode(auth, oobCode)
-      .then((email) => {
-        setEmail(email);
+    const checkRecoverySession = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!active) return;
+
+        if (data?.session?.user) {
+          setEmail(data.session.user.email || '');
+          setValidating(false);
+          return;
+        }
+
+        // Verifica também parâmetros na URL caso o link tenha acabado de redirecionar
+        const hash = window.location.hash;
+        const search = window.location.search;
+        if (hash.includes('access_token') || hash.includes('type=recovery') || search.includes('code=')) {
+          setTimeout(async () => {
+            if (!active) return;
+            const { data: retryData } = await supabase.auth.getSession();
+            if (retryData?.session?.user) {
+              setEmail(retryData.session.user.email || '');
+            } else {
+              setError('Link de redefinição inválido ou expirado. Solicite um novo link na tela de login.');
+            }
+            setValidating(false);
+          }, 800);
+          return;
+        }
+
+        setError('Link de redefinição inválido ou expirado. Solicite um novo link na tela de login.');
         setValidating(false);
-      })
-      .catch((err) => {
-        setError('The password reset link is invalid or has expired. Please request a new one.');
+      } catch {
+        if (active) {
+          setError('Não foi possível validar o link de redefinição de senha.');
+          setValidating(false);
+        }
+      }
+    };
+
+    checkRecoverySession();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+      if (event === 'PASSWORD_RECOVERY' || session?.user) {
+        setEmail(session?.user?.email || '');
+        setError('');
         setValidating(false);
-      });
-  }, [oobCode, mode]);
+      }
+    });
+
+    return () => {
+      active = false;
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!password || password.length < 6) {
-      setError('Password must be at least 6 characters long.');
+      setError('A nova senha deve ter pelo menos 6 caracteres.');
       return;
     }
-    
+    if (confirmPassword && password !== confirmPassword) {
+      setError('As senhas digitadas não coincidem.');
+      return;
+    }
+
     setLoading(true);
     setError('');
     try {
-      await confirmPasswordReset(auth, oobCode, password);
+      const { error: updateErr } = await supabase.auth.updateUser({ password });
+      if (updateErr) throw updateErr;
       setSuccess(true);
     } catch (err) {
-      setError(err.message.replace('Firebase:', '').trim());
+      setError(err?.message || 'Erro ao atualizar a senha. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -68,8 +105,8 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="min-h-screen bg-[#07080a] flex items-center justify-center p-4">
-      <SEO title="Reset Password — CineSpartan" noSuffix />
-      
+      <SEO title="Redefinir Senha — CineSpartan" noSuffix />
+
       <div className="w-full max-w-[400px] bg-[#0b0f19]/95 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl shadow-black p-8">
         <div className="flex justify-center items-center gap-2.5 mb-8">
           <img
@@ -87,24 +124,24 @@ export default function ResetPasswordPage() {
             <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mb-2">
               <FaCheckCircle className="text-green-500 text-4xl" />
             </div>
-            <h2 className="text-xl font-bold text-white">Password Reset!</h2>
+            <h2 className="text-xl font-bold text-white">Senha Atualizada!</h2>
             <p className="text-gray-400 text-sm mb-4">
-              Your password has been successfully updated. You can now log in with your new password.
+              Sua senha foi alterada com sucesso. Você já pode acessar o Cine Spartan normalmente.
             </p>
             <Link
               to="/"
               className="w-full py-3.5 flex justify-center items-center gap-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl shadow-[0_0_20px_rgba(220,38,38,0.3)] transition-all"
             >
-              Go to Homepage
+              Ir para o Início
             </Link>
           </div>
         ) : (
           <>
-            <h2 className="text-xl font-bold text-white mb-2 text-center">Set New Password</h2>
+            <h2 className="text-xl font-bold text-white mb-2 text-center">Definir Nova Senha</h2>
             {email ? (
-                <p className="text-gray-400 text-sm text-center mb-6">for {email}</p>
+              <p className="text-gray-400 text-sm text-center mb-6">para {email}</p>
             ) : (
-                <div className="mb-6"/>
+              <div className="mb-6" />
             )}
 
             {error && (
@@ -114,17 +151,15 @@ export default function ResetPasswordPage() {
               </div>
             )}
 
-            {(!email || error) && (
+            {error ? (
               <Link
                 to="/"
                 className="w-full py-3.5 flex justify-center items-center bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl transition-all"
               >
-                Back to Homepage
+                Voltar ao Início
               </Link>
-            )}
-
-            {email && !error && (
-              <form onSubmit={handleSubmit} className="space-y-5">
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="relative">
                   <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
                     <FaLock className="text-gray-500 text-sm" />
@@ -132,9 +167,25 @@ export default function ResetPasswordPage() {
                   <input
                     type="password"
                     required
+                    minLength={6}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="New Password"
+                    placeholder="Nova Senha (mín. 6 caracteres)"
+                    className="w-full bg-black/20 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500 transition-all font-medium text-sm"
+                  />
+                </div>
+
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                    <FaLock className="text-gray-500 text-sm" />
+                  </div>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirmar Nova Senha"
                     className="w-full bg-black/20 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500 transition-all font-medium text-sm"
                   />
                 </div>
@@ -145,7 +196,7 @@ export default function ResetPasswordPage() {
                   className="w-full py-3.5 flex justify-center items-center gap-2 disabled:opacity-50 text-white font-bold rounded-xl shadow-[0_0_20px_rgba(220,38,38,0.3)] bg-red-600 hover:bg-red-500 transition-all"
                 >
                   {loading && <FaSpinner className="animate-spin" />}
-                  Update Password
+                  Salvar Nova Senha
                 </button>
               </form>
             )}

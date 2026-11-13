@@ -4,8 +4,6 @@ import { BiUpArrowAlt, BiHomeAlt, BiMoviePlay, BiTv, BiSearch, BiBookmark, BiMen
 import { FaUserCircle, FaSignOutAlt, FaBroadcastTower } from 'react-icons/fa';
 import Sidebar from './Sidebar';
 import { buildBrowsePath, getCategoryBySlug } from './urlFilters';
-import { onAuthStateChanged, signOut } from "firebase/auth";
-import { auth } from "../../firebase";
 import AuthModal from "../../components/AuthModal";
 import AccountModal from "../../components/AccountModal";
 import { useLanguage } from "../../context/LanguageContext";
@@ -19,21 +17,13 @@ function ParentComponent() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [scrollPosition, setScrollPosition] = useState(0);
-  const [user, setUser] = useState(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const { t } = useLanguage();
 
-  const isUserLoggedIn = !!(supaUser || user);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-    return () => unsubscribe();
-  }, []);
+  const isUserLoggedIn = Boolean(supaUser);
 
   useEffect(() => {
     const handleOpenAuthModal = () => setIsAuthModalOpen(true);
@@ -49,7 +39,6 @@ function ParentComponent() {
   const handleLogout = async () => {
     try {
       await supaSignOut();
-      await signOut(auth);
     } catch (error) {
       console.error('Logout error:', error);
     }

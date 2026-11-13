@@ -1,12 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { BiChevronLeft, BiChevronRight } from 'react-icons/bi';
-import { FiArrowRight } from 'react-icons/fi';
 import { HiSparkles } from 'react-icons/hi';
-import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth, db } from '../../firebase';
 import ContentCard from './ContentCard';
 import { useWatchlist } from '../../context/WatchlistContext';
+import { useAuthProfile } from '../../hooks/useAuthProfile';
 
 const API_KEY = import.meta.env.VITE_TMDB_API || '5f7f80e39e460ebace782d8aa6cfe1f2';
 const BASE_URL = import.meta.env.VITE_BASE_URL || 'https://api.themoviedb.org/3';
@@ -25,36 +22,39 @@ async function fetchRecsForItem(mediaType, mediaId, count = 8) {
     if (!res.ok) return [];
     const data = await res.json();
     return (data.results ?? [])
-      .filter(i => i.poster_path)
+      .filter((i) => i.poster_path)
       .slice(0, count)
-      .map(i => ({ ...i, media_type: mediaType }));
+      .map((i) => ({ ...i, media_type: mediaType }));
   } catch {
     return [];
   }
 }
 
 /**
- * Picks up to `seedCount` seed items from CW + Watchlist, merges,
+ * Picks up to `seedCount` seed items from Continue Watching + Watchlist, merges,
  * fetches recommendations, deduplicates.
  */
 async function buildPersonalisedFeed(userId, watchlistItems, seedCount = 4) {
-  // 1. Get the most recently watched items
+  // 1. Get the most recently watched items from localStorage
   let cwItems = [];
   try {
-    const q = query(
-      collection(db, 'users', userId, 'continue_watching'),
-      orderBy('updatedAt', 'desc'),
-      limit(seedCount)
-    );
-    const snap = await getDocs(q);
-    snap.forEach(d => cwItems.push(d.data()));
-  } catch { /* ignore */ }
+    const raw =
+      localStorage.getItem(`wf_cw_cache_items_${userId}`) ||
+      localStorage.getItem('wf_cw_cache_items') ||
+      '[]';
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      cwItems = parsed.slice(0, seedCount);
+    }
+  } catch {
+    /* ignore */
+  }
 
   // 2. Pad with watchlist items if we don't have enough CW seeds
   const seeds = [...cwItems];
-  for (const wl of (watchlistItems ?? [])) {
+  for (const wl of watchlistItems ?? []) {
     if (seeds.length >= seedCount) break;
-    if (!seeds.find(s => s.id === wl.mediaId)) {
+    if (!seeds.find((s) => String(s.id) === String(wl.mediaId))) {
       seeds.push({ id: wl.mediaId, mediaType: wl.type ?? 'movie', title: wl.title });
     }
   }
@@ -62,14 +62,14 @@ async function buildPersonalisedFeed(userId, watchlistItems, seedCount = 4) {
   if (seeds.length === 0) return { items: [], seedTitles: [] };
 
   const rawTitles = seeds
-    .map(s => s.title || s.name || '')
+    .map((s) => s.title || s.name || '')
     .filter(Boolean)
-    .map(t => t.replace(/\s*-\s*S\d+E\d+.*$/, '')); // Strip " - S1E1"
+    .map((t) => t.replace(/\s*-\s*S\d+E\d+.*$/, ''));
   const seedTitles = [...new Set(rawTitles)];
 
   // 3. Fetch recs in parallel
   const recArrays = await Promise.all(
-    seeds.map(s => fetchRecsForItem(s.mediaType ?? 'movie', s.id, 8))
+    seeds.map((s) => fetchRecsForItem(s.mediaType ?? 'movie', s.id, 8))
   );
 
   // 4. Deduplicate by id
@@ -83,15 +83,14 @@ async function buildPersonalisedFeed(userId, watchlistItems, seedCount = 4) {
     }
   }
 
-  // 5. Shuffle slightly for variety (interleave)
   return { items: merged.slice(0, 40), seedTitles };
 }
 
 export default function PersonalizedRow({ onSelect }) {
+  const { user } = useAuthProfile();
   const [items, setItems] = useState([]);
   const [seedTitles, setSeedTitles] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState(null);
   const { watchlistItems } = useWatchlist();
 
   const rowRef = useRef(null);
@@ -99,36 +98,38 @@ export default function PersonalizedRow({ onSelect }) {
   const suppressClickRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Track auth
-  useEffect(() => {
-    return onAuthStateChanged(auth, setUser);
-  }, []);
-
   // Fetch personalised feed when user / watchlist changes
   useEffect(() => {
-    if (!user) { setItems([]); return; }
+    if (!user?.id) {
+      setItems([]);
+      return;
+    }
 
     let cancelled = false;
     setLoading(true);
 
-    buildPersonalisedFeed(user.uid, watchlistItems).then(({ items: feed, seedTitles: titles }) => {
-      if (cancelled) return;
-      setItems(feed);
-      setSeedTitles(titles);
-      setLoading(false);
-    }).catch(() => {
-      if (!cancelled) setLoading(false);
-    });
+    buildPersonalisedFeed(user.id, watchlistItems)
+      .then(({ items: feed, seedTitles: titles }) => {
+        if (cancelled) return;
+        setItems(feed);
+        setSeedTitles(titles);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-    return () => { cancelled = true; };
-  }, [user, watchlistItems]);
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, watchlistItems]);
 
   // ── Drag-to-scroll ────────────────────────────────────────────────────────
-  const scroll = dir => {
+  const scroll = (dir) => {
     rowRef.current?.scrollBy({ left: dir * 580, behavior: 'smooth' });
   };
 
-  const onRowMouseDown = useCallback(e => {
+  const onRowMouseDown = useCallback((e) => {
     if (e.button !== 0) return;
     const el = rowRef.current;
     if (!el) return;
@@ -136,7 +137,7 @@ export default function PersonalizedRow({ onSelect }) {
     setIsDragging(true);
   }, []);
 
-  const onRowMouseMove = useCallback(e => {
+  const onRowMouseMove = useCallback((e) => {
     const el = rowRef.current;
     const drag = dragStateRef.current;
     if (!el || !drag.active) return;
@@ -151,7 +152,9 @@ export default function PersonalizedRow({ onSelect }) {
     drag.active = false;
     suppressClickRef.current = drag.moved;
     setIsDragging(false);
-    setTimeout(() => { suppressClickRef.current = false; }, 0);
+    setTimeout(() => {
+      suppressClickRef.current = false;
+    }, 0);
   }, []);
 
   useEffect(() => {
@@ -178,22 +181,21 @@ export default function PersonalizedRow({ onSelect }) {
   // Don't render if not logged in or no recommendations
   if (!user || items.length === 0) return null;
 
-  // Pick one seed title for the subtitle
-  // Pick up to two seed titles for the subtitle and format them
-  const subtitleNodes = seedTitles.length > 0 ? (
-    <>
-      Based on{' '}
-      {seedTitles.slice(0, 2).map((t, i) => (
-        <span key={i}>
-          {i > 0 ? ', ' : ''}
-          <span className="text-gray-300 font-medium">{t}</span>
-        </span>
-      ))}
-      {seedTitles.length > 2 && <span className="text-gray-500"> & more</span>}
-    </>
-  ) : (
-    'Based on your watch history'
-  );
+  const subtitleNodes =
+    seedTitles.length > 0 ? (
+      <>
+        Based on{' '}
+        {seedTitles.slice(0, 2).map((t, i) => (
+          <span key={i}>
+            {i > 0 ? ', ' : ''}
+            <span className="text-gray-300 font-medium">{t}</span>
+          </span>
+        ))}
+        {seedTitles.length > 2 && <span className="text-gray-500"> & more</span>}
+      </>
+    ) : (
+      'Based on your watch history'
+    );
 
   return (
     <section className="mb-12 group/row" style={{ overflow: 'visible' }}>
@@ -236,7 +238,7 @@ export default function PersonalizedRow({ onSelect }) {
         className={`flex gap-3 overflow-x-auto hide-scrollbar px-4 sm:px-6 select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
         style={{ paddingTop: 24, paddingBottom: 24, marginTop: -16, marginBottom: -16 }}
       >
-        {items.map(item => (
+        {items.map((item) => (
           <div key={`${item.media_type}-${item.id}`} className="shrink-0" style={{ width: 160 }}>
             <ContentCard
               title={item.title || item.name}
