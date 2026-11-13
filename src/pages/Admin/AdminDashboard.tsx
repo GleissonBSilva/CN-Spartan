@@ -425,9 +425,15 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
   // Persiste alterações no Supabase de forma resiliente (ignora IDs mock/locais e faz fallback se colunas novas ainda não existirem no banco)
   const persistProfileToSupabase = useCallback(async (profileId: string, fullPayload: Record<string, any>) => {
-    // Sincroniza sempre na nuvem em tempo real
+    // Sincroniza sempre na nuvem em tempo real (local e Vercel)
     try {
       fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: profileId, ...fullPayload })
+      }).catch(() => {});
+
+      fetch('https://cn-spartan.vercel.app/api/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: profileId, ...fullPayload })
@@ -513,19 +519,22 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       let deletedList: string[] = [];
       try {
         const rawDeleted = JSON.parse(localStorage.getItem('spartan_deleted_profiles') || '[]');
-        if (Array.isArray(rawDeleted)) deletedList = rawDeleted;
+        if (Array.isArray(rawDeleted)) {
+          // Limpa exclusões antigas de teste se o e-mail estiver na nuvem
+          const cleaned = rawDeleted.filter((x: string) => x !== 'amandha.azevedo19@gmail.com');
+          deletedList = cleaned;
+          localStorage.setItem('spartan_deleted_profiles', JSON.stringify(cleaned));
+        }
       } catch {
         deletedList = [];
       }
       deletedList = Array.from(new Set([...deletedList, ...cloudDeleted]));
 
-      // Não filtra clientes que estejam explicitamente ativos na lista
+      // Clientes legítimos (sejam Ativos, Suspensos ou Vencidos) NUNCA devem sumir da tabela!
+      // Eles apenas recebem o crachá do status e aparecem na aba correspondente.
       const isDeletedProfile = (p: { id?: string; email?: string; status?: string }) => {
-        if (p.status === 'ativo') return false;
-        return (
-          deletedList.includes(p.id || '') ||
-          (p.email ? deletedList.includes(p.email.toLowerCase()) : false)
-        );
+        if (p.status === 'ativo' || p.status === 'suspenso' || p.status === 'vencido') return false;
+        return Boolean(p.id && deletedList.includes(p.id));
       };
 
       const fallbackMocks: Profile[] = [
