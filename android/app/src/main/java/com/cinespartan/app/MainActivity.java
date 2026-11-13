@@ -1,5 +1,6 @@
 package com.cinespartan.app;
 
+import android.content.pm.ActivityInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
@@ -55,12 +56,15 @@ public class MainActivity extends BridgeActivity {
             settings.setJavaScriptCanOpenWindowsAutomatically(true);
 
             // Fullscreen & Security WebChromeClient
+            webView.addJavascriptInterface(new AndroidBridge(), "AndroidNative");
+
             webView.setWebChromeClient(new WebChromeClient() {
                 @Override
                 public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg) {
                     // Engole silenciosamente popups e anúncios em um WebView invisível descartável
                     try {
                         WebView dummy = new WebView(view.getContext());
+                        dummy.getSettings().setJavaScriptEnabled(false);
                         dummy.setWebViewClient(new android.webkit.WebViewClient() {
                             @Override
                             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest req) {
@@ -85,12 +89,17 @@ public class MainActivity extends BridgeActivity {
                     }
                     mCustomView = view;
                     mCustomViewCallback = callback;
+                    mCustomView.setBackgroundColor(android.graphics.Color.BLACK);
                     mDecorView = (ViewGroup) getWindow().getDecorView();
                     mDecorView.addView(mCustomView, new FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                     ));
                     webView.setVisibility(View.GONE);
+                    try {
+                        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+                    } catch (Exception ignored) {}
+                    getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
                     getWindow().getDecorView().setSystemUiVisibility(
                             View.SYSTEM_UI_FLAG_FULLSCREEN
                             | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
@@ -110,12 +119,49 @@ public class MainActivity extends BridgeActivity {
                         mCustomViewCallback = null;
                     }
                     webView.setVisibility(View.VISIBLE);
+                    try {
+                        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+                    } catch (Exception ignored) {}
+                    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
                     getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
                 }
             });
 
             // WebViewClient with Stream Proxy and Ad Navigation Shield
             webView.setWebViewClient(new StreamProxyWebViewClient(bridge));
+        }
+    }
+
+    public class AndroidBridge {
+        @android.webkit.JavascriptInterface
+        public void setFullscreen(final boolean enable) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (enable) {
+                        try {
+                            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+                        } catch (Exception ignored) {}
+                        getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                        getWindow().getDecorView().setSystemUiVisibility(
+                                View.SYSTEM_UI_FLAG_FULLSCREEN
+                                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        );
+                    } else {
+                        try {
+                            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+                        } catch (Exception ignored) {}
+                        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+                    }
+                }
+            });
+        }
+
+        @android.webkit.JavascriptInterface
+        public boolean isNative() {
+            return true;
         }
     }
 
@@ -134,14 +180,35 @@ public class MainActivity extends BridgeActivity {
             if (getBridge() != null && getBridge().getWebView() != null) {
                 getBridge().getWebView().setVisibility(View.VISIBLE);
             }
+            try {
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+            } catch (Exception ignored) {}
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+            return;
+        }
+
+        Bridge bridge = getBridge();
+        if (bridge != null && bridge.getWebView() != null) {
+            bridge.getWebView().evaluateJavascript(
+                "(function() { if (window.__cineSpartanExitFullscreen && window.__cineSpartanExitFullscreen()) { return 'true'; } return 'false'; })()",
+                new android.webkit.ValueCallback<String>() {
+                    @Override
+                    public void onReceiveValue(String value) {
+                        if ("\"true\"".equals(value) || "true".equals(value)) {
+                            return; // Back handled exiting fullscreen!
+                        }
+                        MainActivity.super.onBackPressed();
+                    }
+                }
+            );
             return;
         }
         super.onBackPressed();
     }
 
     private static class StreamProxyWebViewClient extends BridgeWebViewClient {
-        // Known intrusive ad networks to block at network layer
+        // Known intrusive ad & commercial video ad networks to block at network layer
         private static final String[] BLOCKED_AD_PATTERNS = {
             "adsterra", "popads", "clickadu", "propellerads", "monetag",
             "exoclick", "adnxs", "histats", "adkeep", "syndication",
@@ -149,7 +216,14 @@ public class MainActivity extends BridgeActivity {
             "1xbet", "blaze", "betano", "onclkds", "clkmc", "go.redirect",
             "directrev", "adtrue", "yllix", "hilltopads", "galaksion",
             "a-ads", "pushwhoosh", "notix", "tsyndicate", "admaven",
-            "coinhive", "realsrv", "mcclp", "trafficfactory"
+            "coinhive", "realsrv", "mcclp", "trafficfactory",
+            "googlesyndication", "googleadservices",
+            "aniview", "springserve", "spotxchange", "smartadserver",
+            "vidazoo", "teads", "pubmatic", "openx", "rubiconproject",
+            "criteo", "outbrain", "taboola", "mgid", "inmobi", "vdo.ai",
+            "playwire", "connatix", "wurl", "invidi", "adkernel", "tremorvideo",
+            "zergnet", "adition", "ad-delivery", "adserver", "adskeeper",
+            "adcash", "popcash", "bidvertiser"
         };
 
         public StreamProxyWebViewClient(Bridge bridge) {
@@ -188,7 +262,23 @@ public class MainActivity extends BridgeActivity {
             if (uri != null) {
                 String uriStr = uri.toString().toLowerCase();
 
-                // 1. Block known ad scripts before they can download or execute (MIME seguro para evitar quebra no player)
+                // 1. Intercepta comerciais de vídeo VAST / VPAID / Mid-roll / Preroll / DoubleClick ads
+                // e responde com XML vazio VAST 3.0 para pular o anúncio instantaneamente
+                if (uriStr.contains("vast") || uriStr.contains("vpaid") || uriStr.contains("midroll") 
+                        || uriStr.contains("preroll") || uriStr.contains("postroll") 
+                        || uriStr.contains("gampad/ads") || uriStr.contains("doubleclick.net/gampad")
+                        || uriStr.contains("video-ads") || uriStr.contains("instream") 
+                        || uriStr.contains("linear-ad") || uriStr.contains("/ad/")
+                        || (uriStr.contains("imasdk") && !uriStr.endsWith(".js"))) {
+                    String emptyVast = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><VAST version=\"3.0\"/>";
+                    Map<String, String> headers = new HashMap<>();
+                    headers.put("Access-Control-Allow-Origin", "*");
+                    headers.put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+                    headers.put("Access-Control-Allow-Headers", "*");
+                    return new WebResourceResponse("application/xml", "UTF-8", 200, "OK", headers, new ByteArrayInputStream(emptyVast.getBytes(StandardCharsets.UTF_8)));
+                }
+
+                // 2. Block known ad scripts before they can download or execute (MIME seguro para evitar quebra no player)
                 for (String pattern : BLOCKED_AD_PATTERNS) {
                     if (uriStr.contains(pattern)) {
                         return new WebResourceResponse("application/javascript", "UTF-8", new ByteArrayInputStream("/* blocked */".getBytes(StandardCharsets.UTF_8)));

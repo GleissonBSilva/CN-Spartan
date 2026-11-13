@@ -24,8 +24,9 @@ export const isTvBoxOrApk = () => {
     if (platform === 'android' || platform === 'ios') return true;
   } catch {}
 
-  // 2. Verificação de objetos injetados e protocolos nativos (Capacitor/Cordova)
+  // 2. Verificação de objetos injetados e protocolos nativos (Capacitor/Cordova/AndroidNative)
   if (
+    window?.AndroidNative?.isNative?.() === true ||
     window?.Capacitor?.isNativePlatform?.() === true ||
     window?.Capacitor?.getPlatform?.() === 'android' ||
     window?.Capacitor?.getPlatform?.() === 'ios' ||

@@ -133,6 +133,7 @@ function VideoPlayerTVBox({
   const [isCssFullscreen, setIsCssFullscreen] = useState(false);
 
   const containerRef = useRef(null);
+  const iframeRef = useRef(null);
   const hideTimerRef = useRef(null);
   const toastTimerRef = useRef(null);
   const wakeLockRef = useRef(null);
@@ -214,26 +215,56 @@ function VideoPlayerTVBox({
 
   // Alternar tela cheia nativa ou CSS expandido
   const toggleFullscreen = useCallback(() => {
-    const el = containerRef.current;
-    if (!el) return;
+    const isGoingFullscreen = !isFullscreen && !isCssFullscreen;
 
-    if (!isFullscreen && !isCssFullscreen) {
+    if (isGoingFullscreen) {
+      // 1. Invoca a ponte nativa do APK (gira para Paisagem horizontal + esconde barras do Android)
+      if (window.AndroidNative?.setFullscreen) {
+        try {
+          window.AndroidNative.setFullscreen(true);
+        } catch (e) {
+          console.warn('Native fullscreen error:', e);
+        }
+      }
+
+      // 2. Trava orientação para Paisagem via W3C API se disponível
       try {
         if (window.screen?.orientation?.lock) {
           window.screen.orientation.lock('landscape').catch(() => {});
         }
       } catch {}
 
-      if (el.requestFullscreen) {
-        el.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => setIsCssFullscreen(true));
-      } else if (el.webkitRequestFullscreen) {
-        el.webkitRequestFullscreen();
-        setIsFullscreen(true);
-      } else {
-        setIsCssFullscreen(true);
+      // 3. Requisita Tela Cheia HTML5 (no iframe, no container ou no documentElement)
+      const el = containerRef.current;
+      const iframe = iframeRef.current;
+      const target = (hasStarted && iframe) ? iframe : el;
+
+      if (target?.requestFullscreen) {
+        target.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {
+          document.documentElement.requestFullscreen?.().catch(() => {});
+        });
+      } else if (target?.webkitRequestFullscreen) {
+        target.webkitRequestFullscreen();
+      } else if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
       }
+
+      setIsFullscreen(true);
+      setIsCssFullscreen(true);
+      try {
+        document.body.style.overflow = 'hidden';
+      } catch {}
       showToast('Modo Tela Cheia Ativado');
     } else {
+      // Saindo da tela cheia
+      if (window.AndroidNative?.setFullscreen) {
+        try {
+          window.AndroidNative.setFullscreen(false);
+        } catch (e) {
+          console.warn('Native exit fullscreen error:', e);
+        }
+      }
+
       try {
         if (window.screen?.orientation?.unlock) {
           window.screen.orientation.unlock();
@@ -245,16 +276,39 @@ function VideoPlayerTVBox({
       } else if (document.webkitExitFullscreen) {
         document.webkitExitFullscreen();
       }
+
       setIsFullscreen(false);
       setIsCssFullscreen(false);
+      try {
+        document.body.style.overflow = '';
+      } catch {}
+      showToast('Modo Tela Cheia Desativado');
     }
-  }, [isFullscreen, isCssFullscreen, showToast]);
+  }, [isFullscreen, isCssFullscreen, hasStarted, showToast]);
+
+  useEffect(() => {
+    window.__cineSpartanExitFullscreen = () => {
+      if (isFullscreen || isCssFullscreen) {
+        toggleFullscreen();
+        return true;
+      }
+      return false;
+    };
+    return () => {
+      delete window.__cineSpartanExitFullscreen;
+    };
+  }, [isFullscreen, isCssFullscreen, toggleFullscreen]);
 
   useEffect(() => {
     const handleFsChange = () => {
       const fs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
       setIsFullscreen(fs);
-      if (!fs) setIsCssFullscreen(false);
+      if (!fs && !window.AndroidNative) {
+        setIsCssFullscreen(false);
+        try {
+          document.body.style.overflow = '';
+        } catch {}
+      }
     };
     document.addEventListener('fullscreenchange', handleFsChange);
     document.addEventListener('webkitfullscreenchange', handleFsChange);
@@ -327,10 +381,10 @@ function VideoPlayerTVBox({
         ref={containerRef}
         onMouseMove={resetControlsTimer}
         onTouchStart={resetControlsTimer}
-        style={isCssFullscreen ? { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', zIndex: 999999, margin: 0, borderRadius: 0 } : {}}
+        style={isCssFullscreen ? { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', zIndex: 9999999, margin: 0, padding: 0, borderRadius: 0 } : {}}
         className={`relative w-full bg-black rounded-2xl overflow-hidden border border-white/10 shadow-2xl shadow-black group ${
           isCssFullscreen 
-            ? '!fixed !inset-0 !z-[999999] !h-[100dvh] !w-screen !rounded-none !border-0' 
+            ? '!fixed !inset-0 !z-[9999999] !h-[100dvh] !h-screen !w-screen !rounded-none !border-0 !m-0 !p-0' 
             : 'w-full aspect-video min-h-[340px] xs:min-h-[380px] sm:min-h-[440px] md:min-h-[520px]'
         }`}
       >
@@ -358,11 +412,15 @@ function VideoPlayerTVBox({
         <button
           type="button"
           onClick={toggleFullscreen}
-          className="absolute top-3 right-3 z-30 p-2 sm:px-3 sm:py-1.5 rounded-xl bg-black/70 hover:bg-black/95 text-white text-xs font-bold border border-white/15 backdrop-blur-md transition-all shadow-lg active:scale-95 flex items-center gap-1.5 cursor-pointer"
+          className={`absolute top-3 right-3 p-2 sm:px-3 sm:py-1.5 rounded-xl text-white text-xs font-bold border backdrop-blur-md transition-all shadow-lg active:scale-95 flex items-center gap-1.5 cursor-pointer ${
+            isFullscreen || isCssFullscreen
+              ? 'z-[99999999] bg-red-600/95 hover:bg-red-600 border-red-400/60 shadow-red-950/70'
+              : 'z-30 bg-black/70 hover:bg-black/95 border-white/15'
+          }`}
           title="Alternar Tela Cheia"
         >
           {isFullscreen || isCssFullscreen ? <FaCompress className="text-xs" /> : <FaExpand className="text-xs" />}
-          <span className="hidden sm:inline">{isFullscreen || isCssFullscreen ? 'Sair' : 'Tela Cheia'}</span>
+          <span>{isFullscreen || isCssFullscreen ? 'Sair Tela Cheia' : 'Tela Cheia'}</span>
         </button>
 
         {/* TELA DE INÍCIO COM ÁREA DE CLIQUE TOTAL (Toque em qualquer lugar para dar Play) */}
@@ -416,11 +474,14 @@ function VideoPlayerTVBox({
         ) : (
           /* IFRAME STREAMING BLINDADO */
           <iframe
+            ref={iframeRef}
             key={`${mediaId}-${isSeries ? `${season}-${episode}` : ''}-${streamMode}-${activeServer.id}`}
             src={iframeSrc}
             title={title}
-            allow="autoplay; fullscreen; encrypted-media; picture-in-picture; screen-wake-lock"
+            allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *; display-capture *"
             allowFullScreen
+            webkitallowfullscreen="true"
+            mozallowfullscreen="true"
             referrerPolicy="no-referrer-when-downgrade"
             className="w-full h-full border-0 relative z-10"
           />

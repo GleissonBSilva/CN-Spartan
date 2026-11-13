@@ -568,8 +568,10 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                         <iframe
                             key={`${movieId}-${isPlayingTrailer ? 'trailer' : streamMode}-${activeServer.id}`}
                             src={iframeSrc}
-                            allow="autoplay; fullscreen; encrypted-media; picture-in-picture; screen-wake-lock; clipboard-write"
+                            allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *; display-capture *"
                             allowFullScreen
+                            webkitallowfullscreen="true"
+                            mozallowfullscreen="true"
                             title={title || 'Player de Filme'}
                             referrerPolicy="no-referrer-when-downgrade"
                             className="w-full h-full border-0"
