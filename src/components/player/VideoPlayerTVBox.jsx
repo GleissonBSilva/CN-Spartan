@@ -401,16 +401,34 @@ function VideoPlayerTVBox({
           </div>
         )}
 
-        {/* Selos de Identificação no Topo */}
-        <div className="absolute top-3 left-3 z-30 flex items-center gap-2 pointer-events-none">
-          <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-600/90 text-white text-[10px] sm:text-[11px] font-black tracking-wider uppercase shadow-lg border border-red-400/30">
-            {isTouchDevice ? <FaMobileAlt className="text-xs" /> : <FaTv className="text-xs" />}
-            <span>{isTouchDevice ? 'SPARTAN MOBILE VIP' : 'TV BOX TURBO VIP'}</span>
-          </span>
-          <span className="hidden xs:flex items-center gap-1 px-2 py-0.5 rounded-lg bg-black/60 backdrop-blur-md text-emerald-400 text-[9px] sm:text-[10px] font-bold border border-emerald-500/30">
-            <FaShieldAlt className="text-[10px]" />
-            <span>ESCUDO ANTI-POPUP</span>
-          </span>
+        {/* Selos de Identificação / Botão de Troca Rápida se travar */}
+        <div className="absolute top-3 left-3 z-30 flex items-center gap-2">
+          {hasStarted ? (
+            <button
+              type="button"
+              onClick={() => {
+                const nextIdx = (sourceIdx + 1) % currentSources.length;
+                setSourceIdx(nextIdx);
+                showToast(`Alternando para ${currentSources[nextIdx].name}...`);
+              }}
+              className="px-2.5 py-1 rounded-lg bg-black/80 hover:bg-black text-amber-300 text-[10px] sm:text-[11px] font-black border border-amber-500/40 backdrop-blur-md shadow-lg active:scale-95 flex items-center gap-1.5 cursor-pointer"
+              title="Se o vídeo estiver travando, toque para trocar de rota"
+            >
+              <FaSyncAlt className="text-[10px]" />
+              <span>Trocar Rota</span>
+            </button>
+          ) : (
+            <>
+              <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-600/90 text-white text-[10px] sm:text-[11px] font-black tracking-wider uppercase shadow-lg border border-red-400/30 pointer-events-none">
+                {isTouchDevice ? <FaMobileAlt className="text-xs" /> : <FaTv className="text-xs" />}
+                <span>{isTouchDevice ? 'SPARTAN MOBILE VIP' : 'TV BOX TURBO VIP'}</span>
+              </span>
+              <span className="hidden xs:flex items-center gap-1 px-2 py-0.5 rounded-lg bg-black/60 backdrop-blur-md text-emerald-400 text-[9px] sm:text-[10px] font-bold border border-emerald-500/30 pointer-events-none">
+                <FaShieldAlt className="text-[10px]" />
+                <span>ESCUDO ANTI-POPUP</span>
+              </span>
+            </>
+          )}
         </div>
 
         {/* Botões de Controle no Topo Direito (Cinema & Tela Cheia) */}
@@ -485,15 +503,21 @@ function VideoPlayerTVBox({
                 <FaPlay className="ml-1 text-white" />
               </div>
 
-              {/* Informação do Áudio Atual */}
-              <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-gray-200 font-bold bg-black/75 px-3 py-1 rounded-full border border-white/15 backdrop-blur-md">
-                {streamMode === 'dublado' ? <FaVolumeUp className="text-red-400" /> : <FaClosedCaptioning className="text-amber-400" />}
-                <span>{streamMode === 'dublado' ? '🇧🇷 Dublado em Português' : '🌐 Áudio Original (Legendado)'}</span>
+              {/* Informação do Áudio Atual e Servidor Selecionado */}
+              <div className="flex flex-col items-center gap-1.5">
+                <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-gray-200 font-bold bg-black/75 px-3 py-1 rounded-full border border-white/15 backdrop-blur-md">
+                  {streamMode === 'dublado' ? <FaVolumeUp className="text-red-400" /> : <FaClosedCaptioning className="text-amber-400" />}
+                  <span>{streamMode === 'dublado' ? '🇧🇷 Dublado em Português' : '🌐 Áudio Original (Legendado)'}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-amber-300 font-bold bg-black/85 px-3 py-1 rounded-lg border border-amber-500/30 shadow-lg">
+                  <FaBolt className="text-amber-400 text-xs shrink-0" />
+                  <span>Rota Pronta: {activeServer.name}</span>
+                </div>
               </div>
 
               {/* Dica de Toque / Controle */}
               <span className="text-[11px] text-gray-300 mt-2 font-medium opacity-80">
-                {isTouchDevice ? '👆 Toque em qualquer lugar para dar Play' : '🎮 Pressione OK no controle da TV para dar Play'}
+                {isTouchDevice ? '👆 Toque no botão vermelho acima para dar o Play' : '🎮 Pressione OK no controle da TV para dar Play'}
               </span>
             </div>
           </div>
@@ -572,11 +596,14 @@ function VideoPlayerTVBox({
               onClick={() => {
                 const nextIdx = (sourceIdx + 1) % currentSources.length;
                 setSourceIdx(nextIdx);
-                setHasStarted(true);
-                showToast(`Alternando para ${currentSources[nextIdx].name}...`);
+                if (hasStarted) {
+                  showToast(`Alternando para ${currentSources[nextIdx].name}...`);
+                } else {
+                  showToast(`Selecionado: ${currentSources[nextIdx].name}`);
+                }
               }}
               className="min-h-[38px] px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
-              title="Trocar de servidor se este estiver travando"
+              title="Trocar de rota"
             >
               <FaSyncAlt className="text-xs" />
               <span>Trocar Rota</span>
@@ -608,8 +635,11 @@ function VideoPlayerTVBox({
                 type="button"
                 onClick={() => {
                   setSourceIdx(idx);
-                  setHasStarted(true);
-                  showToast(`Conectado ao ${srv.name}`);
+                  if (hasStarted) {
+                    showToast(`Conectando à rota: ${srv.name}...`);
+                  } else {
+                    showToast(`${srv.name} selecionado. Toque em Play no centro para iniciar!`);
+                  }
                 }}
                 className={`min-h-[42px] px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 border cursor-pointer active:scale-95 shrink-0 ${
                   isSelected

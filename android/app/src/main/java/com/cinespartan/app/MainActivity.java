@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -50,10 +51,17 @@ public class MainActivity extends BridgeActivity {
             settings.setDomStorageEnabled(true);
             settings.setDatabaseEnabled(true);
             
-            // ANTI-AD & ANTI-REDIRECT SHIELD:
-            // Permite múltiplos windows para que o player JS não quebre, mas engole popups em WebView fantasma
-            settings.setSupportMultipleWindows(true);
-            settings.setJavaScriptCanOpenWindowsAutomatically(true);
+            // Habilita cookies de terceiros para embeds de streaming e resolução rápida de sessões sem travar o app
+            try {
+                CookieManager cookieManager = CookieManager.getInstance();
+                cookieManager.setAcceptCookie(true);
+                cookieManager.setAcceptThirdPartyCookies(webView, true);
+            } catch (Exception ignored) {}
+
+            // ANTI-AD & ANTI-REDIRECT SHIELD NATIVO:
+            // Desativa múltiplas janelas para bloquear popups nativamente sem custo de CPU nem alocação de WebViews na UI thread
+            settings.setSupportMultipleWindows(false);
+            settings.setJavaScriptCanOpenWindowsAutomatically(false);
 
             // Fullscreen & Security WebChromeClient
             webView.addJavascriptInterface(new AndroidBridge(), "AndroidNative");
@@ -61,24 +69,8 @@ public class MainActivity extends BridgeActivity {
             webView.setWebChromeClient(new WebChromeClient() {
                 @Override
                 public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg) {
-                    // Engole silenciosamente popups e anúncios em um WebView invisível descartável
-                    try {
-                        WebView dummy = new WebView(view.getContext());
-                        dummy.getSettings().setJavaScriptEnabled(false);
-                        dummy.setWebViewClient(new android.webkit.WebViewClient() {
-                            @Override
-                            public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest req) {
-                                v.destroy();
-                                return true;
-                            }
-                        });
-                        WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
-                        transport.setWebView(dummy);
-                        resultMsg.sendToTarget();
-                        return true;
-                    } catch (Exception e) {
-                        return false;
-                    }
+                    // Bloqueia silenciosamente popups sem criar novas WebViews na UI thread
+                    return false;
                 }
 
                 @Override
@@ -269,6 +261,13 @@ public class MainActivity extends BridgeActivity {
                 }
 
                 String uriStr = uri.toString().toLowerCase();
+
+                // Fast-path de Mídia: Nunca intercepta fragmentos de vídeo (.ts, .m3u8, .mp4, m4s) para máxima fluidez a 60 FPS e zero buffering
+                if (uriStr.endsWith(".ts") || uriStr.endsWith(".m3u8") || uriStr.endsWith(".mp4") 
+                        || uriStr.endsWith(".m4s") || uriStr.contains(".m3u8?") || uriStr.contains(".ts?") 
+                        || uriStr.contains("/hls/") || uriStr.contains("/segments/")) {
+                    return super.shouldInterceptRequest(view, request);
+                }
 
                 // 1. Intercepta estritamente comerciais de vídeo VAST / VPAID / Mid-roll / Preroll / DoubleClick ads
                 // e responde com XML vazio VAST 3.0 para pular o anúncio instantaneamente sem quebrar requests de mídia normais
