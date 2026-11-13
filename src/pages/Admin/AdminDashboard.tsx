@@ -551,21 +551,19 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       try {
         const rawDeleted = JSON.parse(localStorage.getItem('spartan_deleted_profiles') || '[]');
         if (Array.isArray(rawDeleted)) {
-          // Limpa exclusões antigas de teste se o e-mail estiver na nuvem
-          const cleaned = rawDeleted.filter((x: string) => x !== 'amandha.azevedo19@gmail.com');
-          deletedList = cleaned;
-          localStorage.setItem('spartan_deleted_profiles', JSON.stringify(cleaned));
+          deletedList = rawDeleted;
         }
       } catch {
         deletedList = [];
       }
       deletedList = Array.from(new Set([...deletedList, ...cloudDeleted]));
 
-      // Clientes legítimos (sejam Ativos, Suspensos ou Vencidos) NUNCA devem sumir da tabela!
-      // Eles apenas recebem o crachá do status e aparecem na aba correspondente.
+      // Se o perfil foi excluído (ID ou E-mail), ele NÃO deve ser re-incluído
       const isDeletedProfile = (p: { id?: string; email?: string; status?: string }) => {
-        if (p.status === 'ativo' || p.status === 'suspenso' || p.status === 'vencido') return false;
-        return Boolean(p.id && deletedList.includes(p.id));
+        if (!p) return false;
+        const idMatch = Boolean(p.id && deletedList.includes(p.id));
+        const emailMatch = Boolean(p.email && deletedList.includes(p.email.toLowerCase().trim()));
+        return idMatch || emailMatch;
       };
 
       const fallbackMocks: Profile[] = [
@@ -1122,15 +1120,17 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         // ignore
       }
 
-      // 4. Remove da lista de perfis no Supabase (se UUID válido) e localmente
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profile.id);
-      if (isUuid) {
-        try {
-          await supabase.from('profiles').update({ status: 'suspenso' }).eq('id', profile.id);
-          await supabase.from('profiles').delete().eq('id', profile.id);
-        } catch {
-          // ignore
+      // 4. Remove da lista de perfis no Supabase (por ID e por E-mail) e localmente
+      try {
+        if (profile.email) {
+          await supabase.from('profiles').delete().ilike('email', profile.email.toLowerCase().trim());
         }
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profile.id);
+        if (isUuid) {
+          await supabase.from('profiles').delete().eq('id', profile.id);
+        }
+      } catch (e) {
+        console.warn('Erro ao deletar perfil no Supabase:', e);
       }
 
       setProfiles((prev) => {
