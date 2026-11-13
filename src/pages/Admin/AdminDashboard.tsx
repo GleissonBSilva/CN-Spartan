@@ -605,10 +605,29 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         },
       ];
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
+      let data: any = null;
+      let error: any = null;
+      try {
+        const res = await supabase
+          .from('profiles')
+          .select('id, email, role, status, plan_name, expires_at, max_screens, created_at, full_name, whatsapp, is_trial, trial_used, active_devices, admin_updated_at')
+          .order('created_at', { ascending: false });
+        data = res.data;
+        error = res.error;
+      } catch (e) {
+        error = e;
+      }
+
+      if (error) {
+        try {
+          const res = await supabase
+            .from('profiles')
+            .select('id, email, role, status, plan_name, expires_at, max_screens, created_at')
+            .order('created_at', { ascending: false });
+          data = res.data;
+          error = res.error;
+        } catch {}
+      }
 
       if (error) {
         console.warn('Profiles não encontrados no Supabase, usando fallback local:', error.message);
@@ -1120,14 +1139,18 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         // ignore
       }
 
-      // 4. Remove da lista de perfis no Supabase (por ID e por E-mail) e localmente
+      // 4. Remove da lista de perfis no Supabase (por ID e por E-mail) e auth.users
       try {
-        if (profile.email) {
-          await supabase.from('profiles').delete().ilike('email', profile.email.toLowerCase().trim());
-        }
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profile.id);
         if (isUuid) {
+          // Tenta RPC de exclusão definitiva de auth.users (caso criada no Supabase SQL Editor)
+          try {
+            await (supabase as any).rpc('delete_user_by_admin', { target_user_id: profile.id });
+          } catch {}
           await supabase.from('profiles').delete().eq('id', profile.id);
+        }
+        if (profile.email) {
+          await supabase.from('profiles').delete().ilike('email', profile.email.toLowerCase().trim());
         }
       } catch (e) {
         console.warn('Erro ao deletar perfil no Supabase:', e);
@@ -2531,7 +2554,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                   className="text-[11px] font-bold text-purple-300 hover:text-white flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 transition"
                   title="Atualizar conexões Web e APK agora"
                 >
-                  <FaSync className={loading ? 'animate-spin' : ''} />
+                  <FaSyncAlt className={loading ? 'animate-spin' : ''} />
                   <span>Atualizar Sessões Ao Vivo</span>
                 </button>
               </div>

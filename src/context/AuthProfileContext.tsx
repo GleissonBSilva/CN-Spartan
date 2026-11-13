@@ -131,18 +131,44 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         localStoredProfile = null;
       }
 
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+      const isUuid = Boolean(userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId));
       let data: Profile | null = null;
       let error: { message: string } | null = null;
 
       if (isUuid) {
-        const res = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .maybeSingle();
-        data = (res.data as Profile) || null;
-        error = res.error;
+        try {
+          const res = await supabase
+            .from('profiles')
+            .select('id, email, role, status, plan_name, expires_at, max_screens, created_at, full_name, whatsapp, is_trial, trial_used, active_devices, admin_updated_at')
+            .eq('id', userId)
+            .maybeSingle();
+          if (res.error) {
+            // Fallback resiliente caso alguma coluna nova não exista
+            const fallbackRes = await supabase
+              .from('profiles')
+              .select('id, email, role, status, plan_name, expires_at, max_screens, created_at')
+              .eq('id', userId)
+              .maybeSingle();
+            data = (fallbackRes.data as Profile) || null;
+            error = fallbackRes.error;
+          } else {
+            data = (res.data as Profile) || null;
+            error = null;
+          }
+        } catch (e: any) {
+          // Fallback resiliente
+          try {
+            const res = await supabase
+              .from('profiles')
+              .select('id, email, role, status, plan_name, expires_at, max_screens, created_at')
+              .eq('id', userId)
+              .maybeSingle();
+            data = (res.data as Profile) || null;
+            error = res.error;
+          } catch {
+            error = { message: 'Erro ao consultar profiles' };
+          }
+        }
       }
 
       if (error && !localStoredProfile && !cloudProfile) {

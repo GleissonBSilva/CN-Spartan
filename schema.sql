@@ -415,6 +415,30 @@ on conflict (id) do update set
     else public.profiles.role 
   end;
 
+-- 10. Função RPC de Exclusão Definitiva de Usuários pelo Administrador
+-- Exclui o registro tanto de auth.users quanto de public.profiles de forma atômica
+create or replace function public.delete_user_by_admin(target_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+begin
+  -- Apenas administradores podem executar esta exclusão
+  if not public.is_admin() then
+    raise exception 'Apenas administradores podem excluir usuários.';
+  end if;
+
+  -- 1. Exclui da tabela public.profiles
+  delete from public.profiles where id = target_user_id;
+
+  -- 2. Exclui da tabela auth.users (Supabase Authentication Engine)
+  delete from auth.users where id = target_user_id;
+end;
+$$;
+
+grant execute on function public.delete_user_by_admin(uuid) to anon, authenticated, service_role;
+
 -- ==============================================================================
 -- Fim do script schema.sql
 -- ==============================================================================

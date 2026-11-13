@@ -200,7 +200,11 @@ public class MainActivity extends BridgeActivity {
             "criteo", "outbrain", "taboola", "mgid", "inmobi", "vdo.ai",
             "playwire", "connatix", "wurl", "invidi", "adkernel", "tremorvideo",
             "zergnet", "adition", "ad-delivery", "adserver", "adskeeper",
-            "adcash", "popcash", "bidvertiser"
+            "adcash", "popcash", "bidvertiser",
+            "betfair", "sportingbet", "kto.com", "cassino", "tigrinho",
+            "imasdk.googleapis.com", "creativecdn", "serving-sys", "adform",
+            "adcolony", "applovin", "ironsrc", "fyber", "adpushup", "popmyads",
+            "juicyads", "trafficstars", "ero-advertising", "hubvisor"
         };
 
         public StreamProxyWebViewClient(Bridge bridge) {
@@ -272,6 +276,16 @@ public class MainActivity extends BridgeActivity {
                         || uriStr.endsWith(".m4s") || uriStr.contains(".m3u8?") || uriStr.contains(".ts?") 
                         || uriStr.contains("/hls/") || uriStr.contains("/segments/")) {
                     return super.shouldInterceptRequest(view, request);
+                }
+
+                // Interceptador VAST / VPAID / IMA: Devolve XML VAST vazio para anular vídeos de anúncios instantaneamente
+                if (uriStr.contains("/vast") || uriStr.contains("format=vast") || uriStr.contains("output=vast") 
+                        || uriStr.contains("/vpaid") || uriStr.contains("imasdk.googleapis.com") || uriStr.contains("/ad/tag")) {
+                    byte[] emptyVast = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><VAST version=\"3.0\"></VAST>".getBytes(StandardCharsets.UTF_8);
+                    Map<String, String> headers = new HashMap<>();
+                    headers.put("Access-Control-Allow-Origin", "*");
+                    headers.put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+                    return new WebResourceResponse("application/xml", "UTF-8", 200, "OK", headers, new ByteArrayInputStream(emptyVast));
                 }
 
                 // Bloqueia scripts de anúncios invasivos conhecidos de forma limpa sem quebrar a execução de players

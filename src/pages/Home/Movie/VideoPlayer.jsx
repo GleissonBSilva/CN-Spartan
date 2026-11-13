@@ -10,9 +10,9 @@ import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
 const SERVERS = {
   dublado: [
     {
-      id: 'superflix_dub',
-      name: '🍿 SuperFlix Dublado BR (100% Áudio PT-BR)',
-      url: (id) => `https://superflixapi.boats/filme/${id}`
+      id: 'vidlink_direct',
+      name: '⭐ VidLink Ultra HD (Zero Anúncios • Recomendado)',
+      url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
     },
     {
       id: 'multiembed_dub',
@@ -20,31 +20,31 @@ const SERVERS = {
       url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
     },
     {
-      id: 'vidlink_direct',
-      name: '⭐ VidLink Ultra HD (Sem Anúncios)',
-      url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
-    },
-    {
       id: 'vidsrc_sh',
       name: '⚡ VidSrc Rápido HD',
       url: (id) => `https://vidsrc.sh/embed/movie?tmdb=${id}`
+    },
+    {
+      id: 'superflix_dub',
+      name: '🍿 SuperFlix Dublado BR (Alternativo)',
+      url: (id) => `https://superflixapi.boats/filme/${id}`
     }
   ],
   legendado: [
     {
       id: 'vidlink_orig',
-      name: '⭐ VidLink Ultra HD (Sem Anúncios • CC Legendas)',
+      name: '⭐ VidLink Ultra HD (Zero Anúncios • CC Legendas)',
       url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
-    },
-    {
-      id: 'vidsrc_orig',
-      name: '⚡ VidSrc To (Original HD • CC)',
-      url: (id) => `https://vidsrc.sh/embed/movie?tmdb=${id}`
     },
     {
       id: 'multiembed_orig',
       name: '📺 MultiEmbed (Original / Legendas CC)',
       url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
+    },
+    {
+      id: 'vidsrc_orig',
+      name: '⚡ VidSrc To (Original HD • CC)',
+      url: (id) => `https://vidsrc.sh/embed/movie?tmdb=${id}`
     }
   ]
 };
@@ -570,6 +570,7 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                             allowFullScreen
                             webkitallowfullscreen="true"
                             mozallowfullscreen="true"
+                            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                             title={title || 'Player de Filme'}
                             referrerPolicy="no-referrer-when-downgrade"
                             className="w-full h-full border-0"

@@ -10,9 +10,9 @@ import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
 const SERVERS = {
   dublado: [
     {
-      id: 'superflix_dub',
-      name: '🍿 SuperFlix Séries BR (100% Áudio PT-BR)',
-      url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
+      id: 'vidlink_direct',
+      name: '⭐ VidLink Séries HD (Zero Anúncios • Recomendado)',
+      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
     },
     {
       id: 'multiembed_dub',
@@ -20,31 +20,31 @@ const SERVERS = {
       url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
     },
     {
-      id: 'vidlink_direct',
-      name: '⭐ VidLink Séries HD (Sem Anúncios)',
-      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
-    },
-    {
       id: 'vidsrc_sh',
       name: '⚡ VidSrc Séries Fast',
       url: (id, s, e) => `https://vidsrc.sh/embed/tv?tmdb=${id}&season=${s}&episode=${e}`
+    },
+    {
+      id: 'superflix_dub',
+      name: '🍿 SuperFlix Séries BR (Alternativo)',
+      url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
     }
   ],
   legendado: [
     {
       id: 'vidlink_orig',
-      name: '⭐ VidLink Séries HD (Sem Anúncios • CC Legendas)',
+      name: '⭐ VidLink Séries HD (Zero Anúncios • CC Legendas)',
       url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
-    },
-    {
-      id: 'vidsrc_orig',
-      name: '⚡ VidSrc Séries Original (Legendas CC)',
-      url: (id, s, e) => `https://vidsrc.sh/embed/tv?tmdb=${id}&season=${s}&episode=${e}`
     },
     {
       id: 'multiembed_orig',
       name: '📺 MultiEmbed (Original / Legendas CC)',
       url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
+    },
+    {
+      id: 'vidsrc_orig',
+      name: '⚡ VidSrc Séries Original (Legendas CC)',
+      url: (id, s, e) => `https://vidsrc.sh/embed/tv?tmdb=${id}&season=${s}&episode=${e}`
     }
   ]
 };
@@ -487,6 +487,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                             allowFullScreen
                             webkitallowfullscreen="true"
                             mozallowfullscreen="true"
+                            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                             title={title || 'Player de Série'}
                             referrerPolicy="no-referrer-when-downgrade"
                             className="w-full h-full border-0"
