@@ -12,7 +12,12 @@ const SERVERS = {
     {
       id: 'superflix_dub',
       name: '🍿 SuperFlix Séries BR (100% Dublado • Principal)',
-      url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
+      url: (id, s, e) => `https://superflixapi.lat/serie/${id}/${s}/${e}`
+    },
+    {
+      id: 'superflix_alt',
+      name: '🍿 SuperFlix Séries Espelho (.online)',
+      url: (id, s, e) => `https://superflixapi.online/serie/${id}/${s}/${e}`
     },
     {
       id: 'multiembed_dub',
@@ -76,6 +81,8 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
     }, [hasStarted]);
 
     useEffect(() => {
+        setSourceIdx(0);
+        setHasStarted(false);
         refreshProfile?.();
     }, [tvId, season, episode]);
 
@@ -84,10 +91,12 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
 
     // Sempre inicia no servidor principal Dublado BR por padrão
     const resolveDefaultMode = useCallback(() => {
-        return language && !language.startsWith('pt') ? 'legendado' : 'dublado';
-    }, [language]);
+        const saved = localStorage.getItem('cinespartan_preferred_stream_mode');
+        if (saved === 'legendado' || saved === 'dublado') return saved;
+        return 'dublado';
+    }, []);
 
-    const [streamMode, setStreamMode] = useState('dublado');
+    const [streamMode, setStreamMode] = useState(() => resolveDefaultMode());
     const [sourceIdx, setSourceIdx] = useState(0);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isCssFullscreen, setIsCssFullscreen] = useState(false);
@@ -103,7 +112,6 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
 
     // Atualiza quando o usuário muda o idioma geral no painel
     useEffect(() => {
-        localStorage.removeItem('cinespartan_preferred_stream_mode');
         setStreamMode(resolveDefaultMode());
     }, [language, resolveDefaultMode]);
 
@@ -150,6 +158,9 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
         if (newMode === streamMode) return;
         setStreamMode(newMode);
         setSourceIdx(0);
+        try {
+            localStorage.setItem('cinespartan_preferred_stream_mode', newMode);
+        } catch {}
 
         if (newMode === 'dublado') {
             showToast('🇧🇷 Áudio Dublado em Português ativado');
@@ -489,6 +500,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                             key={`${tvId}-${season}-${episode}-${streamMode}-${activeServer.id}`}
                             src={iframeSrc}
                             allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *; display-capture *"
+                            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                             title={title || 'Player de Série'}
                             referrerPolicy="no-referrer-when-downgrade"
                             className="w-full h-full border-0"

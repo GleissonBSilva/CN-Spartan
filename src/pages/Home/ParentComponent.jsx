@@ -11,6 +11,7 @@ import { useLanguage } from "../../context/LanguageContext";
 import LanguageSelector from "../../components/LanguageSelector";
 import FamilyModeControl from "../../components/FamilyModeControl";
 import { useAuthProfile } from "../../hooks/useAuthProfile";
+import { isTvBoxOrApk } from "../../hooks/useAppUpdateGuard";
 
 function ParentComponent() {
   const { user: supaUser, profile, isActive, isExpired, daysRemaining, signOut: supaSignOut } = useAuthProfile();
@@ -26,6 +27,7 @@ function ParentComponent() {
   const { t } = useLanguage();
 
   const isUserLoggedIn = Boolean(supaUser);
+  const isNativeApk = isTvBoxOrApk();
 
   useEffect(() => {
     const handleOpenAuthModal = () => setIsAuthModalOpen(true);
@@ -197,20 +199,22 @@ function ParentComponent() {
           </button>
         )}
 
-        {/* Botão Baixar App (Android, TV Box, Smart TV) */}
-        <button
-          type="button"
-          onClick={() => setIsDownloadModalOpen(true)}
-          title="Baixar App para Android, TV Box e Smart TV"
-          className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 rounded-full bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-[11px] sm:text-xs font-black shadow-lg shadow-red-950/60 transition-all hover:scale-105 active:scale-95 border border-white/20"
-        >
-          <FaDownload className="text-[11px] sm:text-xs animate-bounce" />
-          <span className="hidden sm:inline">Baixar App</span>
-          <span className="sm:hidden">App</span>
-          <span className="hidden md:inline px-1.5 py-0.5 rounded-full bg-black/40 text-[9px] uppercase tracking-wider font-extrabold text-amber-300">
-            TV & APK
-          </span>
-        </button>
+        {/* Botão Único Baixar App (Apenas Web; Removido no APK nativo/TV Box) */}
+        {!isNativeApk && (
+          <button
+            type="button"
+            onClick={() => setIsDownloadModalOpen(true)}
+            title="Baixar App para Android, TV Box e Smart TV"
+            className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 rounded-full bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-[11px] sm:text-xs font-black shadow-lg shadow-red-950/60 transition-all hover:scale-105 active:scale-95 border border-white/20"
+          >
+            <FaDownload className="text-[11px] sm:text-xs animate-bounce" />
+            <span className="hidden sm:inline">Baixar App</span>
+            <span className="sm:hidden">App</span>
+            <span className="hidden md:inline px-1.5 py-0.5 rounded-full bg-black/40 text-[9px] uppercase tracking-wider font-extrabold text-amber-300">
+              TV & APK
+            </span>
+          </button>
+        )}
 
         {isUserLoggedIn ? (
           <button

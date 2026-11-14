@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toDetailPath } from './urlUtils';
-import { FaPlay, FaInfoCircle, FaStar, FaDownload } from 'react-icons/fa';
+import { FaPlay, FaInfoCircle, FaStar } from 'react-icons/fa';
 import { BiCalendar } from 'react-icons/bi';
 import { useLanguage } from '../../context/LanguageContext';
 import { useFamilyMode } from '../../context/FamilyModeContext';
@@ -213,15 +213,6 @@ export default function HeroBanner() {
           >
             <FaInfoCircle className="text-xs sm:text-sm" />
             <span>{t('more_info')}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new Event('openDownloadModal'))}
-            title="Baixar App para Android, TV Box e Smart TV"
-            className="hidden sm:flex items-center gap-2 bg-gradient-to-r from-red-600/30 to-amber-600/30 hover:from-red-600/50 hover:to-amber-600/50 backdrop-blur border border-red-500/40 text-amber-300 font-bold px-4 sm:px-5 py-2.5 sm:py-3 rounded-full transition-all duration-200 text-xs sm:text-sm hover:scale-105 active:scale-95 shadow-md shadow-red-950/40"
-          >
-            <FaDownload className="text-xs animate-bounce" />
-            <span>Baixar App (TV / APK)</span>
           </button>
         </div>
       </div>
