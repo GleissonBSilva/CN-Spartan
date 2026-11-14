@@ -1022,9 +1022,13 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       });
 
       setProfiles((prev) => {
-        const next = prev.map((p) =>
-          p.id === profile.id ? { ...p, active_devices: nextDevices, admin_updated_at: nowStamp } : p
-        );
+        const next = prev.map((p) => {
+          const isTarget = p.id === profile.id || (p.email && profile.email && p.email.toLowerCase() === profile.email.toLowerCase());
+          if (isTarget) {
+            return { ...p, active_devices: nextDevices, admin_updated_at: nowStamp };
+          }
+          return p;
+        });
         saveProfilesRegistry(next);
         return next;
       });
@@ -1117,17 +1121,19 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       }
 
       setProfiles((prev) => {
-        const next = prev.map((p) =>
-          p.id === profile.id
-            ? {
-                ...p,
-                status: newStatus,
-                expires_at: newExpiresAt,
-                admin_updated_at: nowStamp,
-                active_devices: newStatus === 'suspenso' ? [] : p.active_devices,
-              }
-            : p
-        );
+        const next = prev.map((p) => {
+          const isTarget = p.id === profile.id || (p.email && profile.email && p.email.toLowerCase() === profile.email.toLowerCase());
+          if (isTarget) {
+            return {
+              ...p,
+              status: newStatus,
+              expires_at: newExpiresAt,
+              admin_updated_at: nowStamp,
+              active_devices: newStatus === 'suspenso' ? [] : p.active_devices,
+            };
+          }
+          return p;
+        });
         saveProfilesRegistry(next);
         return next;
       });
@@ -1165,17 +1171,19 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       });
 
       setProfiles((prev) => {
-        const next = prev.map((p) =>
-          p.id === profile.id
-            ? {
-                ...p,
-                expires_at: newExpiryIso,
-                status: 'ativo' as ProfileStatus,
-                is_trial: false,
-                admin_updated_at: nowStamp,
-              }
-            : p
-        );
+        const next = prev.map((p) => {
+          const isTarget = p.id === profile.id || (p.email && profile.email && p.email.toLowerCase() === profile.email.toLowerCase());
+          if (isTarget) {
+            return {
+              ...p,
+              expires_at: newExpiryIso,
+              status: 'ativo' as ProfileStatus,
+              is_trial: false,
+              admin_updated_at: nowStamp,
+            };
+          }
+          return p;
+        });
         saveProfilesRegistry(next);
         return next;
       });
@@ -1620,19 +1628,21 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       });
 
       setProfiles((prev) => {
-        const next = prev.map((p) =>
-          p.id === profile.id
-            ? {
-                ...p,
-                expires_at: newExpiryIso,
-                status: 'ativo' as ProfileStatus,
-                is_trial: true,
-                trial_used: true,
-                plan_name: preservedPlan,
-                admin_updated_at: nowStamp,
-              }
-            : p
-        );
+        const next = prev.map((p) => {
+          const isTarget = p.id === profile.id || (p.email && profile.email && p.email.toLowerCase() === profile.email.toLowerCase());
+          if (isTarget) {
+            return {
+              ...p,
+              expires_at: newExpiryIso,
+              status: 'ativo' as ProfileStatus,
+              is_trial: true,
+              trial_used: true,
+              plan_name: preservedPlan,
+              admin_updated_at: nowStamp,
+            };
+          }
+          return p;
+        });
         saveProfilesRegistry(next);
         return next;
       });
@@ -1721,7 +1731,36 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       const updatedEmail = editFormData.email.trim().toLowerCase() || editingProfile.email;
       const updatedWhatsapp = editFormData.whatsapp.trim() || undefined;
 
-      await persistProfileToSupabase(editingProfile.id, {
+      // 1. Atualiza imediatamente o estado na tela e no localStorage
+      setProfiles((prev) => {
+        const next = prev.map((item) => {
+          const isTarget =
+            item.id === editingProfile.id ||
+            (item.email && editingProfile.email && item.email.toLowerCase() === editingProfile.email.toLowerCase()) ||
+            (item.email && updatedEmail && item.email.toLowerCase() === updatedEmail.toLowerCase());
+
+          if (isTarget) {
+            return {
+              ...item,
+              full_name: updatedFullName,
+              email: updatedEmail,
+              plan_name: editFormData.plan,
+              max_screens: Number(editFormData.screens),
+              status: editFormData.status,
+              expires_at: finalExpires,
+              whatsapp: updatedWhatsapp,
+              is_trial: editFormData.isTrial,
+              admin_updated_at: nowStamp,
+            };
+          }
+          return item;
+        });
+        saveProfilesRegistry(next);
+        return next;
+      });
+
+      // 2. Persiste em segundo plano na nuvem e no Supabase com admin_updated_at
+      persistProfileToSupabase(editingProfile.id, {
         full_name: updatedFullName || null,
         email: updatedEmail,
         plan_name: editFormData.plan,
@@ -1730,28 +1769,8 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         expires_at: finalExpires,
         whatsapp: updatedWhatsapp || null,
         is_trial: editFormData.isTrial,
-      });
-
-      setProfiles((prev) => {
-        const next = prev.map((item) =>
-          item.id === editingProfile.id
-            ? {
-                ...item,
-                full_name: updatedFullName,
-                email: updatedEmail,
-                plan_name: editFormData.plan,
-                max_screens: Number(editFormData.screens),
-                status: editFormData.status,
-                expires_at: finalExpires,
-                whatsapp: updatedWhatsapp,
-                is_trial: editFormData.isTrial,
-                admin_updated_at: nowStamp,
-              }
-            : item
-        );
-        saveProfilesRegistry(next);
-        return next;
-      });
+        admin_updated_at: nowStamp,
+      }).catch((e) => console.warn('Erro ao persistir na nuvem:', e));
 
       setNotification({
         type: 'success',
@@ -1797,20 +1816,22 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       });
 
       setProfiles((prev) => {
-        const next = prev.map((item) =>
-          item.id === p.id
-            ? {
-                ...item,
-                status: 'ativo' as ProfileStatus,
-                is_trial: false,
-                trial_used: true,
-                plan_name: unlockedPlan,
-                max_screens: unlockedScreens,
-                expires_at: newExpiryIso,
-                admin_updated_at: nowStamp,
-              }
-            : item
-        );
+        const next = prev.map((item) => {
+          const isTarget = item.id === p.id || (item.email && p.email && item.email.toLowerCase() === p.email.toLowerCase());
+          if (isTarget) {
+            return {
+              ...item,
+              status: 'ativo' as ProfileStatus,
+              is_trial: false,
+              trial_used: true,
+              plan_name: unlockedPlan,
+              max_screens: unlockedScreens,
+              expires_at: newExpiryIso,
+              admin_updated_at: nowStamp,
+            };
+          }
+          return item;
+        });
         saveProfilesRegistry(next);
         return next;
       });

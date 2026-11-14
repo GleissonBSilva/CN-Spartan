@@ -188,14 +188,16 @@ export default async function handler(req, res) {
       const targetPlan = profile.plan_name || memoryProfiles[existingIdx].plan_name;
       let targetScreens = profile.max_screens !== undefined ? Number(profile.max_screens) : memoryProfiles[existingIdx].max_screens;
 
-      // Sincroniza telas estritamente com o plano correspondente oficial
-      const cleanPlanUpper = String(targetPlan || '').toUpperCase();
-      if (cleanPlanUpper.includes('START')) {
-        targetScreens = 1;
-      } else if (cleanPlanUpper.includes('PRO')) {
-        targetScreens = 2;
-      } else if (cleanPlanUpper.includes('BUSINESS')) {
-        targetScreens = 5;
+      // Sincroniza telas estritamente com o plano correspondente oficial (a menos que seja edição explícita do Admin)
+      if (!isExplicitAdminUpdate) {
+        const cleanPlanUpper = String(targetPlan || '').toUpperCase();
+        if (cleanPlanUpper.includes('START')) {
+          targetScreens = 1;
+        } else if (cleanPlanUpper.includes('PRO')) {
+          targetScreens = 2;
+        } else if (cleanPlanUpper.includes('BUSINESS')) {
+          targetScreens = 5;
+        }
       }
 
       memoryProfiles[existingIdx] = {
@@ -206,6 +208,7 @@ export default async function handler(req, res) {
         is_trial: targetIsTrial,
         plan_name: targetPlan,
         max_screens: targetScreens,
+        admin_updated_at: profile.admin_updated_at || memoryProfiles[existingIdx].admin_updated_at,
         ...(nextDevices !== undefined ? { active_devices: nextDevices } : {}),
         last_ip: profile.last_ip || clientIp || memoryProfiles[existingIdx].last_ip,
         id: cleanId || memoryProfiles[existingIdx].id,
