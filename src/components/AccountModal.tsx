@@ -24,6 +24,7 @@ import { getLocalDeviceId, getLocalDeviceName, type ActiveDevice } from '../hook
 import { supabase } from '../lib/supabase';
 import { DEFAULT_PLANS, getSavedPlans, type PlanTier } from '../constants/plans';
 import { generatePixPayload, getPixQrCodeUrl, DEFAULT_PIX_CONFIG, type PixConfig } from '../utils/pix';
+import { fetchApi } from '../lib/apiConfig';
 
 interface AccountModalProps {
   isOpen: boolean;
@@ -99,7 +100,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
     const fetchRemoteSettings = async () => {
       // 1. Tenta sincronizar a chave Pix e regras de planos configuradas pelo Admin em /api/app-config
       try {
-        const res = await fetch('/api/app-config');
+        const res = await fetchApi('/api/app-config');
         if (res.ok) {
           const cfg = await res.json();
           if (cfg?.pixConfig?.key) {
@@ -112,23 +113,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
           }
           return;
         }
-      } catch {
-        try {
-          const res = await fetch('https://cn-spartan.vercel.app/api/app-config');
-          if (res.ok) {
-            const cfg = await res.json();
-            if (cfg?.pixConfig?.key) {
-              setPixConfig(cfg.pixConfig);
-              localStorage.setItem('spartan_pix_config', JSON.stringify(cfg.pixConfig));
-            }
-            if (Array.isArray(cfg?.plansConfig) && cfg.plansConfig.length > 0) {
-              setPlans(cfg.plansConfig);
-              savePlansConfig(cfg.plansConfig);
-            }
-            return;
-          }
-        } catch {}
-      }
+      } catch {}
 
       // 2. Fallback para Supabase system_settings
       try {

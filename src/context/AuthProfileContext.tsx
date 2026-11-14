@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import type { Profile } from '../types/supabase';
 import { getLocalDeviceId, getLocalDeviceName, getLocalPlatformType } from '../hooks/useScreenLimiter';
 import { CURRENT_APP_VERSION } from '../config/appVersion';
+import { fetchApi } from '../lib/apiConfig';
 
 const ADMIN_MASTER_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL || 'gleisson1984@gmail.com').toLowerCase();
 
@@ -78,14 +79,13 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     try {
       const cleanEmail = (userEmail || '').toLowerCase();
 
-      // 0. Sincronização prioritária em tempo real com o servidor /api/clients
+      // 0. Sincronização prioritária em tempo real com o servidor /api/clients (suporte total a Web e APK Nativo)
       let cloudProfile: Profile | null = null;
       let isCloudDeleted = false;
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 4000);
-        const res = await fetch('/api/clients', { signal: controller.signal })
-          .catch(() => fetch('https://cn-spartan.vercel.app/api/clients', { signal: controller.signal }));
+        const res = await fetchApi('/api/clients', { signal: controller.signal });
         clearTimeout(timeoutId);
         if (res && res.ok) {
           const cloudData = await res.json();
@@ -181,24 +181,21 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const metaName = userMeta?.full_name || userMeta?.display_name || cloudProfile?.full_name || localStoredProfile?.full_name;
         const metaPhone = userMeta?.whatsapp || cloudProfile?.whatsapp || localStoredProfile?.whatsapp;
 
-        // O Administrador tem autoridade absoluta sobre o plano e telas do cliente (controle total do Admin)
-        let resolvedPlan =
-          (cloudProfile?.admin_updated_at && cloudProfile?.plan_name) ||
-          (localStoredProfile?.admin_updated_at && localStoredProfile?.plan_name) ||
-          data?.plan_name ||
-          cloudProfile?.plan_name ||
-          localStoredProfile?.plan_name ||
-          metaPlan ||
-          'SPARTAN START';
+        // Precedência de autoridade sobre o plano e telas:
+        // 1. cloudProfile é a fonte centralizada da nuvem para todos os dispositivos (Web, TV Box, APK)
+        // 2. Se houver edição administrativa explícita gravada localmente com timestamp mais recente que a nuvem, respeita
+        const localAdminTime = localStoredProfile?.admin_updated_at ? new Date(localStoredProfile.admin_updated_at).getTime() : 0;
+        const cloudUpdateTime = (cloudProfile?.admin_updated_at || cloudProfile?.updated_at) ? new Date(cloudProfile.admin_updated_at || cloudProfile.updated_at!).getTime() : 0;
+        const preferLocal = Boolean(localAdminTime && localAdminTime > cloudUpdateTime);
+
+        let resolvedPlan = preferLocal
+          ? (localStoredProfile?.plan_name || cloudProfile?.plan_name || data?.plan_name || metaPlan || 'SPARTAN PRO')
+          : (cloudProfile?.plan_name || data?.plan_name || localStoredProfile?.plan_name || metaPlan || 'SPARTAN PRO');
 
         let resolvedScreens = Number(
-          (cloudProfile?.admin_updated_at && cloudProfile?.max_screens) ||
-          (localStoredProfile?.admin_updated_at && localStoredProfile?.max_screens) ||
-          data?.max_screens ||
-          cloudProfile?.max_screens ||
-          localStoredProfile?.max_screens ||
-          metaScreens ||
-          1
+          preferLocal
+            ? (localStoredProfile?.max_screens || cloudProfile?.max_screens || data?.max_screens || metaScreens || 2)
+            : (cloudProfile?.max_screens || data?.max_screens || localStoredProfile?.max_screens || metaScreens || 2)
         );
 
         // Garante estrita coerência entre o plano ativo e a quantidade de telas simultâneas
@@ -212,9 +209,7 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
 
         // Precedência de expiração: compara timestamps admin_updated_at para que a edição mais recente (nuvem ou local) prevaleça sem oscilações
-        const localAdminTime = localStoredProfile?.admin_updated_at ? new Date(localStoredProfile.admin_updated_at).getTime() : 0;
-        const cloudAdminTime = (cloudProfile?.admin_updated_at || cloudProfile?.updated_at) ? new Date(cloudProfile.admin_updated_at || cloudProfile.updated_at!).getTime() : 0;
-        const localIsNewer = localAdminTime > cloudAdminTime;
+        const localIsNewer = preferLocal;
 
         let resolvedExpiresAt = raw.expires_at;
         if (localIsNewer && localStoredProfile?.expires_at) {
@@ -322,6 +317,22 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
 
         syncLocalProfileRegistry(mergedProfile);
+        try {
+          const rawCached = localStorage.getItem('weflix_user');
+          if (rawCached) {
+            const parsedCached = JSON.parse(rawCached);
+            if (parsedCached && (parsedCached.email?.toLowerCase() === cleanEmail || parsedCached.uid === userId)) {
+              localStorage.setItem('weflix_user', JSON.stringify({
+                ...parsedCached,
+                plan_name: mergedProfile.plan_name,
+                max_screens: mergedProfile.max_screens,
+                status: mergedProfile.status,
+                expires_at: mergedProfile.expires_at,
+                is_trial: mergedProfile.is_trial,
+              }));
+            }
+          }
+        } catch {}
         setProfile(mergedProfile);
         return mergedProfile;
       }
@@ -389,15 +400,11 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         // Sincroniza imediatamente na nuvem (/api/clients) para aparecer na mesma hora no Painel Admin!
         try {
-          fetch('/api/clients', {
+          fetchApi('/api/clients', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(fallbackProfile),
-          }).catch(() => fetch('https://cn-spartan.vercel.app/api/clients', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(fallbackProfile),
-          }));
+          }).catch(() => {});
         } catch {}
 
         const { data: inserted, error: insertErr } = await supabase
@@ -526,8 +533,7 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 4000);
-        const res = await fetch('/api/clients', { signal: controller.signal })
-          .catch(() => fetch('https://cn-spartan.vercel.app/api/clients', { signal: controller.signal }));
+        const res = await fetchApi('/api/clients', { signal: controller.signal });
         clearTimeout(timeoutId);
 
         if (res && res.ok && active) {
@@ -622,7 +628,7 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
               },
             ];
 
-            fetch('/api/clients', {
+            fetchApi('/api/clients', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({

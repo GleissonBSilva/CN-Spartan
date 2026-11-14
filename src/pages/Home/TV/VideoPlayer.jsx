@@ -5,6 +5,7 @@ import { useLanguage } from '../../../context/LanguageContext';
 import { useAuthProfile } from '../../../hooks/useAuthProfile';
 import SubscriptionLockGate from '../../../components/SubscriptionLockGate';
 import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
+import { fetchApi } from '../../../lib/apiConfig';
 
 // Servidores Spartan verificados e catalogados por qualidade e idioma real
 const SERVERS = [
@@ -110,7 +111,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
         let isCancelled = false;
         const checkHealth = async () => {
             try {
-                const res = await fetch(`/api/check-servers?id=${tvId}&type=tv&s=${season}&e=${episode}`);
+                const res = await fetchApi(`/api/check-servers?id=${tvId}&type=tv&s=${season}&e=${episode}`);
                 if (!res.ok) return;
                 const data = await res.json();
                 if (isCancelled) return;

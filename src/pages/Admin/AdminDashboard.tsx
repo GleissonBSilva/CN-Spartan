@@ -40,6 +40,7 @@ import { useAuthProfile } from '../../hooks/useAuthProfile';
 import type { Profile, ProfileStatus } from '../../types/supabase';
 import { DEFAULT_PLANS, getSavedPlans, savePlansConfig, type PlanTier } from '../../constants/plans';
 import { generatePixPayload, getPixQrCodeUrl } from '../../utils/pix';
+import { fetchApi } from '../../lib/apiConfig';
 import SEO from '../Home/SEO';
 
 // Tipagem de Cobrança Pix
@@ -67,8 +68,8 @@ interface PixConfig {
 
 const DEFAULT_PIX_CONFIG: PixConfig = {
   keyType: 'email',
-  key: 'gleisson1984@gmail.com',
-  recipientName: 'Gleisson B Silva',
+  key: 'gsroboticmania@gmail.com',
+  recipientName: 'Spartan',
   city: 'Manaus',
   customMessage: 'Olá! Segue sua cobrança Pix Cine Spartan para ativação ou renovação imediata:',
 };
@@ -308,7 +309,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
   // Carrega configuração de segurança e sistema do servidor /api/app-config e Supabase system_settings
   useEffect(() => {
-    fetch('/api/app-config')
+    fetchApi('/api/app-config')
       .then((r) => (r.ok ? r.json() : null))
       .then((remote) => {
         if (remote) {
@@ -405,15 +406,11 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       } catch {}
 
       try {
-        await fetch('/api/app-config', {
+        await fetchApi('/api/app-config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(cleanConfig),
-        }).catch(() => fetch('https://cn-spartan.vercel.app/api/app-config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(cleanConfig),
-        }));
+        }).catch(() => {});
       } catch {}
 
       setNotification({
@@ -455,18 +452,17 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
   // Persiste alterações no Supabase de forma resiliente (ignora IDs mock/locais e faz fallback se colunas novas ainda não existirem no banco)
   const persistProfileToSupabase = useCallback(async (profileId: string, fullPayload: Record<string, any>) => {
-    // Sincroniza sempre na nuvem em tempo real (local e Vercel)
+    // Sincroniza sempre na nuvem em tempo real (suporte a Web e APK Nativo)
+    const cloudPayload = {
+      id: profileId,
+      admin_updated_at: fullPayload.admin_updated_at || new Date().toISOString(),
+      ...fullPayload
+    };
     try {
-      fetch('/api/clients', {
+      fetchApi('/api/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: profileId, ...fullPayload })
-      }).catch(() => {});
-
-      fetch('https://cn-spartan.vercel.app/api/clients', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: profileId, ...fullPayload })
+        body: JSON.stringify(cloudPayload)
       }).catch(() => {});
     } catch {}
 
@@ -523,15 +519,11 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           ...fullPayload,
           admin_updated_at: new Date().toISOString(),
         };
-        fetch('/api/clients', {
+        fetchApi('/api/clients', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(cloudSyncBody),
-        }).catch(() => fetch('https://cn-spartan.vercel.app/api/clients', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(cloudSyncBody),
-        })).catch(() => {});
+        }).catch(() => {});
       } catch {}
     } catch (err) {
       console.warn('Aviso ao sincronizar alteração no Supabase (mantido localmente):', err);
@@ -554,8 +546,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       let cloudDeleted: string[] = [];
       try {
         // Tenta obter da nuvem oficial da Vercel (onde os celulares e TV Boxes se comunicam)
-        const clientRes = await fetch('https://cn-spartan.vercel.app/api/clients')
-          .catch(() => fetch('/api/clients'));
+        const clientRes = await fetchApi('/api/clients');
 
         if (clientRes && clientRes.ok) {
           const cloudData = await clientRes.json();
@@ -872,7 +863,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     if (!isAdmin) return;
     const pollRemoteClients = async () => {
       try {
-        const res = await fetch('/api/clients').catch(() => fetch('https://cn-spartan.vercel.app/api/clients'));
+        const res = await fetchApi('/api/clients');
         if (!res || !res.ok) return;
         const remoteData = await res.json();
         const remoteList = Array.isArray(remoteData) ? remoteData : (remoteData?.profiles || []);
@@ -1178,9 +1169,9 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
       // 2. Notifica a nuvem /api/clients para revogação em tempo real em todas as TV Boxes e dispositivos
       try {
-        await fetch(`/api/clients?id=${encodeURIComponent(profile.id)}&email=${encodeURIComponent(cleanEmail)}`, {
+        await fetchApi(`/api/clients?id=${encodeURIComponent(profile.id)}&email=${encodeURIComponent(cleanEmail)}`, {
           method: 'DELETE'
-        }).catch(() => fetch(`https://cn-spartan.vercel.app/api/clients?id=${encodeURIComponent(profile.id)}&email=${encodeURIComponent(cleanEmail)}`, { method: 'DELETE' }));
+        }).catch(() => {});
       } catch {}
 
       // 3. Registra exclusão permanente local para nunca mais reaparecer no reload
@@ -1411,20 +1402,12 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
       // 1. Sincroniza imediatamente com a nuvem /api/app-config para todos os clientes
       try {
-        await fetch('/api/app-config', {
+        await fetchApi('/api/app-config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ plansConfig: plans }),
-        });
-      } catch {
-        try {
-          await fetch('https://cn-spartan.vercel.app/api/app-config', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ plansConfig: plans }),
-          });
-        } catch {}
-      }
+        }).catch(() => {});
+      } catch {}
 
       // 2. Persiste no Supabase system_settings se disponível
       try {
@@ -1498,20 +1481,12 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
     // 2. Persiste no servidor /api/app-config para sincronização universal com todos os clientes
     try {
-      await fetch('/api/app-config', {
+      await fetchApi('/api/app-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pixConfig }),
-      });
-    } catch {
-      try {
-        await fetch('https://cn-spartan.vercel.app/api/app-config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pixConfig }),
-        });
-      } catch {}
-    }
+      }).catch(() => {});
+    } catch {}
 
     // 3. Persiste no banco Supabase system_settings se acessível
     try {

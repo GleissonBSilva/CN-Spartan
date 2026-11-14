@@ -188,13 +188,13 @@ export default async function handler(req, res) {
       const targetPlan = profile.plan_name || memoryProfiles[existingIdx].plan_name;
       let targetScreens = profile.max_screens !== undefined ? Number(profile.max_screens) : memoryProfiles[existingIdx].max_screens;
 
-      // Sincroniza telas com o plano correspondente oficial
+      // Sincroniza telas estritamente com o plano correspondente oficial
       const cleanPlanUpper = String(targetPlan || '').toUpperCase();
-      if (cleanPlanUpper.includes('START') && targetScreens > 1) {
+      if (cleanPlanUpper.includes('START')) {
         targetScreens = 1;
-      } else if (cleanPlanUpper.includes('PRO') && targetScreens > 2) {
+      } else if (cleanPlanUpper.includes('PRO')) {
         targetScreens = 2;
-      } else if (cleanPlanUpper.includes('BUSINESS') && targetScreens < 5) {
+      } else if (cleanPlanUpper.includes('BUSINESS')) {
         targetScreens = 5;
       }
 

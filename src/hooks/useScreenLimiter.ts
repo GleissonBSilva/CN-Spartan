@@ -3,6 +3,7 @@ import { useAuthProfile } from './useAuthProfile';
 import { supabase } from '../lib/supabase';
 import { CURRENT_APP_VERSION } from '../config/appVersion';
 import { isTvBoxOrApk } from './useAppUpdateGuard';
+import { fetchApi } from '../lib/apiConfig';
 
 export interface ActiveDevice {
   deviceId: string;
@@ -128,17 +129,11 @@ export function useScreenLimiter(isPlaying: boolean = true) {
           last_platform: platformType,
           last_seen_at: new Date().toISOString(),
         };
-        fetch('/api/clients', {
+        fetchApi('/api/clients', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(syncPayload),
-        }).catch(() =>
-          fetch('https://cn-spartan.vercel.app/api/clients', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(syncPayload),
-          }).catch(() => {})
-        );
+        }).catch(() => {});
       } catch {}
 
       if (isValidUuid(userId)) {

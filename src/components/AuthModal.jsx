@@ -4,6 +4,7 @@ import { FaTimes, FaGoogle, FaEnvelope, FaLock, FaUser, FaSpinner, FaExclamation
 import { supabase } from '../lib/supabase';
 import { getSavedPlans } from '../constants/plans';
 import { useAuthProfile } from '../hooks/useAuthProfile';
+import { fetchApi } from '../lib/apiConfig';
 
 const formatAuthError = (msg) => {
   if (!msg) return 'E-mail ou senha incorretos.';
@@ -374,7 +375,6 @@ export default function AuthModal({ isOpen, onClose }) {
           status: initialStatus,
           expires_at: expiryDate,
           created_at: nowIso,
-          admin_updated_at: nowIso,
         };
 
         // 1. Persiste imediatamente no registro compartilhado com o Painel Admin e AuthProfileContext
@@ -450,13 +450,7 @@ export default function AuthModal({ isOpen, onClose }) {
         };
 
         try {
-          fetch('/api/clients', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(clientSyncPayload)
-          }).catch(() => {});
-
-          fetch('https://cn-spartan.vercel.app/api/clients', {
+          fetchApi('/api/clients', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(clientSyncPayload)
