@@ -324,6 +324,13 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             } catch {}
             return merged;
           });
+
+          if (remote.pixConfig && remote.pixConfig.key) {
+            setPixConfig((prev) => ({ ...prev, ...remote.pixConfig }));
+            try {
+              localStorage.setItem('spartan_pix_config', JSON.stringify(remote.pixConfig));
+            } catch {}
+          }
         }
       })
       .catch(() => {});
@@ -1457,6 +1464,28 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   const handleSavePixConfig = async (e: React.FormEvent) => {
     e.preventDefault();
     localStorage.setItem('spartan_pix_config', JSON.stringify(pixConfig));
+
+    // 1. Notifica abas/componentes locais imediatamente
+    window.dispatchEvent(new CustomEvent('spartan_pix_config_changed', { detail: pixConfig }));
+
+    // 2. Persiste no servidor /api/app-config para sincronização universal com todos os clientes
+    try {
+      await fetch('/api/app-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pixConfig }),
+      });
+    } catch {
+      try {
+        await fetch('https://cn-spartan.vercel.app/api/app-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pixConfig }),
+        });
+      } catch {}
+    }
+
+    // 3. Persiste no banco Supabase system_settings se acessível
     try {
       await supabase.from('system_settings').upsert({
         key: 'pix_config',
@@ -1464,10 +1493,11 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         updated_at: new Date().toISOString(),
       });
     } catch {}
+
     setPixConfigModalOpen(false);
     setNotification({
       type: 'success',
-      message: 'Configurações de Pix do administrador atualizadas com sucesso!',
+      message: 'Configurações de Pix atualizadas e propagadas para todos os clientes!',
     });
   };
 

@@ -53,7 +53,14 @@ export default async function handler(req, res) {
     apkAccessEnabled: true,
     globalBroadcastMessage: '',
     blockedIps: [],
-    blockedDevices: []
+    blockedDevices: [],
+    pixConfig: {
+      keyType: 'email',
+      key: 'gleisson1984@gmail.com',
+      recipientName: 'Gleisson B Silva',
+      city: 'Manaus',
+      customMessage: 'Olá! Segue sua cobrança Pix Cine Spartan para ativação ou renovação imediata:'
+    }
   };
 
   const saved = readSavedConfig();
@@ -77,7 +84,14 @@ export default async function handler(req, res) {
         apkAccessEnabled: body.apkAccessEnabled !== undefined ? Boolean(body.apkAccessEnabled) : config.apkAccessEnabled,
         globalBroadcastMessage: body.globalBroadcastMessage !== undefined ? String(body.globalBroadcastMessage) : config.globalBroadcastMessage,
         blockedIps: Array.isArray(body.blockedIps) ? body.blockedIps : (config.blockedIps || []),
-        blockedDevices: Array.isArray(body.blockedDevices) ? body.blockedDevices : (config.blockedDevices || [])
+        blockedDevices: Array.isArray(body.blockedDevices) ? body.blockedDevices : (config.blockedDevices || []),
+        pixConfig: body.pixConfig && typeof body.pixConfig === 'object' ? {
+          keyType: body.pixConfig.keyType || config.pixConfig?.keyType || 'email',
+          key: String(body.pixConfig.key || config.pixConfig?.key || '').trim(),
+          recipientName: String(body.pixConfig.recipientName || config.pixConfig?.recipientName || 'Gleisson B Silva').trim(),
+          city: String(body.pixConfig.city || config.pixConfig?.city || 'Manaus').trim(),
+          customMessage: String(body.pixConfig.customMessage || config.pixConfig?.customMessage || '')
+        } : config.pixConfig
       };
       writeSavedConfig(nextConfig);
       config = { ...config, ...nextConfig };

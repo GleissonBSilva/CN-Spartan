@@ -72,7 +72,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
 
   const plans = getSavedPlans().length > 0 ? getSavedPlans() : DEFAULT_PLANS;
 
-  // Configuração Pix do sistema (com sincronização via Supabase e fallback seguro)
+  // Configuração Pix do sistema (com sincronização via /api/app-config, Supabase e fallback seguro)
   const [pixConfig, setPixConfig] = useState<PixConfig>(() => {
     try {
       const saved = localStorage.getItem('spartan_pix_config');
@@ -83,7 +83,43 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   });
 
   useEffect(() => {
+    const handlePixChanged = (e: any) => {
+      if (e?.detail?.key) {
+        setPixConfig(e.detail);
+      }
+    };
+    window.addEventListener('spartan_pix_config_changed', handlePixChanged);
+    return () => window.removeEventListener('spartan_pix_config_changed', handlePixChanged);
+  }, []);
+
+  useEffect(() => {
     const fetchPixConfig = async () => {
+      // 1. Tenta sincronizar a chave configurada pelo Admin em /api/app-config
+      try {
+        const res = await fetch('/api/app-config');
+        if (res.ok) {
+          const cfg = await res.json();
+          if (cfg?.pixConfig?.key) {
+            setPixConfig(cfg.pixConfig);
+            localStorage.setItem('spartan_pix_config', JSON.stringify(cfg.pixConfig));
+            return;
+          }
+        }
+      } catch {
+        try {
+          const res = await fetch('https://cn-spartan.vercel.app/api/app-config');
+          if (res.ok) {
+            const cfg = await res.json();
+            if (cfg?.pixConfig?.key) {
+              setPixConfig(cfg.pixConfig);
+              localStorage.setItem('spartan_pix_config', JSON.stringify(cfg.pixConfig));
+              return;
+            }
+          }
+        } catch {}
+      }
+
+      // 2. Fallback para Supabase system_settings
       try {
         const { data } = await supabase
           .from('system_settings')
@@ -99,6 +135,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
         // Usa fallback local
       }
     };
+
     if (isOpen) {
       fetchPixConfig();
     }
