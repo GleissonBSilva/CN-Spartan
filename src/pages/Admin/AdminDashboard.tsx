@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -275,6 +275,8 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
   // Modal Editar Cliente & Telas
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
+  const editingProfileRef = useRef<Profile | null>(null);
+  editingProfileRef.current = editingProfile;
   const [editFormData, setEditFormData] = useState({
     fullName: '',
     email: '',
@@ -858,20 +860,44 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     };
   }, [isAdmin, loadProfiles, saveProfilesRegistry]);
 
-  // Atualização silenciosa em tempo real dos aparelhos Web / APK conectados
+  // Atualização em tempo real (Auto-Sync a cada 4s + Foco na Janela / Retorno de Aba)
   useEffect(() => {
     if (!isAdmin) return;
+
+    let isPolling = false;
+
     const pollRemoteClients = async () => {
+      if (isPolling) return;
+      isPolling = true;
       try {
         const res = await fetchApi('/api/clients');
         if (!res || !res.ok) return;
         const remoteData = await res.json();
-        const remoteList = Array.isArray(remoteData) ? remoteData : (remoteData?.profiles || []);
-        if (!Array.isArray(remoteList) || remoteList.length === 0) return;
+        const remoteList: Profile[] = Array.isArray(remoteData) ? remoteData : (remoteData?.profiles || []);
+        const remoteDeleted: string[] = Array.isArray(remoteData?.deleted) ? remoteData.deleted : [];
+
+        if (!Array.isArray(remoteList)) return;
 
         setProfiles((prev) => {
           let changed = false;
-          const next = prev.map((p) => {
+
+          // 1. Remove perfis deletados na nuvem
+          let currentList = prev.filter((p) => {
+            const isDel = remoteDeleted.includes(p.id) || (p.email && remoteDeleted.includes(p.email.toLowerCase().trim()));
+            if (isDel) {
+              changed = true;
+              return false;
+            }
+            return true;
+          });
+
+          // 2. Atualiza dados de perfis existentes (aparelhos ativos, telas, planos, expirações e status)
+          const updatedList = currentList.map((p) => {
+            const isBeingEdited = editingProfileRef.current && (
+              editingProfileRef.current.id === p.id ||
+              (editingProfileRef.current.email && p.email && editingProfileRef.current.email.toLowerCase() === p.email.toLowerCase())
+            );
+
             const match = remoteList.find(
               (r: any) =>
                 r.id === p.id ||
@@ -883,31 +909,72 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             const nextPlatform = match.last_platform || p.last_platform;
             const nextIp = match.last_ip || p.last_ip;
             const nextSeen = match.last_seen_at || p.last_seen_at;
+            const nextPlan = isBeingEdited ? p.plan_name : (match.plan_name || p.plan_name);
+            const nextScreens = isBeingEdited ? p.max_screens : Number(match.max_screens ?? p.max_screens);
+            const nextStatus = isBeingEdited ? p.status : (match.status || p.status);
+            const nextExpires = isBeingEdited ? p.expires_at : (match.expires_at || p.expires_at);
+            const nextIsTrial = isBeingEdited ? p.is_trial : (match.is_trial !== undefined ? match.is_trial : p.is_trial);
+            const nextName = isBeingEdited ? p.full_name : (match.full_name || p.full_name);
+            const nextWhatsapp = isBeingEdited ? p.whatsapp : (match.whatsapp || p.whatsapp);
 
-            if (
+            const hasChanged =
               JSON.stringify(remoteDevices) !== JSON.stringify(p.active_devices || []) ||
               nextPlatform !== p.last_platform ||
               nextIp !== p.last_ip ||
-              nextSeen !== p.last_seen_at
-            ) {
+              nextSeen !== p.last_seen_at ||
+              nextPlan !== p.plan_name ||
+              nextScreens !== p.max_screens ||
+              nextStatus !== p.status ||
+              nextExpires !== p.expires_at ||
+              nextIsTrial !== p.is_trial ||
+              nextName !== p.full_name ||
+              nextWhatsapp !== p.whatsapp;
+
+            if (hasChanged) {
               changed = true;
               return {
                 ...p,
+                ...match,
                 active_devices: remoteDevices,
                 last_platform: nextPlatform,
                 last_ip: nextIp,
                 last_seen_at: nextSeen,
+                plan_name: nextPlan,
+                max_screens: nextScreens,
+                status: nextStatus,
+                expires_at: nextExpires,
+                is_trial: nextIsTrial,
+                full_name: nextName,
+                whatsapp: nextWhatsapp,
               };
             }
             return p;
           });
+
+          // 3. Adiciona NOVOS clientes cadastrados na nuvem (Web, APK ou TV Box)
+          const existingIds = new Set(updatedList.map((p) => p.id));
+          const existingEmails = new Set(updatedList.map((p) => (p.email || '').toLowerCase().trim()));
+
+          const newClients = remoteList.filter((r) => {
+            if (!r.id && !r.email) return false;
+            const idExists = r.id && existingIds.has(r.id);
+            const emailExists = r.email && existingEmails.has(r.email.toLowerCase().trim());
+            return !idExists && !emailExists;
+          });
+
+          if (newClients.length > 0) {
+            changed = true;
+            updatedList.unshift(...newClients);
+          }
+
           if (changed) {
-            saveProfilesRegistry(next);
-            return next;
+            saveProfilesRegistry(updatedList);
+            return updatedList;
           }
           return prev;
         });
 
+        // Atualiza modal de dispositivos se estiver aberto
         setDevicesModalProfile((curr) => {
           if (!curr) return null;
           const match = remoteList.find(
@@ -918,6 +985,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           if (!match) return curr;
           return {
             ...curr,
+            ...match,
             active_devices: Array.isArray(match.active_devices) ? match.active_devices : curr.active_devices || [],
             last_platform: match.last_platform || curr.last_platform,
             last_ip: match.last_ip || curr.last_ip,
@@ -926,11 +994,31 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         });
       } catch {
         // ignore
+      } finally {
+        isPolling = false;
       }
     };
 
-    const timer = setInterval(pollRemoteClients, 15000);
-    return () => clearInterval(timer);
+    // Executa imediatamente e a cada 4 segundos
+    pollRemoteClients();
+    const timer = setInterval(pollRemoteClients, 4000);
+
+    // Quando o usuário foca na tela ou retorna para a aba
+    const handleFocus = () => pollRemoteClients();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        pollRemoteClients();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [isAdmin, saveProfilesRegistry]);
 
   // Controle de Sessões e Aparelhos (Web & APK)
@@ -2664,14 +2752,24 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                   ))}
                 </div>
 
-                <button
-                  onClick={() => loadProfiles()}
-                  className="text-[11px] font-bold text-purple-300 hover:text-white flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 transition"
-                  title="Atualizar conexões Web e APK agora"
-                >
-                  <FaSyncAlt className={loading ? 'animate-spin' : ''} />
-                  <span>Atualizar Sessões Ao Vivo</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-[11px] font-bold text-emerald-400 select-none shadow-sm"
+                    title="O painel sincroniza novos cadastros, status de pagamento e aparelhos conectados a cada 4 segundos automaticamente."
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>Ao Vivo (Auto 4s)</span>
+                  </div>
+
+                  <button
+                    onClick={() => loadProfiles()}
+                    className="text-[11px] font-bold text-purple-300 hover:text-white flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/20 transition"
+                    title="Forçar recarga completa agora"
+                  >
+                    <FaSyncAlt className={loading ? 'animate-spin' : ''} />
+                    <span>Recarregar</span>
+                  </button>
+                </div>
               </div>
             </div>
 
