@@ -23,6 +23,10 @@ create index if not exists idx_used_trials_whatsapp on public.used_trials(whatsa
 
 alter table public.used_trials enable row level security;
 
+-- Garante que novos perfis criados no Supabase recebam apenas os dias de teste grátis (3 dias) e não 30 dias de plano antes do pagamento
+alter table public.profiles alter column expires_at set default (now() + interval '3 days');
+alter table public.profiles alter column is_trial set default true;
+
 -- Permissões de Leitura e Inserção para checagem de teste grátis no app
 drop policy if exists "Leitura publica anti fraude used_trials" on public.used_trials;
 create policy "Leitura publica anti fraude used_trials"

@@ -199,6 +199,15 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
             ? metaScreens
             : raw.max_screens || 1);
 
+        let resolvedIsTrial =
+          hasAdminEdit && localStoredProfile?.is_trial !== undefined
+            ? localStoredProfile.is_trial
+            : cloudProfile?.is_trial !== undefined
+            ? cloudProfile.is_trial
+            : localStoredProfile?.is_trial !== undefined
+            ? localStoredProfile.is_trial
+            : raw.is_trial ?? Boolean(userMeta?.is_trial ?? false);
+
         let resolvedExpiresAt =
           cloudProfile?.expires_at ||
           (hasAdminEdit && localStoredProfile?.expires_at ? localStoredProfile.expires_at : raw.expires_at);
@@ -213,12 +222,25 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
 
         if (!cloudProfile && localStoredProfile && !hasAdminEdit && resolvedStatus !== 'suspenso') {
-          const dbExp = new Date(raw.expires_at).getTime();
-          const localExp = new Date(localStoredProfile.expires_at).getTime();
-          if (localExp > dbExp && localStoredProfile.status === 'ativo') {
+          if (localStoredProfile.expires_at) {
             resolvedExpiresAt = localStoredProfile.expires_at;
-            resolvedStatus = 'ativo';
-            resolvedIsTrial = localStoredProfile.is_trial;
+          }
+          if (localStoredProfile.status) {
+            resolvedStatus = localStoredProfile.status;
+          }
+        }
+
+        // REGRA DE PROTEÇÃO CONTRA O BUG DOS 30/33 DIAS:
+        // Todo cliente em Teste Grátis tem validade APENAS dos dias de teste (padrão 3 dias).
+        // Se a data do banco ou local ficou com mais de 7 dias a partir da criação (ex: default 30d do banco antes do cliente pagar):
+        if (resolvedIsTrial && !hasAdminEdit && resolvedStatus !== 'suspenso') {
+          const createdTime = new Date(raw.created_at || localStoredProfile?.created_at || Date.now()).getTime();
+          const expTime = new Date(resolvedExpiresAt).getTime();
+          const daysDiff = (expTime - createdTime) / (1000 * 60 * 60 * 24);
+
+          if (daysDiff > 7) {
+            const trialDaysCfg = Number(localStorage.getItem('spartan_trial_days')) || 3;
+            resolvedExpiresAt = new Date(createdTime + trialDaysCfg * 24 * 60 * 60 * 1000).toISOString();
           }
         }
 
@@ -325,8 +347,10 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           }
         } catch {}
 
-        const initialStatus = isMaster ? 'ativo' : 'vencido';
-        const expiryDuration = isMaster ? 365 : 0;
+        const trialDaysCfg = Number(localStorage.getItem('spartan_trial_days')) || 3;
+        const isTrialAllowed = !alreadyUsedTrial && localStorage.getItem('spartan_trial_enabled') !== 'false';
+        const initialStatus = isMaster ? 'ativo' : (isTrialAllowed ? 'ativo' : 'vencido');
+        const expiryDuration = isMaster ? 365 : (isTrialAllowed ? trialDaysCfg : 0);
 
         const fallbackProfile: Profile = {
           id: userId,
@@ -338,8 +362,8 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           plan_name: isMaster
             ? 'Master Admin'
             : userMeta?.plan_name || 'SPARTAN PRO',
-          is_trial: false,
-          trial_used: true,
+          is_trial: isMaster ? false : isTrialAllowed,
+          trial_used: isMaster ? true : !isTrialAllowed,
           expires_at: new Date(Date.now() + expiryDuration * 24 * 60 * 60 * 1000).toISOString(),
           max_screens: isMaster ? 5 : Number(userMeta?.max_screens || 1),
           created_at: new Date().toISOString(),

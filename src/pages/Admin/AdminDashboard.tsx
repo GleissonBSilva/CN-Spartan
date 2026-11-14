@@ -693,6 +693,20 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
           if (hasAdminEdit && localMatch?.expires_at) {
             finalExpiresAt = localMatch.expires_at;
+          } else if (mergedIsTrial && localMatch?.expires_at) {
+            finalExpiresAt = localMatch.expires_at;
+          }
+
+          // Proteção contra divergência de teste com 30 dias:
+          // Novo cliente em teste só tem direito aos dias de teste (padrão 3 dias), nunca 30 dias antes de pagar
+          if (mergedIsTrial && !hasAdminEdit) {
+            const createdTime = new Date(dbP.created_at || localMatch?.created_at || Date.now()).getTime();
+            const expTime = new Date(finalExpiresAt).getTime();
+            const daysDiff = (expTime - createdTime) / (1000 * 60 * 60 * 24);
+            if (daysDiff > 7) {
+              const trialDaysCfg = trialConfig.days || 3;
+              finalExpiresAt = new Date(createdTime + trialDaysCfg * 24 * 60 * 60 * 1000).toISOString();
+            }
           }
 
           // Bloqueio automático imediato ao expirar a assinatura (apenas se não estiver suspenso)

@@ -385,7 +385,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
           {/* Badge do Plano Atual */}
           <div className="bg-black/40 border border-purple-500/30 px-3.5 py-2 rounded-xl text-right self-start sm:self-auto">
             <span className="text-[10px] uppercase font-bold text-purple-300 tracking-wider block">
-              Plano Contratado
+              {isTrial ? 'Plano Selecionado (Em Teste)' : 'Plano Contratado'}
             </span>
             <span className="text-sm font-black text-white">{currentPlanName}</span>
           </div>
@@ -475,6 +475,16 @@ export const AccountModal: React.FC<AccountModalProps> = ({
           {/* ABA 1: MINHA ASSINATURA */}
           {activeTab === 'assinatura' && (
             <div className="space-y-5">
+              {/* Banner Informativo de Teste Grátis */}
+              {isTrial && isActive && (
+                <div className="bg-amber-500/10 border border-amber-500/30 p-3.5 rounded-xl text-xs text-amber-200 flex items-start gap-2.5 shadow-sm">
+                  <FaBolt className="text-amber-400 text-sm shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <strong>Período de Teste Grátis Ativo ({daysRemaining}d restantes):</strong> Aproveite sua degustação completa! O seu plano mensal <strong>{currentPlanName}</strong> entrará em vigor oficialmente após a renovação e confirmação do pagamento via Pix.
+                  </div>
+                </div>
+              )}
+
               {/* Cartões de Métricas */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {/* Vencimento */}
@@ -483,7 +493,9 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     <FaCalendarAlt />
                   </div>
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-gray-400 block">Vencimento</span>
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">
+                      {isTrial ? 'Fim do Teste Grátis' : 'Vencimento'}
+                    </span>
                     <span className="text-xs font-bold text-white block mt-0.5">
                       {formattedExpiration}
                     </span>
@@ -493,16 +505,20 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                 {/* Dias Restantes */}
                 <div className="bg-black/50 border border-white/5 p-4 rounded-xl flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                    isActive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+                    isActive ? (isTrial ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400') : 'bg-red-500/10 text-red-400'
                   }`}>
                     <FaBolt />
                   </div>
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-gray-400 block">Validade</span>
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">
+                      {isTrial ? 'Prazo de Teste' : 'Validade'}
+                    </span>
                     <span className={`text-xs font-black block mt-0.5 ${
-                      isActive ? 'text-emerald-400' : 'text-red-400'
+                      isActive ? (isTrial ? 'text-amber-400' : 'text-emerald-400') : 'text-red-400'
                     }`}>
-                      {isActive ? `${daysRemaining} dias restantes` : 'Acesso Vencido'}
+                      {isActive
+                        ? `${daysRemaining} ${daysRemaining === 1 ? 'dia restante' : 'dias restantes'}`
+                        : (isTrial ? 'Teste Expirado' : 'Acesso Vencido')}
                     </span>
                   </div>
                 </div>

@@ -177,6 +177,9 @@ export default async function handler(req, res) {
         updated_at: new Date().toISOString()
       };
     } else {
+      const isNewTrial = Boolean(profile.is_trial);
+      const defaultDurationDays = isNewTrial ? 3 : 30;
+
       memoryProfiles.unshift({
         id: cleanId,
         email: cleanEmail,
@@ -186,13 +189,13 @@ export default async function handler(req, res) {
         status: profile.status || 'ativo',
         plan_name: profile.plan_name || 'SPARTAN PRO',
         max_screens: Number(profile.max_screens || 2),
-        is_trial: Boolean(profile.is_trial),
+        is_trial: isNewTrial,
         trial_used: Boolean(profile.trial_used),
         active_devices: Array.isArray(nextDevices) ? nextDevices : [],
         last_platform: profile.last_platform || 'web',
         last_ip: clientIp,
         last_seen_at: profile.last_seen_at || new Date().toISOString(),
-        expires_at: profile.expires_at || new Date(Date.now() + 30 * 86400000).toISOString(),
+        expires_at: profile.expires_at || new Date(Date.now() + defaultDurationDays * 86400000).toISOString(),
         created_at: profile.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString()
       });

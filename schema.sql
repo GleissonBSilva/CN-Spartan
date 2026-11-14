@@ -10,8 +10,8 @@ create table if not exists public.profiles (
   whatsapp text,
   role text not null default 'client' check (role in ('admin', 'client')),
   status text not null default 'ativo' check (status in ('ativo', 'suspenso', 'vencido')),
-  plan_name text not null default 'Mensal',
-  expires_at timestamptz not null default (now() + interval '30 days'),
+  plan_name text not null default 'SPARTAN PRO',
+  expires_at timestamptz not null default (now() + interval '3 days'),
   max_screens int not null default 1 check (max_screens >= 1),
   created_at timestamptz not null default now()
 );
@@ -19,10 +19,14 @@ create table if not exists public.profiles (
 -- Garantir adição das colunas na tabela profiles caso ela já exista
 alter table public.profiles add column if not exists full_name text;
 alter table public.profiles add column if not exists whatsapp text;
-alter table public.profiles add column if not exists is_trial boolean default false;
+alter table public.profiles add column if not exists is_trial boolean default true;
 alter table public.profiles add column if not exists trial_used boolean default false;
 alter table public.profiles add column if not exists active_devices jsonb default '[]'::jsonb;
 alter table public.profiles add column if not exists admin_updated_at timestamptz;
+
+-- Garante que o padrão seja apenas os dias de teste grátis (3 dias) e não 30 dias antes do pagamento
+alter table public.profiles alter column expires_at set default (now() + interval '3 days');
+alter table public.profiles alter column is_trial set default true;
 
 -- 2. Tabela Permanente Anti-Fraude de Teste Grátis ('used_trials')
 -- Impede que um usuário receba novo teste grátis mesmo se o seu perfil for excluído
