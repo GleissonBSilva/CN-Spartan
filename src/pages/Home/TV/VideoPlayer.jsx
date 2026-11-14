@@ -93,6 +93,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
     }, []);
 
     const [sourceIdx, setSourceIdx] = useState(() => resolveDefaultServerIdx());
+    const [serverHealthMap, setServerHealthMap] = useState({});
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isCssFullscreen, setIsCssFullscreen] = useState(false);
     const [showControls, setShowControls] = useState(true);
@@ -103,6 +104,39 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
     const toastTimerRef = useRef(null);
 
     const activeServer = SERVERS[sourceIdx] || SERVERS[0];
+
+    // Verificação de integridade e disponibilidade dos servidores em tempo real com auto-fallback
+    useEffect(() => {
+        let isCancelled = false;
+        const checkHealth = async () => {
+            try {
+                const res = await fetch(`/api/check-servers?id=${tvId}&type=tv&s=${season}&e=${episode}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                if (isCancelled) return;
+                if (data.statusMap) {
+                    setServerHealthMap(data.statusMap);
+                }
+                // Auto-fallback inteligente: se o servidor ativo estiver offline para este episódio,
+                // reconecta automaticamente ao servidor recomendado sem travar o cliente
+                if (data.recommendedId && data.statusMap) {
+                    setSourceIdx(prevIdx => {
+                        const current = SERVERS[prevIdx];
+                        if (current && data.statusMap[current.id] === false) {
+                            const recIdx = SERVERS.findIndex(s => s.id === data.recommendedId);
+                            if (recIdx !== -1 && recIdx !== prevIdx) {
+                                showToast(`🔄 ${current.name} indisponível para este episódio. Conectado ao ${SERVERS[recIdx].name}`);
+                                return recIdx;
+                            }
+                        }
+                        return prevIdx;
+                    });
+                }
+            } catch {}
+        };
+        checkHealth();
+        return () => { isCancelled = true; };
+    }, [tvId, season, episode]);
 
     // Protege contra desvios ou redirecionamentos maliciosos do window.top por players externos
     useEffect(() => {
@@ -164,9 +198,16 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
         showToast(`Conectado ao ${SERVERS[idx].name}`);
     };
 
-    // Alternar servidor reserva se necessário
+    // Alternar servidor reserva se necessário (prioriza servidores online verificados)
     const handleNextServer = () => {
-        const next = (sourceIdx + 1) % SERVERS.length;
+        let next = (sourceIdx + 1) % SERVERS.length;
+        for (let i = 0; i < SERVERS.length; i++) {
+            const candidateIdx = (sourceIdx + 1 + i) % SERVERS.length;
+            if (serverHealthMap[SERVERS[candidateIdx].id] !== false) {
+                next = candidateIdx;
+                break;
+            }
+        }
         handleSelectServer(next);
     };
 
@@ -520,6 +561,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                         <div className="flex items-center gap-1.5 flex-wrap">
                             {SERVERS.map((srv, idx) => {
                                 const isSelected = sourceIdx === idx;
+                                const isHealthy = serverHealthMap[srv.id];
                                 return (
                                     <button
                                         key={srv.id}
@@ -534,8 +576,15 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                                         }`}
                                     >
                                         <span>{srv.name}</span>
+                                        {/* Status em tempo real do health-check */}
+                                        {isHealthy === true && (
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" title="Servidor verificado e online" />
+                                        )}
+                                        {isHealthy === false && (
+                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400/80 shrink-0" title="Servidor oscilando para este episódio" />
+                                        )}
                                         {isSelected && (
-                                            <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${idx === 0 ? 'bg-emerald-400' : 'bg-black'}`} />
+                                            <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${idx === 0 ? 'bg-emerald-300' : 'bg-black'}`} />
                                         )}
                                     </button>
                                 );
