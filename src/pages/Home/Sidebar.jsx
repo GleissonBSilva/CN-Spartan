@@ -9,7 +9,7 @@ import {
   BiBookmark,
   BiX
 } from 'react-icons/bi';
-import { FaSignOutAlt, FaUserCircle, FaShieldAlt, FaBroadcastTower } from 'react-icons/fa';
+import { FaSignOutAlt, FaUserCircle, FaShieldAlt, FaBroadcastTower, FaDownload } from 'react-icons/fa';
 import { GENRES, SPECIAL_CATEGORIES } from './tmdb';
 import { CATEGORIES as TV_CATEGORIES } from './LiveTV/channelsData';
 import { useLanguage } from '../../context/LanguageContext';
@@ -25,7 +25,7 @@ const NAV_ITEMS = [
   { id: 'watchlist', icon: BiBookmark, action: 'navigate', label: 'Watchlist' },
 ];
 
-function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpenAuthModal, onOpenAccountModal, isMobileOpen = false, onCloseMobile }) {
+function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpenAuthModal, onOpenAccountModal, onOpenDownloadModal, isMobileOpen = false, onCloseMobile }) {
   const navigate = useNavigate();
   const { user: supaUser, isAdmin, profile, daysRemaining, isActive, signOut: supaSignOut } = useAuthProfile();
   const { t, getGenreName } = useLanguage();
@@ -179,6 +179,32 @@ function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpe
               );
             })}
           </nav>
+
+          {/* Botão de Destaque para Download do App (Android, TV Box, Smart TV) */}
+          <div className="px-2.5 my-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                if (onCloseMobile) onCloseMobile();
+                if (onOpenDownloadModal) onOpenDownloadModal();
+              }}
+              title="Baixar Aplicativo para Android, TV Box e Smart TV"
+              className="
+                relative flex items-center justify-start md:justify-center md:group-hover:justify-start gap-3 px-3 py-2.5 rounded-2xl
+                w-full text-[12px] sm:text-[13px] font-extrabold whitespace-nowrap
+                bg-gradient-to-r from-red-600/25 to-amber-600/25 border border-red-500/40 text-white hover:from-red-600/40 hover:to-amber-600/40 hover:border-red-400
+                transition-all duration-200 focus:outline-none shadow-md shadow-red-950/40 group/dl
+              "
+            >
+              <div className="w-6 h-6 rounded-lg bg-red-600 flex items-center justify-center shrink-0 shadow-sm group-hover/dl:scale-110 transition-transform">
+                <FaDownload className="text-white text-[11px]" />
+              </div>
+              <div className="flex md:hidden md:group-hover:flex flex-col text-left min-w-0">
+                <span className="text-white font-black truncate leading-tight">Baixar App</span>
+                <span className="text-amber-400 text-[9px] font-bold uppercase tracking-wider truncate">Android • TV Box</span>
+              </div>
+            </button>
+          </div>
 
           {/* Categories section — movies / series / livetv */}
           {showCategories && (
@@ -334,6 +360,7 @@ Sidebar.propTypes = {
   onGenreSelect: PropTypes.func,
   onOpenAuthModal: PropTypes.func,
   onOpenAccountModal: PropTypes.func,
+  onOpenDownloadModal: PropTypes.func,
   isMobileOpen: PropTypes.bool,
   onCloseMobile: PropTypes.func,
 };
