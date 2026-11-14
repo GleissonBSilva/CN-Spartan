@@ -6,58 +6,49 @@ import { useAuthProfile } from '../../../hooks/useAuthProfile';
 import SubscriptionLockGate from '../../../components/SubscriptionLockGate';
 import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
 
-// Servidores separados por modalidade real de reprodução: Dublado BR e Legendado (Original HD)
-const SERVERS = {
-  dublado: [
-    {
-      id: 'superflix_dub',
-      name: '🍿 SuperFlix Séries BR (Áudio 100% Dublado)',
-      url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
-    },
-    {
-      id: 'vidlink_dub',
-      name: '⭐ VidLink Séries HD (Multi-Áudio BR)',
-      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?sub_lang=pt-BR&sub=pt-BR&autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
-    },
-    {
-      id: 'multiembed_dub',
-      name: '📺 MultiEmbed Séries (Multi-Áudio BR)',
-      url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
-    },
-    {
-      id: 'embedsu_dub',
-      name: '🎬 EmbedSu Séries HD (Multi-Áudio & CC)',
-      url: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}?default_lang=pt`
-    },
-    {
-      id: 'vidsrc_sh',
-      name: '⚡ VidSrc Séries Fast',
-      url: (id, s, e) => `https://vidsrc.sh/embed/tv?tmdb=${id}&season=${s}&episode=${e}`
-    }
-  ],
-  legendado: [
-    {
-      id: 'vidlink_orig',
-      name: '💬 VidLink Séries HD (Legendas PT-BR Automáticas)',
-      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?sub_lang=pt-BR&sub=pt-BR&autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
-    },
-    {
-      id: 'embedsu_orig',
-      name: '🎬 EmbedSu Séries (Legendas PT-BR)',
-      url: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}?default_lang=pt`
-    },
-    {
-      id: 'multiembed_orig',
-      name: '📺 MultiEmbed (Original & Legendas CC)',
-      url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}&sub=pt`
-    },
-    {
-      id: 'vidsrc_orig',
-      name: '⚡ VidSrc Séries Original',
-      url: (id, s, e) => `https://vidsrc.sh/embed/tv?tmdb=${id}&season=${s}&episode=${e}`
-    }
-  ]
-};
+// Servidores Spartan verificados e catalogados por qualidade e idioma real
+const SERVERS = [
+  {
+    id: 'superflix',
+    name: '🍿 SuperFlix Séries (Dublado BR)',
+    shortName: '🍿 Dublado BR',
+    badge: '100% Dublado BR',
+    desc: 'Áudio nativo 100% dublado em Português-BR (SuperFlix)',
+    url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
+  },
+  {
+    id: 'vidlink',
+    name: '⭐ VidLink Séries (Original HD)',
+    shortName: '⭐ Original HD',
+    badge: 'Áudio Original HD',
+    desc: 'Áudio original em Ultra HD / 4K sem anúncios (VidLink)',
+    url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
+  },
+  {
+    id: 'multiembed',
+    name: '📺 MultiEmbed Séries',
+    shortName: '📺 MultiEmbed',
+    badge: 'Multi-Fonte',
+    desc: 'Servidor alternativo multi-fontes (MultiEmbed)',
+    url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
+  },
+  {
+    id: 'embedsu',
+    name: '🎬 EmbedSu Séries HD',
+    shortName: '🎬 EmbedSu',
+    badge: 'Reserva HD',
+    desc: 'Servidor reserva em alta definição (EmbedSu)',
+    url: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}`
+  },
+  {
+    id: 'vidsrc',
+    name: '⚡ VidSrc Séries Fast',
+    shortName: '⚡ VidSrc',
+    badge: 'Reserva',
+    desc: 'Servidor reserva rápido (VidSrc)',
+    url: (id, s, e) => `https://vidsrc.sh/embed/tv?tmdb=${id}&season=${s}&episode=${e}`
+  }
+];
 
 const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster }) => {
     const { language } = useLanguage();
@@ -90,14 +81,18 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
     const { isScreenBlocked, activeDevices, maxScreens, disconnectOtherDevices } = useScreenLimiter(canPlay && hasStarted);
 
     // Sempre inicia no servidor principal Dublado BR por padrão
-    const resolveDefaultMode = useCallback(() => {
-        const saved = localStorage.getItem('cinespartan_preferred_stream_mode');
-        if (saved === 'legendado' || saved === 'dublado') return saved;
-        return 'dublado';
+    const resolveDefaultServerIdx = useCallback(() => {
+        const saved = localStorage.getItem('cinespartan_preferred_server_idx');
+        if (saved !== null) {
+            const parsed = parseInt(saved, 10);
+            if (!isNaN(parsed) && parsed >= 0 && parsed < SERVERS.length) {
+                return parsed;
+            }
+        }
+        return 0; // Padrão: 0 = SuperFlix (Dublado BR)
     }, []);
 
-    const [streamMode, setStreamMode] = useState(() => resolveDefaultMode());
-    const [sourceIdx, setSourceIdx] = useState(0);
+    const [sourceIdx, setSourceIdx] = useState(() => resolveDefaultServerIdx());
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isCssFullscreen, setIsCssFullscreen] = useState(false);
     const [showControls, setShowControls] = useState(true);
@@ -107,13 +102,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
     const hideControlsTimerRef = useRef(null);
     const toastTimerRef = useRef(null);
 
-    const currentSources = SERVERS[streamMode] || SERVERS.dublado;
-    const activeServer = currentSources[sourceIdx] || currentSources[0];
-
-    // Atualiza quando o usuário muda o idioma geral no painel
-    useEffect(() => {
-        setStreamMode(resolveDefaultMode());
-    }, [language, resolveDefaultMode]);
+    const activeServer = SERVERS[sourceIdx] || SERVERS[0];
 
     // Protege contra desvios ou redirecionamentos maliciosos do window.top por players externos
     useEffect(() => {
@@ -160,32 +149,25 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
     // Ao clicar em Play
     const handleStartPlay = () => {
         setHasStarted(true);
-        if (streamMode === 'legendado') {
+        if (sourceIdx !== 0) {
             showToast('💡 Dica: Se o áudio iniciar mudo, toque no ícone 🔊 no player para desmutar');
         }
     };
 
-    // Troca de Modo: Dublado BR <-> Legendado (Original HD)
-    const handleModeChange = (newMode) => {
-        if (newMode === streamMode) return;
-        setStreamMode(newMode);
-        setSourceIdx(0);
+    // Selecionar Servidor Direto
+    const handleSelectServer = (idx) => {
+        setSourceIdx(idx);
+        setHasStarted(true);
         try {
-            localStorage.setItem('cinespartan_preferred_stream_mode', newMode);
+            localStorage.setItem('cinespartan_preferred_server_idx', String(idx));
         } catch {}
-
-        if (newMode === 'dublado') {
-            showToast('🍿 Áudio 100% Dublado em Português (SuperFlix)');
-        } else {
-            showToast('💬 Áudio Original com Legendas PT-BR ativadas (VidLink)');
-        }
+        showToast(`Conectado ao ${SERVERS[idx].name}`);
     };
 
     // Alternar servidor reserva se necessário
     const handleNextServer = () => {
-        const next = (sourceIdx + 1) % currentSources.length;
-        setSourceIdx(next);
-        showToast(`🔄 Servidor alternativo: ${currentSources[next].name}`);
+        const next = (sourceIdx + 1) % SERVERS.length;
+        handleSelectServer(next);
     };
 
     // Fullscreen robusto (Nativo Android/PC + CSS Fixed Viewport Fallback)
@@ -349,35 +331,35 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                                 : 'opacity-0 pointer-events-none -translate-y-2'
                     }`}
                 >
-                    {/* Botões Reais de Áudio: Dublado BR vs Legendado */}
+                    {/* Botões Reais de Áudio e Servidor */}
                     <div className="flex items-center gap-1 sm:gap-2 min-w-0">
                         <button
                             type="button"
-                            onClick={() => handleModeChange('dublado')}
+                            onClick={() => handleSelectServer(0)}
                             className={`flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold transition-all shadow-md cursor-pointer shrink-0 ${
-                                streamMode === 'dublado'
+                                sourceIdx === 0
                                     ? 'bg-red-600 text-white shadow-red-900/50 ring-2 ring-white/20'
                                     : 'bg-black/60 hover:bg-black/90 text-gray-300 hover:text-white border border-white/15 backdrop-blur-md'
                             }`}
-                            title="Assistir Dublado em Português"
+                            title="Assistir Dublado em Português (SuperFlix)"
                         >
                             <FaVolumeUp className="text-[10px] sm:text-xs" />
-                            <span>🇧🇷 Dublado</span>
+                            <span>🇧🇷 Dublado (SuperFlix)</span>
                         </button>
 
                         <button
                             type="button"
-                            onClick={() => handleModeChange('legendado')}
+                            onClick={() => handleSelectServer(1)}
                             className={`flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold transition-all shadow-md cursor-pointer shrink-0 ${
-                                streamMode === 'legendado'
+                                sourceIdx === 1
                                     ? 'bg-amber-500 text-black shadow-amber-900/50 ring-2 ring-white/20 font-black'
                                     : 'bg-black/60 hover:bg-black/90 text-gray-300 hover:text-white border border-white/15 backdrop-blur-md'
                             }`}
-                            title="Assistir com Áudio Original e Legendas"
+                            title="Assistir com Áudio Original HD (VidLink)"
                         >
                             <FaClosedCaptioning className="text-[10px] sm:text-xs" />
-                            <span className="sm:hidden">Legendado</span>
-                            <span className="hidden sm:inline">Original (Legendado)</span>
+                            <span className="sm:hidden">Original HD</span>
+                            <span className="hidden sm:inline">Original HD (VidLink)</span>
                         </button>
                     </div>
 
@@ -501,7 +483,13 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                                 {title ? `${title} • T${season}:E${episode}` : `Temporada ${season} • Episódio ${episode}`}
                             </h3>
                             <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-gray-300 font-medium bg-black/70 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full border border-white/10 backdrop-blur-md">
-                                <span>{streamMode === 'dublado' ? '🇧🇷 Dublado em Português' : '🌐 Áudio Original (Legendado)'}</span>
+                                <span>
+                                    {sourceIdx === 0
+                                        ? '🇧🇷 SuperFlix (Áudio 100% Dublado BR)'
+                                        : sourceIdx === 1
+                                            ? '⭐ VidLink (Áudio Original Ultra HD)'
+                                            : `📺 ${activeServer.name}`}
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -509,7 +497,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                     /* Vídeo em Reprodução */
                     <>
                         <iframe
-                            key={`${tvId}-${season}-${episode}-${streamMode}-${activeServer.id}`}
+                            key={`${tvId}-${season}-${episode}-${activeServer.id}`}
                             src={iframeSrc}
                             allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *; display-capture *"
                             title={title || 'Player de Série'}
@@ -521,84 +509,49 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                 )}
             </div>
 
-            {/* Controles Principais de Áudio, Legendas e Servidores Spartan */}
-            <div className="mt-3 space-y-2.5 px-1">
-                {/* 1. Barra de Idioma & Legendas */}
+            {/* Controles e Seletor Transparente de Servidores Spartan */}
+            <div className="mt-3 space-y-2 px-1">
                 <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-[#10131d] rounded-2xl border border-white/5">
                     <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <FaVolumeUp className="text-red-400 text-xs" />
-                            <span>Áudio & Legendas:</span>
+                            <FaSyncAlt className="text-red-500 text-xs" />
+                            <span>Servidor:</span>
                         </span>
-                        <div className="flex items-center gap-1.5">
-                            <button
-                                type="button"
-                                onClick={() => handleModeChange('dublado')}
-                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                                    streamMode === 'dublado'
-                                        ? 'bg-red-600 text-white shadow-lg shadow-red-600/40 ring-1 ring-white/30 font-black'
-                                        : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
-                                }`}
-                            >
-                                <span>🇧🇷 Dublado (Português)</span>
-                                {streamMode === 'dublado' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => handleModeChange('legendado')}
-                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                                    streamMode === 'legendado'
-                                        ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/40 ring-1 ring-white/30 font-black'
-                                        : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
-                                }`}
-                            >
-                                <FaClosedCaptioning className="text-xs" />
-                                <span>💬 Original + Legendas PT-BR</span>
-                                {streamMode === 'legendado' && <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />}
-                            </button>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            {SERVERS.map((srv, idx) => {
+                                const isSelected = sourceIdx === idx;
+                                return (
+                                    <button
+                                        key={srv.id}
+                                        type="button"
+                                        onClick={() => handleSelectServer(idx)}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                            isSelected
+                                                ? idx === 0
+                                                    ? 'bg-red-600 text-white shadow-lg shadow-red-600/40 ring-1 ring-white/30 font-black'
+                                                    : 'bg-amber-500 text-black shadow-lg shadow-amber-500/40 ring-1 ring-white/30 font-black'
+                                                : 'bg-[#141824] text-gray-400 hover:text-white hover:bg-[#1e2334] border border-white/5'
+                                        }`}
+                                    >
+                                        <span>{srv.name}</span>
+                                        {isSelected && (
+                                            <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${idx === 0 ? 'bg-emerald-400' : 'bg-black'}`} />
+                                        )}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 
+                    {/* Status 100% condizente com o selecionado */}
                     <div className="text-[11px] text-gray-400">
-                        {streamMode === 'dublado' ? (
-                            <span className="text-emerald-400 font-semibold">✓ Áudio nativo 100% dublado em Português-BR</span>
+                        {sourceIdx === 0 ? (
+                            <span className="text-emerald-400 font-semibold">✓ Áudio nativo 100% dublado em Português-BR (SuperFlix)</span>
+                        ) : sourceIdx === 1 ? (
+                            <span className="text-amber-300 font-semibold">✓ Áudio original em Ultra HD / 4K sem anúncios (VidLink)</span>
                         ) : (
-                            <span className="text-amber-300 font-semibold">✓ Áudio original em alta definição com legendas PT-BR</span>
+                            <span className="text-gray-300 font-medium">✓ Servidor reserva conectado: {activeServer.name}</span>
                         )}
-                    </div>
-                </div>
-
-                {/* 2. Servidores Alternativos para a modalidade ativa */}
-                <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider mr-1 flex items-center gap-1">
-                            <FaSyncAlt className="text-red-500 text-[10px]" />
-                            <span>Servidor Reserva:</span>
-                        </span>
-                        {currentSources.map((srv, idx) => (
-                            <button
-                                key={srv.id}
-                                type="button"
-                                onClick={() => {
-                                    setSourceIdx(idx);
-                                    setHasStarted(true);
-                                    showToast(`Conectado ao ${srv.name}`);
-                                }}
-                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                                    sourceIdx === idx
-                                        ? 'bg-red-600 text-white shadow-lg shadow-red-600/30 ring-1 ring-white/30'
-                                        : 'bg-[#12151e] text-gray-400 hover:text-white hover:bg-[#1a1e2b] border border-white/5'
-                                }`}
-                            >
-                                <span>{srv.name}</span>
-                                {sourceIdx === idx && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="text-[11px] text-gray-400 italic">
-                        {sourceIdx === 0 && 'Se o episódio demorar a responder, selecione outro servidor reserva'}
                     </div>
                 </div>
             </div>
