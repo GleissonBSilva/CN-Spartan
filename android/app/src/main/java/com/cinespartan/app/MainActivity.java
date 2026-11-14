@@ -258,20 +258,6 @@ public class MainActivity extends BridgeActivity {
         }
 
         @Override
-        public void onPageFinished(WebView view, String url) {
-            super.onPageFinished(view, url);
-            try {
-                view.evaluateJavascript(
-                    "(function() {" +
-                    "  try {" +
-                    "    window.open = function() { return null; };" +
-                    "    window.alert = function() {};" +
-                    "  } catch(e) {}" +
-                    "})();", null);
-            } catch (Exception ignored) {}
-        }
-
-        @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
             Uri uri = request.getUrl();
             if (uri != null) {

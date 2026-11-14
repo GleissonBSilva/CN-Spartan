@@ -12,12 +12,7 @@ const SERVERS = {
     {
       id: 'superflix_dub',
       name: '🍿 SuperFlix Dublado BR (100% Áudio PT-BR • Principal)',
-      url: (id) => `https://superflixapi.lat/filme/${id}`
-    },
-    {
-      id: 'superflix_alt',
-      name: '🍿 SuperFlix Espelho (.online)',
-      url: (id) => `https://superflixapi.online/filme/${id}`
+      url: (id) => `https://superflixapi.boats/filme/${id}`
     },
     {
       id: 'multiembed_dub',
@@ -583,7 +578,6 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                             key={`${movieId}-${isPlayingTrailer ? 'trailer' : streamMode}-${activeServer.id}`}
                             src={iframeSrc}
                             allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *; display-capture *"
-                            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                             title={title || 'Player de Filme'}
                             referrerPolicy="no-referrer-when-downgrade"
                             className="w-full h-full border-0"

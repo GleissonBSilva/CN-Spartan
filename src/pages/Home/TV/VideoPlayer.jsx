@@ -12,12 +12,7 @@ const SERVERS = {
     {
       id: 'superflix_dub',
       name: '🍿 SuperFlix Séries BR (100% Dublado • Principal)',
-      url: (id, s, e) => `https://superflixapi.lat/serie/${id}/${s}/${e}`
-    },
-    {
-      id: 'superflix_alt',
-      name: '🍿 SuperFlix Séries Espelho (.online)',
-      url: (id, s, e) => `https://superflixapi.online/serie/${id}/${s}/${e}`
+      url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
     },
     {
       id: 'multiembed_dub',
@@ -500,7 +495,6 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                             key={`${tvId}-${season}-${episode}-${streamMode}-${activeServer.id}`}
                             src={iframeSrc}
                             allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *; display-capture *"
-                            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                             title={title || 'Player de Série'}
                             referrerPolicy="no-referrer-when-downgrade"
                             className="w-full h-full border-0"
