@@ -11,13 +11,13 @@ const SERVERS = {
   dublado: [
     {
       id: 'superflix_dub',
-      name: '🍿 SuperFlix HD (Principal • Áudio 100% Dublado BR)',
+      name: '🍿 SuperFlix HD (Áudio 100% Dublado BR)',
       url: (id) => `https://superflixapi.boats/filme/${id}`
     },
     {
-      id: 'vidlink_direct',
-      name: '⭐ VidLink Ultra HD (Rápido • Sem Anúncios)',
-      url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
+      id: 'vidlink_dub',
+      name: '⭐ VidLink Ultra HD (Rápido • Multi-Áudio)',
+      url: (id) => `https://vidlink.pro/movie/${id}?sub_lang=pt-BR&sub=pt-BR&autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
     },
     {
       id: 'multiembed_dub',
@@ -25,26 +25,31 @@ const SERVERS = {
       url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
     },
     {
+      id: 'embedsu_dub',
+      name: '🎬 EmbedSu HD (Multi-Áudio & CC)',
+      url: (id) => `https://embed.su/embed/movie/${id}?default_lang=pt`
+    },
+    {
       id: 'vidsrc_sh',
       name: '⚡ VidSrc Rápido HD',
       url: (id) => `https://vidsrc.sh/embed/movie?tmdb=${id}`
-    },
-    {
-      id: 'embedsu_dub',
-      name: '🎬 EmbedSu HD (Multi-Áudio & CC)',
-      url: (id) => `https://embed.su/embed/movie/${id}`
     }
   ],
   legendado: [
     {
       id: 'vidlink_orig',
-      name: '⭐ VidLink Ultra HD (Zero Anúncios • CC Legendas)',
-      url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
+      name: '💬 VidLink Ultra HD (Legendas PT-BR Automáticas)',
+      url: (id) => `https://vidlink.pro/movie/${id}?sub_lang=pt-BR&sub=pt-BR&autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
+    },
+    {
+      id: 'embedsu_orig',
+      name: '🎬 EmbedSu Original (Legendas PT-BR)',
+      url: (id) => `https://embed.su/embed/movie/${id}?default_lang=pt`
     },
     {
       id: 'multiembed_orig',
       name: '📺 MultiEmbed (Original / Legendas CC)',
-      url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
+      url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1&sub=pt`
     },
     {
       id: 'vidsrc_orig',
@@ -189,9 +194,9 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
         } catch {}
 
         if (newMode === 'dublado') {
-            showToast('🇧🇷 Áudio Dublado em Português ativado');
+            showToast('🍿 Áudio 100% Dublado em Português (SuperFlix)');
         } else {
-            showToast('🌐 Áudio Original ativado — se iniciar sem som, desmute no ícone 🔊');
+            showToast('💬 Áudio Original com Legendas PT-BR ativadas (VidLink)');
         }
     };
 

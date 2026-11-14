@@ -11,13 +11,13 @@ const SERVERS = {
   dublado: [
     {
       id: 'superflix_dub',
-      name: '🍿 SuperFlix Séries BR (Principal • Dublado)',
+      name: '🍿 SuperFlix Séries BR (Áudio 100% Dublado)',
       url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
     },
     {
-      id: 'vidlink_direct',
-      name: '⭐ VidLink Séries HD (Rápido • Sem Anúncios)',
-      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
+      id: 'vidlink_dub',
+      name: '⭐ VidLink Séries HD (Multi-Áudio BR)',
+      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?sub_lang=pt-BR&sub=pt-BR&autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
     },
     {
       id: 'multiembed_dub',
@@ -25,30 +25,35 @@ const SERVERS = {
       url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
     },
     {
+      id: 'embedsu_dub',
+      name: '🎬 EmbedSu Séries HD (Multi-Áudio & CC)',
+      url: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}?default_lang=pt`
+    },
+    {
       id: 'vidsrc_sh',
       name: '⚡ VidSrc Séries Fast',
       url: (id, s, e) => `https://vidsrc.sh/embed/tv?tmdb=${id}&season=${s}&episode=${e}`
-    },
-    {
-      id: 'embedsu_dub',
-      name: '🎬 EmbedSu Séries HD (Multi-Áudio & CC)',
-      url: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}`
     }
   ],
   legendado: [
     {
       id: 'vidlink_orig',
-      name: '⭐ VidLink Séries HD (Zero Anúncios • CC Legendas)',
-      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
+      name: '💬 VidLink Séries HD (Legendas PT-BR Automáticas)',
+      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?sub_lang=pt-BR&sub=pt-BR&autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
+    },
+    {
+      id: 'embedsu_orig',
+      name: '🎬 EmbedSu Séries (Legendas PT-BR)',
+      url: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}?default_lang=pt`
     },
     {
       id: 'multiembed_orig',
-      name: '📺 MultiEmbed (Original / Legendas CC)',
-      url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
+      name: '📺 MultiEmbed (Original & Legendas CC)',
+      url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}&sub=pt`
     },
     {
       id: 'vidsrc_orig',
-      name: '⚡ VidSrc Séries Original (Legendas CC)',
+      name: '⚡ VidSrc Séries Original',
       url: (id, s, e) => `https://vidsrc.sh/embed/tv?tmdb=${id}&season=${s}&episode=${e}`
     }
   ]
@@ -170,9 +175,9 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
         } catch {}
 
         if (newMode === 'dublado') {
-            showToast('🇧🇷 Áudio Dublado em Português ativado');
+            showToast('🍿 Áudio 100% Dublado em Português (SuperFlix)');
         } else {
-            showToast('🌐 Áudio Original ativado — se iniciar sem som, desmute no ícone 🔊');
+            showToast('💬 Áudio Original com Legendas PT-BR ativadas (VidLink)');
         }
     };
 
