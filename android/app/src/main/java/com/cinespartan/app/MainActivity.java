@@ -280,7 +280,7 @@ public class MainActivity extends BridgeActivity {
 
                 // Interceptador VAST / VPAID / IMA: Devolve XML VAST vazio para anular vídeos de anúncios instantaneamente
                 if (uriStr.contains("/vast") || uriStr.contains("format=vast") || uriStr.contains("output=vast") 
-                        || uriStr.contains("/vpaid") || uriStr.contains("imasdk.googleapis.com") || uriStr.contains("/ad/tag")) {
+                        || uriStr.contains("/vpaid") || uriStr.contains("imasdk.googleapis.com")) {
                     byte[] emptyVast = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><VAST version=\"3.0\"></VAST>".getBytes(StandardCharsets.UTF_8);
                     Map<String, String> headers = new HashMap<>();
                     headers.put("Access-Control-Allow-Origin", "*");

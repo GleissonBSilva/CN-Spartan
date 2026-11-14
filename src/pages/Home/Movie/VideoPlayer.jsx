@@ -570,7 +570,6 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                             allowFullScreen
                             webkitallowfullscreen="true"
                             mozallowfullscreen="true"
-                            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                             title={title || 'Player de Filme'}
                             referrerPolicy="no-referrer-when-downgrade"
                             className="w-full h-full border-0"
