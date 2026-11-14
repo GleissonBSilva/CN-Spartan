@@ -61,28 +61,7 @@ export function useAppUpdateGuard() {
   const [isChecking, setIsChecking] = useState(true);
 
   const fetchRemoteConfig = async () => {
-    let baseConfig = null;
-
-    // 1. Busca a configuração persistente no Supabase se disponível
-    if (!hasSystemSettingsFailed) {
-      try {
-        const { data, error } = await supabase
-          .from('system_settings')
-          .select('value')
-          .eq('key', 'app_security_config')
-          .maybeSingle();
-
-        if (error) {
-          hasSystemSettingsFailed = true;
-        } else if (data && data.value && typeof data.value === 'object') {
-          baseConfig = data.value;
-        }
-      } catch {
-        hasSystemSettingsFailed = true;
-      }
-    }
-
-    // 2. Busca nas rotas de API e arquivos remotos (também obtém clientIp)
+    // Busca configuração de segurança e versão nas rotas de API do servidor (também obtém clientIp)
     for (const url of CONFIG_URLS) {
       try {
         const controller = new AbortController();
@@ -97,9 +76,6 @@ export function useAppUpdateGuard() {
 
         if (res.ok) {
           const data = await res.json();
-          if (baseConfig) {
-            return { ...data, ...baseConfig, clientIp: data.clientIp };
-          }
           return data;
         }
       } catch {
@@ -107,9 +83,7 @@ export function useAppUpdateGuard() {
       }
     }
 
-    if (baseConfig) return baseConfig;
-
-    // 3. Fallback para cache local se offline
+    // 2. Fallback para cache local se offline
     try {
       const localSaved = localStorage.getItem('spartan_app_config');
       if (localSaved) {
