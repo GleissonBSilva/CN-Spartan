@@ -484,7 +484,6 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                             key={`${tvId}-${season}-${episode}-${streamMode}-${activeServer.id}`}
                             src={iframeSrc}
                             allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *; display-capture *"
-                            allowFullScreen
                             title={title || 'Player de Série'}
                             referrerPolicy="no-referrer-when-downgrade"
                             className="w-full h-full border-0"
