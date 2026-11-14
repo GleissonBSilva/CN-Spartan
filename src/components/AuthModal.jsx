@@ -263,19 +263,31 @@ export default function AuthModal({ isOpen, onClose }) {
           // ignore
         }
 
-        // Checagem Anti-Fraude no Supabase em tempo real (impede múltiplos testes grátis)
+        // Checagem Anti-Fraude no Supabase e Local em tempo real (impede múltiplos testes grátis)
         if (!alreadyUsedTrial) {
           try {
-            const { data: supaUsed } = await supabase
-              .from('used_trials')
-              .select('id')
-              .or(`email.eq.${cleanEmail},whatsapp.eq.${cleanPhone}`)
-              .limit(1);
-            if (supaUsed && supaUsed.length > 0) {
+            const { data: rpcUsed } = await supabase.rpc('check_trial_used', {
+              check_email: cleanEmail,
+              check_phone: cleanPhone,
+            });
+            if (rpcUsed === true) {
               alreadyUsedTrial = true;
             }
-          } catch {
-            // ignore
+          } catch {}
+
+          if (!alreadyUsedTrial) {
+            try {
+              const { data: supaUsed } = await supabase
+                .from('used_trials')
+                .select('id')
+                .or(`email.ilike.${cleanEmail},whatsapp.eq.${cleanPhone}`)
+                .limit(1);
+              if (supaUsed && supaUsed.length > 0) {
+                alreadyUsedTrial = true;
+              }
+            } catch {
+              // ignore
+            }
           }
         }
 

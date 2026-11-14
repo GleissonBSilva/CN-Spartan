@@ -134,10 +134,13 @@ export default async function handler(req, res) {
 
     const cleanEmail = profile.email ? String(profile.email).toLowerCase().trim() : '';
     const cleanId = profile.id ? String(profile.id) : `usr-${Date.now()}`;
+    const isMaster = cleanEmail === 'gleisson1984@gmail.com';
 
-    // Se estiver ativando ou reativando, remove da lista de deletados
-    if (profile.status === 'ativo') {
-      deletedAccounts = deletedAccounts.filter(x => x !== cleanId && x !== cleanEmail);
+    // Se o cliente foi excluído pelo administrador, ele NÃO pode se auto-promover a 'ativo'
+    const isDeleted = !isMaster && (deletedAccounts.includes(cleanId) || (cleanEmail && deletedAccounts.includes(cleanEmail)));
+    if (isDeleted) {
+      profile.status = 'vencido';
+      profile.is_trial = false;
     }
 
     // Se active_devices foi enviado, injeta o IP do aparelho no último dispositivo atualizado

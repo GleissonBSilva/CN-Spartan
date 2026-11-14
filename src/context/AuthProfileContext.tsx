@@ -147,6 +147,24 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         } catch {
           error = { message: 'Erro ao consultar profiles' };
         }
+
+        // Se o usuário está autenticado com UUID mas NÃO existe em profiles no Supabase:
+        // Significa que o administrador o excluiu do banco para economizar cota! Revoga acesso imediatamente.
+        if (!error && !data && cleanEmail !== ADMIN_MASTER_EMAIL) {
+          console.warn('[Spartan Security] Usuário não encontrado no Supabase (conta excluída). Revogando sessão...');
+          localStorage.removeItem('weflix_user');
+          try {
+            const rawReg = JSON.parse(localStorage.getItem('spartan_registered_profiles') || '[]');
+            if (Array.isArray(rawReg)) {
+              localStorage.setItem('spartan_registered_profiles', JSON.stringify(rawReg.filter((p: any) => p.id !== userId && p.email?.toLowerCase() !== cleanEmail)));
+            }
+          } catch {}
+          await supabase.auth.signOut().catch(() => {});
+          setUser(null);
+          setSession(null);
+          setProfile(null);
+          return null;
+        }
       }
 
       if (error && !localStoredProfile && !cloudProfile) {
@@ -295,11 +313,22 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
 
         const isMaster = userEmail.toLowerCase() === ADMIN_MASTER_EMAIL;
-        const savedTrialDays = Number(localStorage.getItem('spartan_trial_days') || 3);
-        const trialEnabled = localStorage.getItem('spartan_trial_enabled') !== 'false';
-        const clientDays = trialEnabled ? savedTrialDays : 0;
-        const initialStatus = isMaster ? 'ativo' : clientDays > 0 ? 'ativo' : 'vencido';
-        const expiryDuration = isMaster ? 365 : clientDays;
+        
+        // Anti-Fraude: se já utilizou o teste ou foi excluído anteriormente, fica estritamente como 'vencido'
+        let alreadyUsedTrial = false;
+        try {
+          const { data: supaUsed } = await supabase
+            .from('used_trials')
+            .select('id')
+            .ilike('email', cleanEmail)
+            .limit(1);
+          if (supaUsed && supaUsed.length > 0) {
+            alreadyUsedTrial = true;
+          }
+        } catch {}
+
+        const initialStatus = isMaster ? 'ativo' : 'vencido';
+        const expiryDuration = isMaster ? 365 : 0;
 
         const fallbackProfile: Profile = {
           id: userId,
@@ -311,8 +340,8 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           plan_name: isMaster
             ? 'Master Admin'
             : userMeta?.plan_name || 'SPARTAN PRO',
-          is_trial: !isMaster && clientDays > 0,
-          trial_used: !isMaster && clientDays > 0,
+          is_trial: false,
+          trial_used: true,
           expires_at: new Date(Date.now() + expiryDuration * 24 * 60 * 60 * 1000).toISOString(),
           max_screens: isMaster ? 5 : Number(userMeta?.max_screens || 1),
           created_at: new Date().toISOString(),

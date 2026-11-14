@@ -40,6 +40,18 @@ create index if not exists idx_used_trials_whatsapp on public.used_trials(whatsa
 
 alter table public.used_trials enable row level security;
 
+-- Política de Leitura Pública para checagem instantânea de Anti-Fraude no cadastro (Web e APK)
+drop policy if exists "Leitura publica anti fraude used_trials" on public.used_trials;
+create policy "Leitura publica anti fraude used_trials"
+  on public.used_trials for select
+  using (true);
+
+-- Permite inserção de registros de anti-fraude pelo sistema e pelo admin
+drop policy if exists "Insercao anti fraude used_trials" on public.used_trials;
+create policy "Insercao anti fraude used_trials"
+  on public.used_trials for insert
+  with check (true);
+
 drop policy if exists "Admin pode gerenciar used_trials" on public.used_trials;
 create policy "Admin pode gerenciar used_trials"
   on public.used_trials for all
@@ -415,29 +427,143 @@ on conflict (id) do update set
     else public.profiles.role 
   end;
 
--- 10. Função RPC de Exclusão Definitiva de Usuários pelo Administrador
--- Exclui o registro tanto de auth.users quanto de public.profiles de forma atômica
+-- 10. Funções RPC de Anti-Fraude e Exclusão Definitiva de Usuários pelo Administrador
+
+-- 10.1 RPC para checagem rápida de Anti-Fraude antes de conceder teste grátis
+create or replace function public.check_trial_used(check_email text, check_phone text default '')
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  clean_p text;
+  is_used boolean := false;
+begin
+  clean_p := regexp_replace(coalesce(check_phone, ''), '\D', '', 'g');
+  
+  select exists (
+    select 1 from public.used_trials
+    where lower(email) = lower(trim(coalesce(check_email, '')))
+       or (clean_p <> '' and clean_p is not null and regexp_replace(coalesce(whatsapp, ''), '\D', '', 'g') = clean_p)
+  ) into is_used;
+
+  return is_used;
+end;
+$$;
+
+grant execute on function public.check_trial_used(text, text) to anon, authenticated, service_role;
+
+-- 10.2 RPC de Exclusão Definitiva: Exclui tanto de auth.users quanto de public.profiles,
+-- preservando os dados permanentemente no Anti-Fraude (used_trials) para economizar cota do plano gratuito do Supabase.
+create or replace function public.delete_user_by_admin(target_user_id uuid default null, target_email text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_email text;
+  v_phone text;
+  v_user_id uuid := target_user_id;
+  v_deleted_count int := 0;
+begin
+  -- Identifica o e-mail e whatsapp do usuário
+  if v_user_id is not null then
+    select lower(email), regexp_replace(coalesce(whatsapp, ''), '\D', '', 'g')
+    into v_email, v_phone
+    from public.profiles
+    where id = v_user_id;
+    
+    if v_email is null then
+      select lower(email), regexp_replace(coalesce(raw_user_meta_data->>'whatsapp', ''), '\D', '', 'g')
+      into v_email, v_phone
+      from auth.users
+      where id = v_user_id;
+    end if;
+  elsif target_email is not null and trim(target_email) <> '' then
+    v_email := lower(trim(target_email));
+    
+    select id, regexp_replace(coalesce(whatsapp, ''), '\D', '', 'g')
+    into v_user_id, v_phone
+    from public.profiles
+    where lower(email) = v_email
+    limit 1;
+    
+    if v_user_id is null then
+      select id, regexp_replace(coalesce(raw_user_meta_data->>'whatsapp', ''), '\D', '', 'g')
+      into v_user_id, v_phone
+      from auth.users
+      where lower(email) = v_email
+      limit 1;
+    end if;
+  end if;
+
+  -- 1. Salva permanentemente no Anti-Fraude (se não for o Master Admin)
+  if v_email is not null and v_email <> 'gleisson1984@gmail.com' then
+    insert into public.used_trials (email, whatsapp, trial_days, notes)
+    values (
+      v_email,
+      nullif(v_phone, ''),
+      3,
+      'Cliente excluído pelo Administrador - Anti-Fraude Permanente'
+    )
+    on conflict do nothing;
+  end if;
+
+  -- 2. Exclui da tabela public.profiles
+  if v_user_id is not null then
+    delete from public.profiles where id = v_user_id;
+  end if;
+  if v_email is not null and v_email <> 'gleisson1984@gmail.com' then
+    delete from public.profiles where lower(email) = v_email;
+  end if;
+
+  -- 3. Exclui da tabela auth.users (Supabase Authentication Engine - libera cota de usuários)
+  if v_user_id is not null and (v_email is null or v_email <> 'gleisson1984@gmail.com') then
+    delete from auth.users where id = v_user_id;
+    get diagnostics v_deleted_count = row_count;
+  end if;
+  if (v_deleted_count = 0 or v_user_id is null) and v_email is not null and v_email <> 'gleisson1984@gmail.com' then
+    delete from auth.users where lower(email) = v_email;
+    get diagnostics v_deleted_count = row_count;
+  end if;
+
+  return jsonb_build_object(
+    'success', true,
+    'email', v_email,
+    'deleted_user_id', v_user_id,
+    'deleted_auth_rows', v_deleted_count
+  );
+end;
+$$;
+
+-- Sobrecargas para compatibilidade máxima com chamadas do frontend
 create or replace function public.delete_user_by_admin(target_user_id uuid)
-returns void
+returns jsonb
 language plpgsql
 security definer
 set search_path = public, auth
 as $$
 begin
-  -- Apenas administradores podem executar esta exclusão
-  if not public.is_admin() then
-    raise exception 'Apenas administradores podem excluir usuários.';
-  end if;
-
-  -- 1. Exclui da tabela public.profiles
-  delete from public.profiles where id = target_user_id;
-
-  -- 2. Exclui da tabela auth.users (Supabase Authentication Engine)
-  delete from auth.users where id = target_user_id;
+  return public.delete_user_by_admin(target_user_id, null);
 end;
 $$;
 
+create or replace function public.delete_user_by_email_admin(target_email text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+begin
+  return public.delete_user_by_admin(null, target_email);
+end;
+$$;
+
+grant execute on function public.delete_user_by_admin(uuid, text) to anon, authenticated, service_role;
 grant execute on function public.delete_user_by_admin(uuid) to anon, authenticated, service_role;
+grant execute on function public.delete_user_by_email_admin(text) to anon, authenticated, service_role;
 
 -- ==============================================================================
 -- Fim do script schema.sql

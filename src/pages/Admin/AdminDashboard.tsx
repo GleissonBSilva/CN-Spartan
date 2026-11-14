@@ -524,19 +524,6 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           }
           if (Array.isArray(cloudClients)) {
             for (const cc of cloudClients) {
-              // Se o cliente se cadastrou novamente ou está ativo na nuvem, limpa das exclusões antigas
-              if (cc.status === 'ativo') {
-                try {
-                  const rawDel = JSON.parse(localStorage.getItem('spartan_deleted_profiles') || '[]');
-                  if (Array.isArray(rawDel)) {
-                    localStorage.setItem(
-                      'spartan_deleted_profiles',
-                      JSON.stringify(rawDel.filter((d: string) => d !== cc.id && d !== cc.email?.toLowerCase()))
-                    );
-                  }
-                } catch {}
-              }
-
               const existingIdx = localList.findIndex(lp => lp.id === cc.id || (cc.email && lp.email?.toLowerCase() === cc.email.toLowerCase()));
               if (existingIdx >= 0) {
                 localList[existingIdx] = { ...localList[existingIdx], ...cc };
@@ -1093,80 +1080,113 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   const handleDeleteUser = async (profile: Profile) => {
     if (
       !window.confirm(
-        `Tem certeza que deseja excluir o cliente ${profile.email}?\n\nEle será removido da lista e o acesso ao Cine Spartan será REVOGADO IMEDIATAMENTE em todos os aparelhos (TV Box, Celular e PC)! O e-mail e WhatsApp serão gravados permanentemente no Anti-Fraude e ele perderá o direito a qualquer novo teste grátis!`
+        `Tem certeza que deseja excluir o cliente ${profile.email}?\n\nEle será excluído do Supabase (profiles e auth.users) para liberar espaço no banco, e seu e-mail e WhatsApp serão gravados permanentemente no Anti-Fraude (used_trials).\n\nSe ele tentar se cadastrar novamente, o cadastro será permitido mas ele NÃO terá direito a teste grátis (entrará como vencido)!`
       )
     )
       return;
     setActionLoadingId(profile.id);
     try {
-      // 1. Grava no histórico permanente anti-fraude
+      const cleanEmail = profile.email.toLowerCase().trim();
+      const cleanPhone = profile.whatsapp ? profile.whatsapp.replace(/\D/g, '') : null;
+      const isUuid = Boolean(profile.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profile.id));
+
+      // 1. Grava no histórico permanente anti-fraude local e no Supabase (used_trials)
       const usedEntry = {
         id: 'trial-' + Date.now(),
-        email: profile.email.toLowerCase(),
-        whatsapp: profile.whatsapp,
+        email: cleanEmail,
+        whatsapp: cleanPhone || profile.whatsapp,
         claimed_at: new Date().toISOString(),
         trial_days: 3,
-        notes: 'Cliente excluído da lista ativa (bloqueio permanente de trial)',
+        notes: 'Cliente excluído pelo Administrador - Anti-Fraude Permanente',
       };
       const updatedUsedTrials = [usedEntry, ...usedTrials];
       setUsedTrials(updatedUsedTrials);
       localStorage.setItem('spartan_used_trials', JSON.stringify(updatedUsedTrials));
 
-      // 2. Notifica a nuvem /api/clients para revogação em tempo real em todas as TV Boxes e dispositivos
-      try {
-        await fetch(`/api/clients?id=${encodeURIComponent(profile.id)}&email=${encodeURIComponent(profile.email.toLowerCase())}`, {
-          method: 'DELETE'
-        }).catch(() => fetch(`https://cn-spartan.vercel.app/api/clients?id=${encodeURIComponent(profile.id)}&email=${encodeURIComponent(profile.email.toLowerCase())}`, { method: 'DELETE' }));
-      } catch {}
-
       try {
         await supabase.from('used_trials').insert([
           {
-            email: profile.email.toLowerCase(),
-            whatsapp: profile.whatsapp ? profile.whatsapp.replace(/\D/g, '') : null,
+            email: cleanEmail,
+            whatsapp: cleanPhone,
             trial_days: 3,
-            notes: 'Excluído da lista ativa pelo administrador',
+            notes: 'Excluído pelo Administrador - Anti-Fraude Permanente',
           },
         ]);
-      } catch {
-        // Ignora caso offline ou fallback local
+      } catch (errUt) {
+        console.warn('Registro em used_trials no Supabase:', errUt);
       }
 
-      // 3. Registra exclusão permanente local para não reaparecer no reload
+      // 2. Notifica a nuvem /api/clients para revogação em tempo real em todas as TV Boxes e dispositivos
+      try {
+        await fetch(`/api/clients?id=${encodeURIComponent(profile.id)}&email=${encodeURIComponent(cleanEmail)}`, {
+          method: 'DELETE'
+        }).catch(() => fetch(`https://cn-spartan.vercel.app/api/clients?id=${encodeURIComponent(profile.id)}&email=${encodeURIComponent(cleanEmail)}`, { method: 'DELETE' }));
+      } catch {}
+
+      // 3. Registra exclusão permanente local para nunca mais reaparecer no reload
       try {
         const rawDeleted = JSON.parse(localStorage.getItem('spartan_deleted_profiles') || '[]');
         const deletedArr = Array.isArray(rawDeleted) ? rawDeleted : [];
-        const updatedDeleted = Array.from(new Set([...deletedArr, profile.id, profile.email.toLowerCase()]));
+        const updatedDeleted = Array.from(new Set([...deletedArr, profile.id, cleanEmail]));
         localStorage.setItem('spartan_deleted_profiles', JSON.stringify(updatedDeleted));
-      } catch {
-        // ignore
+      } catch {}
+
+      // 4. Executa a exclusão definitiva no Supabase (auth.users e public.profiles) via RPC
+      let rpcSuccess = false;
+      try {
+        const { error: rpcErr } = await (supabase as any).rpc('delete_user_by_admin', {
+          target_user_id: isUuid ? profile.id : null,
+          target_email: cleanEmail,
+        });
+        if (!rpcErr) rpcSuccess = true;
+      } catch {}
+
+      if (!rpcSuccess && isUuid) {
+        try {
+          const { error: rpcErr2 } = await (supabase as any).rpc('delete_user_by_admin', {
+            target_user_id: profile.id,
+          });
+          if (!rpcErr2) rpcSuccess = true;
+        } catch {}
       }
 
-      // 4. Remove da lista de perfis no Supabase (por ID e por E-mail) e auth.users
+      if (!rpcSuccess) {
+        try {
+          await (supabase as any).rpc('delete_user_by_email_admin', {
+            target_email: cleanEmail,
+          });
+        } catch {}
+      }
+
+      // 5. Deleta diretamente da tabela profiles por ID e por e-mail
       try {
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profile.id);
         if (isUuid) {
-          // Tenta RPC de exclusão definitiva de auth.users (caso criada no Supabase SQL Editor)
-          try {
-            await (supabase as any).rpc('delete_user_by_admin', { target_user_id: profile.id });
-          } catch {}
           await supabase.from('profiles').delete().eq('id', profile.id);
         }
-        if (profile.email) {
-          await supabase.from('profiles').delete().ilike('email', profile.email.toLowerCase().trim());
-        }
+        await supabase.from('profiles').delete().ilike('email', cleanEmail);
       } catch (e) {
-        console.warn('Erro ao deletar perfil no Supabase:', e);
+        console.warn('Erro ao deletar de public.profiles:', e);
       }
 
+      // 6. Atualiza o estado da lista e limpa do cache do navegador
       setProfiles((prev) => {
-        const next = prev.filter((p) => p.id !== profile.id);
+        const next = prev.filter((p) => p.id !== profile.id && p.email?.toLowerCase().trim() !== cleanEmail);
         saveProfilesRegistry(next);
         return next;
       });
+
+      // Limpa do spartan_registered_profiles
+      try {
+        const reg = JSON.parse(localStorage.getItem('spartan_registered_profiles') || '[]');
+        if (Array.isArray(reg)) {
+          const filteredReg = reg.filter((p: any) => p.id !== profile.id && p.email?.toLowerCase().trim() !== cleanEmail);
+          localStorage.setItem('spartan_registered_profiles', JSON.stringify(filteredReg));
+        }
+      } catch {}
+
       setNotification({
         type: 'success',
-        message: `Cliente ${profile.email} excluído e acesso revogado em todos os aparelhos!`,
+        message: `Cliente ${profile.email} excluído com sucesso do banco e adicionado ao Anti-Fraude!`,
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao excluir cliente';
