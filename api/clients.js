@@ -157,9 +157,19 @@ export default async function handler(req, res) {
     );
 
     if (existingIdx >= 0) {
+      // Se o cliente já está SUSPENSO, preserva o bloqueio contra telemetria de aparelhos
+      const isCurrentlySuspended = memoryProfiles[existingIdx].status === 'suspenso';
+      const isExplicitAdminStatusUpdate = Boolean(profile.admin_updated_at);
+
+      let targetStatus = profile.status || memoryProfiles[existingIdx].status;
+      if (isCurrentlySuspended && !isExplicitAdminStatusUpdate) {
+        targetStatus = 'suspenso';
+      }
+
       memoryProfiles[existingIdx] = {
         ...memoryProfiles[existingIdx],
         ...profile,
+        status: targetStatus,
         ...(nextDevices !== undefined ? { active_devices: nextDevices } : {}),
         last_ip: profile.last_ip || clientIp || memoryProfiles[existingIdx].last_ip,
         id: cleanId || memoryProfiles[existingIdx].id,

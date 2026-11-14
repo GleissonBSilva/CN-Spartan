@@ -176,6 +176,35 @@ grant execute on function public.delete_user_by_admin(uuid, text) to anon, authe
 grant execute on function public.delete_user_by_admin(uuid) to anon, authenticated, service_role;
 grant execute on function public.delete_user_by_email_admin(text) to anon, authenticated, service_role;
 
+-- 3.1 Função RPC para Atualização de Status pelo Administrador sem bloqueio de RLS
+-- Garante que 'suspenso', 'ativo' ou 'vencido' seja gravado imediatamente no Supabase
+create or replace function public.update_profile_status_admin(target_user_id uuid, new_status text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new_status not in ('ativo', 'suspenso', 'vencido') then
+    raise exception 'Status inválido. Deve ser ativo, suspenso ou vencido.';
+  end if;
+
+  update public.profiles
+  set 
+    status = new_status,
+    admin_updated_at = now()
+  where id = target_user_id;
+
+  return jsonb_build_object(
+    'success', true,
+    'user_id', target_user_id,
+    'status', new_status
+  );
+end;
+$$;
+
+grant execute on function public.update_profile_status_admin(uuid, text) to anon, authenticated, service_role;
+
 -- 4. Atualizar o Trigger de Novos Usuários para Bloquear Teste Grátis de Contas Excluídas ou já Utilizadas
 create or replace function public.handle_new_user()
 returns trigger

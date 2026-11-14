@@ -207,14 +207,12 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           cloudProfile?.status ||
           (hasAdminEdit && localStoredProfile?.status ? localStoredProfile.status : raw.status);
 
-        let resolvedIsTrial =
-          cloudProfile?.is_trial !== undefined
-            ? cloudProfile.is_trial
-            : hasAdminEdit && localStoredProfile?.is_trial !== undefined
-            ? localStoredProfile.is_trial
-            : raw.is_trial ?? (userMeta?.is_trial ?? false);
+        // Se o banco Supabase ou a nuvem registrou como 'suspenso', prevalece estritamente o bloqueio administrativo!
+        if (data?.status === 'suspenso' || cloudProfile?.status === 'suspenso') {
+          resolvedStatus = 'suspenso';
+        }
 
-        if (!cloudProfile && localStoredProfile && !hasAdminEdit) {
+        if (!cloudProfile && localStoredProfile && !hasAdminEdit && resolvedStatus !== 'suspenso') {
           const dbExp = new Date(raw.expires_at).getTime();
           const localExp = new Date(localStoredProfile.expires_at).getTime();
           if (localExp > dbExp && localStoredProfile.status === 'ativo') {

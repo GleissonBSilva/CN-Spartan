@@ -476,6 +476,16 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
       const isProfileUuid = typeof profileId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profileId);
       if (isProfileUuid && Object.keys(basePayload).length > 0) {
+        // Se houver alteração de status, tenta prioritariamente via RPC com SECURITY DEFINER
+        if (basePayload.status) {
+          try {
+            await (supabase as any).rpc('update_profile_status_admin', {
+              target_user_id: profileId,
+              new_status: basePayload.status,
+            });
+          } catch {}
+        }
+
         try {
           await supabase
             .from('profiles')
@@ -673,13 +683,23 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
               : localMatch?.is_trial ?? Boolean(dbP.plan_name?.toLowerCase().includes('teste'));
           const mergedExpiresAt =
             hasAdminEdit && localMatch?.expires_at ? localMatch.expires_at : dbP.expires_at;
-          const baseStatus: ProfileStatus =
-            hasAdminEdit && localMatch?.status ? localMatch.status : dbP.status;
+
+          // Se qualquer fonte segura marcar como 'suspenso', prevalece estritamente 'suspenso' (sem alternar)
+          let baseStatus: ProfileStatus = dbP.status;
+          if (dbP.status === 'suspenso' || localMatch?.status === 'suspenso') {
+            baseStatus = 'suspenso';
+          } else if (hasAdminEdit && localMatch?.status) {
+            baseStatus = localMatch.status;
+          }
 
           // Bloqueio automático imediato ao finalizar o período de teste ou expirar a assinatura
           const isExpiredNow = dbP.role !== 'admin' && new Date(mergedExpiresAt).getTime() <= Date.now();
           const finalStatus: ProfileStatus =
-            isExpiredNow && baseStatus === 'ativo' ? 'vencido' : baseStatus;
+            baseStatus === 'suspenso'
+              ? 'suspenso'
+              : isExpiredNow && baseStatus === 'ativo'
+              ? 'vencido'
+              : baseStatus;
 
           // Sincroniza no banco caso haja divergência
           if (
@@ -970,7 +990,8 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
   // Ações de Clientes
   const handleToggleStatus = async (profile: Profile) => {
-    const newStatus: ProfileStatus = profile.status === 'ativo' ? 'suspenso' : 'ativo';
+    const isCurrentlySuspended = profile.status === 'suspenso';
+    const newStatus: ProfileStatus = isCurrentlySuspended ? 'ativo' : 'suspenso';
     // Se estiver reativando um cliente cuja validade já estava vencida, estende +30 dias para não bloquear de novo em 15s
     let newExpiresAt = profile.expires_at;
     if (newStatus === 'ativo' && new Date(profile.expires_at).getTime() <= Date.now()) {
@@ -2764,7 +2785,11 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
                             {/* Status de Vigência */}
                             <td className="py-3.5 px-4">
-                              {p.is_trial || p.plan_name?.toLowerCase().includes('teste') ? (
+                              {p.status === 'suspenso' ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                                  <FaBan className="text-[9px]" /> Suspenso (Bloqueado)
+                                </span>
+                              ) : p.is_trial || p.plan_name?.toLowerCase().includes('teste') ? (
                                 !isExpired && p.status === 'ativo' ? (
                                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-500/15 text-amber-300 border border-amber-500/30">
                                     <FaBolt className="text-[9px] text-amber-400" />
@@ -2779,10 +2804,6 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
                                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                                   Ativo ({daysLeft}d restantes)
-                                </span>
-                              ) : p.status === 'suspenso' ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                                  <FaBan className="text-[9px]" /> Suspenso
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/30">
