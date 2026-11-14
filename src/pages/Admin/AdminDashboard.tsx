@@ -119,42 +119,6 @@ const INITIAL_PIX_CHARGES: PixCharge[] = [
     status: 'liquidado',
     createdAt: '2026-11-08 14:30',
   },
-  {
-    id: 'pix-2',
-    hash: 'PIX-3C11D-89AA-55E2',
-    customerName: 'Carlos Eduardo',
-    customerEmail: 'carlos.spartan@gmail.com',
-    customerWhatsapp: '92981223344',
-    amount: 59.9,
-    method: 'Pix Instantâneo',
-    dueDate: '15/11/2026',
-    status: 'liquidado',
-    createdAt: '2026-11-05 18:12',
-  },
-  {
-    id: 'pix-3',
-    hash: 'PIX-7B44E-1200-91C8',
-    customerName: 'Mariana Costa',
-    customerEmail: 'mariana.costa@hotmail.com',
-    customerWhatsapp: '92991887766',
-    amount: 29.9,
-    method: 'Pix Instantâneo',
-    dueDate: '20/11/2026',
-    status: 'pendente',
-    createdAt: '2026-11-08 10:00',
-  },
-  {
-    id: 'pix-4',
-    hash: 'PIX-00A9F-7741-23B9',
-    customerName: 'Rafael Mendes',
-    customerEmail: 'rafael.spartan@outlook.com',
-    customerWhatsapp: '92984556677',
-    amount: 59.9,
-    method: 'Pix Instantâneo',
-    dueDate: '01/11/2026',
-    status: 'cancelado',
-    createdAt: '2026-11-01 09:20',
-  },
 ];
 
 interface AdminDashboardProps {
@@ -215,7 +179,25 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   // Estados do Financeiro Pix
   const [pixCharges, setPixCharges] = useState<PixCharge[]>(() => {
     const saved = localStorage.getItem('spartan_pix_charges');
-    return saved ? JSON.parse(saved) : INITIAL_PIX_CHARGES;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const cleaned = parsed.filter(
+            (c: any) =>
+              c.customerEmail?.toLowerCase() !== 'carlos.spartan@gmail.com' &&
+              c.customerEmail?.toLowerCase() !== 'mariana.costa@hotmail.com' &&
+              c.id !== 'pix-2' &&
+              c.id !== 'pix-3'
+          );
+          if (cleaned.length !== parsed.length) {
+            localStorage.setItem('spartan_pix_charges', JSON.stringify(cleaned));
+          }
+          return cleaned;
+        }
+      } catch {}
+    }
+    return INITIAL_PIX_CHARGES;
   });
   const [selectedPix, setSelectedPix] = useState<PixCharge | null>(null);
   const [pixModalOpen, setPixModalOpen] = useState(false);
@@ -585,7 +567,15 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       } catch {
         deletedList = [];
       }
-      deletedList = Array.from(new Set([...deletedList, ...cloudDeleted]));
+      const BANNED_MOCKS = ['mock-2', 'mock-3', 'carlos.spartan@gmail.com', 'mariana.costa@hotmail.com'];
+      deletedList = Array.from(new Set([...deletedList, ...cloudDeleted, ...BANNED_MOCKS]));
+
+      // Purga imediata de mockups de teste de qualquer cache local
+      localList = localList.filter(
+        (p) =>
+          !BANNED_MOCKS.includes(p.id) &&
+          !BANNED_MOCKS.includes(p.email?.toLowerCase()?.trim())
+      );
 
       // Se o perfil foi excluído (ID ou E-mail), ele NÃO deve ser re-incluído
       const isDeletedProfile = (p: { id?: string; email?: string; status?: string }) => {
@@ -606,30 +596,6 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           plan_name: 'SPARTAN BUSINESS',
           expires_at: new Date(Date.now() + 365 * 86400000).toISOString(),
           max_screens: 5,
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 'mock-2',
-          email: 'carlos.spartan@gmail.com',
-          full_name: 'Carlos Eduardo',
-          whatsapp: '(92) 98122-3344',
-          role: 'client',
-          status: 'ativo',
-          plan_name: 'SPARTAN PRO',
-          expires_at: new Date(Date.now() + 25 * 86400000).toISOString(),
-          max_screens: 2,
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 'mock-3',
-          email: 'mariana.costa@hotmail.com',
-          full_name: 'Mariana Costa',
-          whatsapp: '(92) 99188-7766',
-          role: 'client',
-          status: 'ativo',
-          plan_name: 'SPARTAN START',
-          expires_at: new Date(Date.now() + 12 * 86400000).toISOString(),
-          max_screens: 1,
           created_at: new Date().toISOString(),
         },
       ];

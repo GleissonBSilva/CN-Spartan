@@ -18,34 +18,6 @@ const SEED_PROFILES = [
     trial_used: true,
     expires_at: '2027-12-31T23:59:59.000Z',
     created_at: '2026-11-01T10:00:00.000Z'
-  },
-  {
-    id: 'mock-2',
-    email: 'carlos.spartan@gmail.com',
-    full_name: 'Carlos Eduardo',
-    whatsapp: '(92) 98122-3344',
-    role: 'client',
-    status: 'ativo',
-    plan_name: 'SPARTAN PRO',
-    max_screens: 2,
-    is_trial: false,
-    trial_used: true,
-    expires_at: new Date(Date.now() + 25 * 86400000).toISOString(),
-    created_at: '2026-11-08T14:30:00.000Z'
-  },
-  {
-    id: 'mock-3',
-    email: 'mariana.costa@hotmail.com',
-    full_name: 'Mariana Costa',
-    whatsapp: '(92) 99188-7766',
-    role: 'client',
-    status: 'ativo',
-    plan_name: 'SPARTAN START',
-    max_screens: 1,
-    is_trial: false,
-    trial_used: true,
-    expires_at: new Date(Date.now() + 12 * 86400000).toISOString(),
-    created_at: '2026-11-05T09:15:00.000Z'
   }
 ];
 
@@ -53,8 +25,10 @@ const TMP_DIR = os.tmpdir();
 const PROFILES_FILE = path.join(TMP_DIR, 'spartan_clients.json');
 const DELETED_FILE = path.join(TMP_DIR, 'spartan_deleted.json');
 
+const BANNED_MOCKS = ['mock-2', 'mock-3', 'carlos.spartan@gmail.com', 'mariana.costa@hotmail.com'];
+
 let memoryProfiles = [...SEED_PROFILES];
-let deletedAccounts = [];
+let deletedAccounts = [...BANNED_MOCKS];
 
 function loadFromDisk() {
   try {
@@ -65,6 +39,21 @@ function loadFromDisk() {
       }
     }
   } catch {}
+
+  try {
+    if (fs.existsSync(DELETED_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(DELETED_FILE, 'utf8'));
+      if (Array.isArray(parsed)) {
+        deletedAccounts = parsed;
+      }
+    }
+  } catch {}
+
+  // Garante banimento definitivo dos mockups Carlos e Mariana
+  for (const b of BANNED_MOCKS) {
+    if (!deletedAccounts.includes(b)) deletedAccounts.push(b);
+  }
+  memoryProfiles = memoryProfiles.filter(p => !BANNED_MOCKS.includes(p.id) && !BANNED_MOCKS.includes(p.email?.toLowerCase()));
 
   // Garante coerência entre planos e quantidade de telas
   memoryProfiles = memoryProfiles.map(p => {
