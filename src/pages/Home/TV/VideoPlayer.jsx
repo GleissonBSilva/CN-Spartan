@@ -110,6 +110,18 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
         setStreamMode(resolveDefaultMode());
     }, [language, resolveDefaultMode]);
 
+    // Protege contra desvios ou redirecionamentos maliciosos do window.top por players externos
+    useEffect(() => {
+        if (!hasStarted) return;
+        const handleBeforeUnload = (e) => {
+            e.preventDefault();
+            e.returnValue = '';
+            return '';
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [hasStarted]);
+
     const showToast = (msg) => {
         setToastMessage(msg);
         if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -494,7 +506,6 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                         <iframe
                             key={`${tvId}-${season}-${episode}-${streamMode}-${activeServer.id}`}
                             src={iframeSrc}
-                            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                             allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *; display-capture *"
                             title={title || 'Player de Série'}
                             referrerPolicy="no-referrer-when-downgrade"
