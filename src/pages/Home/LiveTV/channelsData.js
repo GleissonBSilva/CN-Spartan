@@ -8,59 +8,15 @@ export const CHANNELS = [
   // ⚽ ESPORTES & LUTAS
   // ==========================================
   {
-    id: 'caze_tv',
-    name: 'CazéTV Ao Vivo HD',
+    id: 'tnt_sports',
+    name: 'TNT Sports / TNT HD',
     category: 'esportes',
     categoryLabel: 'Esportes & Lutas',
-    logo: 'https://yt3.googleusercontent.com/9R8rEZZ0D3Qj9X04J53fCj3x2_iY7e9A1M6Y1T2g=s900-c-k-c0x00ffffff-no-rj',
-    resolution: '1080p',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/TNT_Sports_%28Brazil%29_logo.svg/1200px-TNT_Sports_%28Brazil%29_logo.svg.png',
+    resolution: '720p',
     sources: [
-      { name: 'Sinal Direto 1080p (Principal)', url: 'http://138.204.86.4:8080/CAZE_TV/playlist.m3u8' },
-      { name: 'Transmissão Oficial YouTube (Alternativo)', url: 'https://www.youtube.com/embed/live_stream?channel=UCjc5E1o_kL3Gf97Q9qZ_Z4w' }
-    ]
-  },
-  {
-    id: 'espn_hd',
-    name: 'ESPN HD (Futebol Internacional & Lutas)',
-    category: 'esportes',
-    categoryLabel: 'Esportes & Lutas',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ESPN_wordmark.svg/1200px-ESPN_wordmark.svg.png',
-    resolution: '1080p',
-    sources: [
-      { name: 'Sinal Ao Vivo 1080p (Principal)', url: 'http://138.204.86.4:8080/ESPN_HD/playlist.m3u8' }
-    ]
-  },
-  {
-    id: 'espn_2_hd',
-    name: 'ESPN 2 HD',
-    category: 'esportes',
-    categoryLabel: 'Esportes & Lutas',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/ESPN2_logo.svg/1200px-ESPN2_logo.svg.png',
-    resolution: '1080p',
-    sources: [
-      { name: 'Sinal Ao Vivo 1080p (Principal)', url: 'http://138.204.86.4:8080/ESPN2_HD/playlist.m3u8' }
-    ]
-  },
-  {
-    id: 'espn_4_hd',
-    name: 'ESPN 4 HD (Premier League & Champions)',
-    category: 'esportes',
-    categoryLabel: 'Esportes & Lutas',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/ESPN_4_logo.svg/1200px-ESPN_4_logo.svg.png',
-    resolution: '1080p',
-    sources: [
-      { name: 'Sinal Ao Vivo 1080p (Principal)', url: 'http://138.204.86.4:8080/ESPN4_HD/playlist.m3u8' }
-    ]
-  },
-  {
-    id: 'globo_futebol_hd',
-    name: 'Globo HD (Futebol Ao Vivo & Rodadas)',
-    category: 'esportes',
-    categoryLabel: 'Esportes & Lutas',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/TV_Globo_logo_2021.svg/1200px-TV_Globo_logo_2021.svg.png',
-    resolution: '1080p',
-    sources: [
-      { name: 'Sinal Ao Vivo 1080p (Principal)', url: 'http://138.204.86.4:8080/GLOBO_HD/playlist.m3u8' }
+      { name: 'Sinal HLS Ao Vivo (Principal)', url: 'http://170.83.49.66:8083/TNTHD/index.m3u8' },
+      { name: 'TNT Sports Brasil (YouTube Ao Vivo)', url: 'https://www.youtube.com/embed/live_stream?channel=UCjc5E1o_kL3Gf97Q9qZ_Z4w' }
     ]
   },
   {
@@ -98,17 +54,64 @@ export const CHANNELS = [
     ]
   },
   {
-    id: 'tnt_sports',
-    name: 'TNT Sports / TNT HD',
+    id: 'caze_tv',
+    name: 'CazéTV Ao Vivo HD',
     category: 'esportes',
     categoryLabel: 'Esportes & Lutas',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/TNT_Sports_%28Brazil%29_logo.svg/1200px-TNT_Sports_%28Brazil%29_logo.svg.png',
-    resolution: '720p',
+    logo: 'https://yt3.googleusercontent.com/9R8rEZZ0D3Qj9X04J53fCj3x2_iY7e9A1M6Y1T2g=s900-c-k-c0x00ffffff-no-rj',
+    resolution: '1080p',
     sources: [
-      { name: 'Sinal HLS Ao Vivo (Principal)', url: 'http://170.83.49.66:8083/TNTHD/index.m3u8' },
-      { name: 'TNT Sports Brasil (YouTube Ao Vivo)', url: 'https://www.youtube.com/embed/live_stream?channel=UCjc5E1o_kL3Gf97Q9qZ_Z4w' }
+      { name: 'Transmissão Oficial YouTube (Ao Vivo)', url: 'https://www.youtube.com/embed/live_stream?channel=UCjc5E1o_kL3Gf97Q9qZ_Z4w' },
+      { name: 'Sinal Direto HLS (TV Box / IPTV)', url: 'http://138.204.86.4:8080/CAZE_TV/playlist.m3u8' }
     ]
   },
+  {
+    id: 'espn_hd',
+    name: 'ESPN HD (Futebol Internacional & Lutas)',
+    category: 'esportes',
+    categoryLabel: 'Esportes & Lutas',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ESPN_wordmark.svg/1200px-ESPN_wordmark.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Ao Vivo 1080p (Principal)', url: 'http://181.78.197.59:8000/play/a07z/index.m3u8' },
+      { name: 'Sinal Direto HLS (Alternativo)', url: 'http://138.204.86.4:8080/ESPN_HD/playlist.m3u8' }
+    ]
+  },
+  {
+    id: 'espn_2_hd',
+    name: 'ESPN 2 HD',
+    category: 'esportes',
+    categoryLabel: 'Esportes & Lutas',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/ESPN2_logo.svg/1200px-ESPN2_logo.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Ao Vivo 1080p (Principal)', url: 'http://138.204.86.4:8080/ESPN2_HD/playlist.m3u8' }
+    ]
+  },
+  {
+    id: 'espn_4_hd',
+    name: 'ESPN 4 HD (Premier League & Champions)',
+    category: 'esportes',
+    categoryLabel: 'Esportes & Lutas',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/ESPN_4_logo.svg/1200px-ESPN_4_logo.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Ao Vivo 1080p (Principal)', url: 'http://181.78.197.59:8000/play/a07n/index.m3u8' },
+      { name: 'Sinal Direto HLS (Alternativo)', url: 'http://138.204.86.4:8080/ESPN4_HD/playlist.m3u8' }
+    ]
+  },
+  {
+    id: 'globo_futebol_hd',
+    name: 'Globo HD (Futebol Ao Vivo & Rodadas)',
+    category: 'esportes',
+    categoryLabel: 'Esportes & Lutas',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/TV_Globo_logo_2021.svg/1200px-TV_Globo_logo_2021.svg.png',
+    resolution: '1080p',
+    sources: [
+      { name: 'Sinal Ao Vivo 1080p (Principal)', url: 'http://138.204.86.4:8080/GLOBO_HD/playlist.m3u8' }
+    ]
+  },
+
   {
     id: 'bandsports',
     name: 'BandSports HD',

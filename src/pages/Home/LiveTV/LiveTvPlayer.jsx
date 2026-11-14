@@ -194,13 +194,13 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel, onDeleteChannel }
         liveSyncDurationCount: 2,
         liveMaxLatencyDurationCount: 3,
         maxLiveSyncPlaybackRate: 1.1,
-        manifestLoadingTimeOut: 15000,
-        levelLoadingTimeOut: 15000,
-        fragLoadingTimeOut: 20000,
-        fragLoadingMaxRetry: 6,
-        fragLoadingRetryDelay: 500,
-        manifestLoadingMaxRetry: 5,
-        manifestLoadingRetryDelay: 500,
+        manifestLoadingTimeOut: 10000,
+        levelLoadingTimeOut: 10000,
+        fragLoadingTimeOut: 15000,
+        fragLoadingMaxRetry: 2,
+        fragLoadingRetryDelay: 1000,
+        manifestLoadingMaxRetry: 1,
+        manifestLoadingRetryDelay: 1000,
       };
 
       const hls = new Hls(hlsConfig);
@@ -260,10 +260,18 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel, onDeleteChannel }
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
               hls.destroy();
-              // Se falhou por CORS ou rede e ainda não tentou o proxy, tenta via proxy CORS
+
+              // Se o canal tem outra rota disponível, avança direto sem sobrecarregar com retentativas 403
+              if (sources.length > 1 && sourceIdx < sources.length - 1) {
+                console.warn('[LiveTvPlayer] Sinal indisponível. Alternando para rota alternativa...');
+                setSourceIdx(prev => prev + 1);
+                return;
+              }
+
+              // Se falhou conexão direta (sem proxy) e não tem mais rotas, tenta o proxy uma única vez
               if (!streamUrl.includes('proxy-stream')) {
                 const proxiedRetryUrl = resolveStreamUrl(currentSource.url, true);
-                const retryHls = new Hls(hlsConfig);
+                const retryHls = new Hls({ ...hlsConfig, manifestLoadingMaxRetry: 0 });
                 hlsRef.current = retryHls;
                 retryHls.loadSource(proxiedRetryUrl);
                 retryHls.attachMedia(video);
@@ -280,25 +288,17 @@ const LiveTvPlayer = ({ channel, onNextChannel, onPrevChannel, onDeleteChannel }
                 retryHls.on(Hls.Events.ERROR, (_evt, retryErr) => {
                   if (retryErr.fatal) {
                     retryHls.destroy();
-                    if (sources.length > 1 && sourceIdx < sources.length - 1) {
-                      setSourceIdx(prev => prev + 1);
-                    } else {
-                      setIsLoading(false);
-                      setHasError(true);
-                      setErrorMessage('Não foi possível conectar ao servidor de streaming deste canal.');
-                    }
+                    setIsLoading(false);
+                    setHasError(true);
+                    setErrorMessage('Não foi possível conectar ao servidor de streaming deste canal.');
                   }
                 });
                 return;
               }
 
-              if (sources.length > 1 && sourceIdx < sources.length - 1) {
-                setSourceIdx(prev => prev + 1);
-              } else {
-                setIsLoading(false);
-                setHasError(true);
-                setErrorMessage('Não foi possível conectar ao servidor de streaming deste canal.');
-              }
+              setIsLoading(false);
+              setHasError(true);
+              setErrorMessage('Sinal temporariamente indisponível no servidor deste canal.');
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
               hls.recoverMediaError();

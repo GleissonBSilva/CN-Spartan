@@ -36,14 +36,29 @@ function streamProxyPlugin() {
           if (target.includes('pluto.tv')) {
             headers['Origin'] = 'https://pluto.tv';
             headers['Referer'] = 'https://pluto.tv/';
-          } else {
-            headers['Referer'] = target;
           }
 
-          const response = await fetch(target, {
+          let response = await fetch(target, {
             signal: controller.signal,
             headers
           });
+
+          // Se o upstream rejeitou com 403, tenta como cliente IPTV padrão (VLC)
+          if (response.status === 403 && !target.includes('pluto.tv')) {
+            try {
+              const iptvRes = await fetch(target, {
+                signal: controller.signal,
+                headers: {
+                  'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18',
+                  'Accept': '*/*'
+                }
+              });
+              if (iptvRes.ok) {
+                response = iptvRes;
+              }
+            } catch {}
+          }
+
           clearTimeout(timeout);
 
           if (!response.ok) {

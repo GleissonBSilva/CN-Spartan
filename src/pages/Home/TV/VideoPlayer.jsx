@@ -10,9 +10,9 @@ import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
 const SERVERS = {
   dublado: [
     {
-      id: 'superflix_dub',
-      name: '🍿 SuperFlix Séries BR (100% Dublado • Principal)',
-      url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
+      id: 'vidlink_direct',
+      name: '⭐ VidLink Séries HD (Rápido • Sem Anúncios • Principal)',
+      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
     },
     {
       id: 'multiembed_dub',
@@ -20,9 +20,9 @@ const SERVERS = {
       url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
     },
     {
-      id: 'vidlink_direct',
-      name: '⭐ VidLink Séries HD (Sem Anúncios • Alternativo)',
-      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
+      id: 'superflix_dub',
+      name: '🍿 SuperFlix Séries BR (Dublado • Alternativo)',
+      url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
     },
     {
       id: 'vidsrc_sh',

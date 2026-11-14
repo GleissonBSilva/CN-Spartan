@@ -149,8 +149,8 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
 
         // Se o usuário está autenticado com UUID mas NÃO existe em profiles no Supabase:
-        // Significa que o administrador o excluiu do banco para economizar cota! Revoga acesso imediatamente.
-        if (!error && !data && cleanEmail !== ADMIN_MASTER_EMAIL) {
+        // Só revoga sessão se a nuvem /api/clients também confirmar que ele foi excluído!
+        if (!error && !data && cleanEmail !== ADMIN_MASTER_EMAIL && !cloudProfile && isCloudDeleted) {
           console.warn('[Spartan Security] Usuário não encontrado no Supabase (conta excluída). Revogando sessão...');
           localStorage.removeItem('weflix_user');
           try {
@@ -199,38 +199,42 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
             ? metaScreens
             : raw.max_screens || 1);
 
-        let resolvedIsTrial =
-          hasAdminEdit && localStoredProfile?.is_trial !== undefined
+        // Precedência de expiração: compara timestamps admin_updated_at para que a edição mais recente (nuvem ou local) prevaleça sem oscilações
+        const localAdminTime = localStoredProfile?.admin_updated_at ? new Date(localStoredProfile.admin_updated_at).getTime() : 0;
+        const cloudAdminTime = (cloudProfile?.admin_updated_at || cloudProfile?.updated_at) ? new Date(cloudProfile.admin_updated_at || cloudProfile.updated_at!).getTime() : 0;
+        const localIsNewer = localAdminTime > cloudAdminTime;
+
+        let resolvedExpiresAt = raw.expires_at;
+        if (localIsNewer && localStoredProfile?.expires_at) {
+          resolvedExpiresAt = localStoredProfile.expires_at;
+        } else if (cloudProfile?.expires_at) {
+          resolvedExpiresAt = cloudProfile.expires_at;
+        } else if (hasAdminEdit && localStoredProfile?.expires_at) {
+          resolvedExpiresAt = localStoredProfile.expires_at;
+        }
+
+        let resolvedStatus = raw.status;
+        if (localIsNewer && localStoredProfile?.status) {
+          resolvedStatus = localStoredProfile.status;
+        } else if (cloudProfile?.status) {
+          resolvedStatus = cloudProfile.status;
+        } else if (hasAdminEdit && localStoredProfile?.status) {
+          resolvedStatus = localStoredProfile.status;
+        } else if (data?.status === 'suspenso') {
+          resolvedStatus = 'suspenso';
+        }
+
+        let resolvedIsTrial = Boolean(
+          localIsNewer && localStoredProfile?.is_trial !== undefined
             ? localStoredProfile.is_trial
             : cloudProfile?.is_trial !== undefined
             ? cloudProfile.is_trial
             : localStoredProfile?.is_trial !== undefined
             ? localStoredProfile.is_trial
-            : raw.is_trial ?? Boolean(userMeta?.is_trial ?? false);
+            : raw.is_trial ?? Boolean(userMeta?.is_trial ?? false)
+        );
 
-        let resolvedExpiresAt =
-          cloudProfile?.expires_at ||
-          (hasAdminEdit && localStoredProfile?.expires_at ? localStoredProfile.expires_at : raw.expires_at);
-
-        let resolvedStatus =
-          cloudProfile?.status ||
-          (hasAdminEdit && localStoredProfile?.status ? localStoredProfile.status : raw.status);
-
-        // Se o banco Supabase ou a nuvem registrou como 'suspenso', prevalece estritamente o bloqueio administrativo!
-        if (data?.status === 'suspenso' || cloudProfile?.status === 'suspenso') {
-          resolvedStatus = 'suspenso';
-        }
-
-        if (!cloudProfile && localStoredProfile && !hasAdminEdit && resolvedStatus !== 'suspenso') {
-          if (localStoredProfile.expires_at) {
-            resolvedExpiresAt = localStoredProfile.expires_at;
-          }
-          if (localStoredProfile.status) {
-            resolvedStatus = localStoredProfile.status;
-          }
-        }
-
-        // REGRA DE PROTEÇÃO CONTRA O BUG DOS 30/33 DIAS:
+        // REGRA DE PROTEÇÃO CONTRA O BUG DOS 30 DIAS:
         // Todo cliente em Teste Grátis tem validade APENAS dos dias de teste (padrão 3 dias).
         // Se a data do banco ou local ficou com mais de 7 dias a partir da criação (ex: default 30d do banco antes do cliente pagar):
         if (resolvedIsTrial && !hasAdminEdit && resolvedStatus !== 'suspenso') {
@@ -279,7 +283,7 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           status: resolvedStatus,
           is_trial: resolvedIsTrial,
           expires_at: resolvedExpiresAt,
-          admin_updated_at: localStoredProfile?.admin_updated_at,
+          admin_updated_at: localStoredProfile?.admin_updated_at || cloudProfile?.admin_updated_at,
         };
 
         // Se o banco estava sem o plano/telas escolhidos no cadastro, sincroniza no Supabase
@@ -358,13 +362,13 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           full_name: userMeta?.full_name || userMeta?.display_name || undefined,
           whatsapp: userMeta?.whatsapp || undefined,
           role: isMaster ? 'admin' : 'client',
-          status: initialStatus,
+          status: userMeta?.status || initialStatus,
           plan_name: isMaster
             ? 'Master Admin'
             : userMeta?.plan_name || 'SPARTAN PRO',
-          is_trial: isMaster ? false : isTrialAllowed,
+          is_trial: isMaster ? false : (userMeta?.is_trial !== undefined ? Boolean(userMeta.is_trial) : isTrialAllowed),
           trial_used: isMaster ? true : !isTrialAllowed,
-          expires_at: new Date(Date.now() + expiryDuration * 24 * 60 * 60 * 1000).toISOString(),
+          expires_at: userMeta?.expires_at || new Date(Date.now() + expiryDuration * 24 * 60 * 60 * 1000).toISOString(),
           max_screens: isMaster ? 5 : Number(userMeta?.max_screens || 1),
           created_at: new Date().toISOString(),
         };
@@ -539,34 +543,43 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           );
 
           if (cp && active) {
-            // Se o perfil na nuvem foi colocado como suspenso ou vencido, aplica imediatamente no state
+            // Se o perfil na nuvem foi colocado como suspenso, vencido ou atualizado
             setProfile((current) => {
-              const base: Profile = current || {
-                id: cp.id || user.id,
-                email: cp.email || user.email || '',
-                full_name: cp.full_name || '',
-                role: 'client',
-                plan_name: cp.plan_name || 'SPARTAN PRO',
-                max_screens: cp.max_screens || 1,
-                is_trial: false,
-                trial_used: true,
-                expires_at: cp.expires_at || new Date().toISOString(),
-                created_at: new Date().toISOString(),
-                status: cp.status,
-              };
+              if (!current) return current;
+
+              const localAdminTime = current.admin_updated_at ? new Date(current.admin_updated_at).getTime() : 0;
+              const cloudAdminTime = (cp.admin_updated_at || cp.updated_at) ? new Date(cp.admin_updated_at || cp.updated_at).getTime() : 0;
+              const localIsNewer = localAdminTime > cloudAdminTime;
+
+              const targetStatus = localIsNewer ? current.status : (cp.status || current.status);
+              const targetExpiresAt = localIsNewer ? current.expires_at : (cp.expires_at || current.expires_at);
+              const targetIsTrial = localIsNewer ? current.is_trial : (cp.is_trial !== undefined ? cp.is_trial : current.is_trial);
+              const targetPlan = localIsNewer ? current.plan_name : (cp.plan_name || current.plan_name);
+              const targetScreens = localIsNewer ? current.max_screens : (cp.max_screens || current.max_screens);
 
               const updated: Profile = {
-                ...base,
-                status: cp.status,
-                expires_at: cp.expires_at || base.expires_at,
-                plan_name: cp.plan_name || base.plan_name,
-                max_screens: cp.max_screens || base.max_screens,
-                active_devices: cp.active_devices || base.active_devices,
-                last_platform: cp.last_platform || base.last_platform,
-                last_ip: cp.last_ip || base.last_ip,
-                last_seen_at: cp.last_seen_at || base.last_seen_at,
+                ...current,
+                status: targetStatus,
+                expires_at: targetExpiresAt,
+                is_trial: targetIsTrial,
+                plan_name: targetPlan,
+                max_screens: targetScreens,
+                active_devices: cp.active_devices || current.active_devices,
+                last_platform: cp.last_platform || current.last_platform,
+                last_ip: cp.last_ip || current.last_ip,
+                last_seen_at: cp.last_seen_at || current.last_seen_at,
               };
-              syncLocalProfileRegistry(updated);
+
+              // Previne loop infinito do StorageEvent disparando fetchProfile repetidamente
+              const hasCoreChanged =
+                current.status !== updated.status ||
+                current.expires_at !== updated.expires_at ||
+                current.is_trial !== updated.is_trial ||
+                current.plan_name !== updated.plan_name;
+
+              if (hasCoreChanged) {
+                syncLocalProfileRegistry(updated);
+              }
               return updated;
             });
           }
@@ -599,6 +612,12 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
               body: JSON.stringify({
                 id: cp?.id || user.id,
                 email: cleanEmail,
+                status: profile?.status || cp?.status,
+                expires_at: profile?.expires_at || cp?.expires_at,
+                is_trial: profile?.is_trial !== undefined ? profile?.is_trial : cp?.is_trial,
+                plan_name: profile?.plan_name || cp?.plan_name,
+                max_screens: profile?.max_screens || cp?.max_screens,
+                admin_updated_at: profile?.admin_updated_at || cp?.admin_updated_at,
                 active_devices: updatedDevices,
                 last_platform: myPlatform,
                 last_seen_at: new Date().toISOString(),

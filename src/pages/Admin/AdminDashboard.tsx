@@ -502,6 +502,24 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             .eq('id', profileId);
         }
       }
+
+      // Sincroniza em tempo real com /api/clients para unificar todas as TV Boxes e aparelhos do cliente
+      try {
+        const cloudSyncBody = {
+          id: profileId,
+          ...fullPayload,
+          admin_updated_at: new Date().toISOString(),
+        };
+        fetch('/api/clients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cloudSyncBody),
+        }).catch(() => fetch('https://cn-spartan.vercel.app/api/clients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cloudSyncBody),
+        })).catch(() => {});
+      } catch {}
     } catch (err) {
       console.warn('Aviso ao sincronizar alteração no Supabase (mantido localmente):', err);
     }
@@ -536,7 +554,14 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             for (const cc of cloudClients) {
               const existingIdx = localList.findIndex(lp => lp.id === cc.id || (cc.email && lp.email?.toLowerCase() === cc.email.toLowerCase()));
               if (existingIdx >= 0) {
-                localList[existingIdx] = { ...localList[existingIdx], ...cc };
+                const localAdminTime = localList[existingIdx].admin_updated_at ? new Date(localList[existingIdx].admin_updated_at).getTime() : 0;
+                const cloudAdminTime = (cc.admin_updated_at || cc.updated_at) ? new Date(cc.admin_updated_at || cc.updated_at).getTime() : 0;
+                if (localAdminTime >= cloudAdminTime) {
+                  // Edição local do admin é mais recente ou igual; não permite que cache defasado reverta status/validade
+                  localList[existingIdx] = { ...cc, ...localList[existingIdx] };
+                } else {
+                  localList[existingIdx] = { ...localList[existingIdx], ...cc };
+                }
               } else {
                 localList.unshift(cc);
               }
@@ -832,8 +857,9 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       try {
         const res = await fetch('/api/clients').catch(() => fetch('https://cn-spartan.vercel.app/api/clients'));
         if (!res || !res.ok) return;
-        const remoteList = await res.json();
-        if (!Array.isArray(remoteList)) return;
+        const remoteData = await res.json();
+        const remoteList = Array.isArray(remoteData) ? remoteData : (remoteData?.profiles || []);
+        if (!Array.isArray(remoteList) || remoteList.length === 0) return;
 
         setProfiles((prev) => {
           let changed = false;

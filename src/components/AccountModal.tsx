@@ -82,11 +82,17 @@ export const AccountModal: React.FC<AccountModalProps> = ({
       );
       setWhatsapp(profile?.whatsapp || user?.user_metadata?.whatsapp || '');
     }
-    if (isOpen) {
+  }, [user, profile]);
+
+  // Redefine a aba inicial apenas na abertura da modal (evita travar e resetar a troca de abas)
+  const prevOpenRef = React.useRef(false);
+  useEffect(() => {
+    if (isOpen && !prevOpenRef.current) {
       setActiveTab(defaultTab);
       setMessage(null);
     }
-  }, [user, profile, isOpen, defaultTab]);
+    prevOpenRef.current = isOpen;
+  }, [isOpen, defaultTab]);
 
   if (!isOpen) return null;
 
@@ -360,21 +366,21 @@ export const AccountModal: React.FC<AccountModalProps> = ({
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-lg font-black text-white">{fullName || 'Minha Conta'}</h2>
-                {isTrial ? (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
-                    <FaBolt className="text-[9px]" /> Teste Grátis
-                  </span>
-                ) : isActive ? (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
-                    <FaCheckCircle className="text-[9px]" /> Ativo
-                  </span>
-                ) : isSuspended ? (
+                {isSuspended ? (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
                     Suspenso
                   </span>
-                ) : (
+                ) : isExpired ? (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-500/20 text-red-300 border border-red-500/40 flex items-center gap-1">
                     <FaLock className="text-[9px]" /> Vencido
+                  </span>
+                ) : isTrial ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
+                    <FaBolt className="text-[9px]" /> Teste Grátis
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                    <FaCheckCircle className="text-[9px]" /> Ativo
                   </span>
                 )}
               </div>
@@ -511,14 +517,16 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                   </div>
                   <div>
                     <span className="text-[10px] uppercase font-bold text-gray-400 block">
-                      {isTrial ? 'Prazo de Teste' : 'Validade'}
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">
+                      {isTrial ? 'Período de Teste' : 'Validade'}
                     </span>
                     <span className={`text-xs font-black block mt-0.5 ${
                       isActive ? (isTrial ? 'text-amber-400' : 'text-emerald-400') : 'text-red-400'
                     }`}>
                       {isActive
-                        ? `${daysRemaining} ${daysRemaining === 1 ? 'dia restante' : 'dias restantes'}`
+                        ? (isTrial ? `${daysRemaining} ${daysRemaining === 1 ? 'dia de teste' : 'dias de teste'}` : `${daysRemaining} ${daysRemaining === 1 ? 'dia restante' : 'dias restantes'}`)
                         : (isTrial ? 'Teste Expirado' : 'Acesso Vencido')}
+                    </span>
                     </span>
                   </div>
                 </div>

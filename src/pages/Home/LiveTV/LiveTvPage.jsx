@@ -43,7 +43,7 @@ const LiveTvPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlCategory = searchParams.get('cat') || 'all';
 
-  const [selectedChannelId, setSelectedChannelId] = useState(() => allChannels[0]?.id || 'caze_tv');
+  const [selectedChannelId, setSelectedChannelId] = useState(() => allChannels[0]?.id || 'tnt_sports');
   const [selectedCategory, setSelectedCategory] = useState(urlCategory);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -78,7 +78,7 @@ const LiveTvPage = () => {
       localStorage.setItem('cinespartan_custom_channels', JSON.stringify(updated));
     } catch {}
     const remaining = [...CHANNELS, ...updated];
-    setSelectedChannelId(remaining[0]?.id || 'caze_tv');
+    setSelectedChannelId(remaining[0]?.id || 'tnt_sports');
   };
 
   // Active channel object

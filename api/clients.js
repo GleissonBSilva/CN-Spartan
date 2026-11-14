@@ -166,10 +166,20 @@ export default async function handler(req, res) {
         targetStatus = 'suspenso';
       }
 
+      // Preserva expires_at e is_trial se for uma simples telemetria sem expiração informada
+      const targetExpiresAt = profile.expires_at || memoryProfiles[existingIdx].expires_at;
+      const targetIsTrial = profile.is_trial !== undefined ? Boolean(profile.is_trial) : memoryProfiles[existingIdx].is_trial;
+      const targetPlan = profile.plan_name || memoryProfiles[existingIdx].plan_name;
+      const targetScreens = profile.max_screens || memoryProfiles[existingIdx].max_screens;
+
       memoryProfiles[existingIdx] = {
         ...memoryProfiles[existingIdx],
         ...profile,
         status: targetStatus,
+        expires_at: targetExpiresAt,
+        is_trial: targetIsTrial,
+        plan_name: targetPlan,
+        max_screens: targetScreens,
         ...(nextDevices !== undefined ? { active_devices: nextDevices } : {}),
         last_ip: profile.last_ip || clientIp || memoryProfiles[existingIdx].last_ip,
         id: cleanId || memoryProfiles[existingIdx].id,
@@ -177,8 +187,14 @@ export default async function handler(req, res) {
         updated_at: new Date().toISOString()
       };
     } else {
-      const isNewTrial = Boolean(profile.is_trial);
-      const defaultDurationDays = isNewTrial ? 3 : 30;
+      // Regra de Negócio Spartan: Novo cadastro NUNCA ganha 30 dias de mês pago automaticamente.
+      // O domínio do acesso é exclusivo do Admin. O cliente apenas escolhe o plano.
+      // Se for período de teste permitido, ganha estritamente 3 dias com is_trial = true.
+      // Se não for teste, entra como 'vencido' aguardando liberação do Admin.
+      const isTrial = profile.is_trial !== undefined ? Boolean(profile.is_trial) : true;
+      const trialDays = isTrial ? 3 : 0;
+      const initialStatus = profile.status ? profile.status : (isTrial ? 'ativo' : 'vencido');
+      const initialExpires = profile.expires_at || new Date(Date.now() + trialDays * 86400000).toISOString();
 
       memoryProfiles.unshift({
         id: cleanId,
@@ -186,16 +202,16 @@ export default async function handler(req, res) {
         full_name: profile.full_name || profile.name || cleanEmail.split('@')[0],
         whatsapp: profile.whatsapp || profile.phone || '',
         role: profile.role || 'client',
-        status: profile.status || 'ativo',
+        status: initialStatus,
         plan_name: profile.plan_name || 'SPARTAN PRO',
         max_screens: Number(profile.max_screens || 2),
-        is_trial: isNewTrial,
+        is_trial: isTrial,
         trial_used: Boolean(profile.trial_used),
         active_devices: Array.isArray(nextDevices) ? nextDevices : [],
         last_platform: profile.last_platform || 'web',
         last_ip: clientIp,
         last_seen_at: profile.last_seen_at || new Date().toISOString(),
-        expires_at: profile.expires_at || new Date(Date.now() + defaultDurationDays * 86400000).toISOString(),
+        expires_at: initialExpires,
         created_at: profile.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString()
       });
