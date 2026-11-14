@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { CURRENT_APP_VERSION, isVersionOlder } from '../config/appVersion';
-import { App as CapApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '../lib/supabase';
 
@@ -198,15 +197,19 @@ export function useAppUpdateGuard() {
   useEffect(() => {
     checkStatus();
 
-    // Recheca quando o app volta do segundo plano na TV Box ou celular
+    // Recheca quando o app volta do segundo plano na TV Box ou celular (exclusivo para app nativo)
     let appStateListener;
-    try {
-      appStateListener = CapApp.addListener('appStateChange', (state) => {
-        if (state.isActive) {
-          checkStatus();
-        }
-      });
-    } catch {}
+    if (Capacitor.isNativePlatform()) {
+      import('@capacitor/app').then(({ App: CapApp }) => {
+        try {
+          appStateListener = CapApp.addListener('appStateChange', (state) => {
+            if (state.isActive) {
+              checkStatus();
+            }
+          });
+        } catch {}
+      }).catch(() => {});
+    }
 
     const handleFocus = () => checkStatus();
     window.addEventListener('focus', handleFocus);

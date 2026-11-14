@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { FaDownload, FaSyncAlt, FaShieldAlt, FaTools, FaWhatsapp } from 'react-icons/fa';
 import { CURRENT_APP_VERSION } from '../config/appVersion';
-import { App as CapApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import { isTvBoxOrApk } from '../hooks/useAppUpdateGuard';
 
 const ForceUpdateModal = ({ reason, config, onRecheck }) => {
@@ -17,7 +17,11 @@ const ForceUpdateModal = ({ reason, config, onRecheck }) => {
         e.preventDefault();
         e.stopPropagation();
         try {
-          CapApp.exitApp();
+          if (Capacitor.isNativePlatform()) {
+            import('@capacitor/app').then(({ App: CapApp }) => {
+              CapApp.exitApp();
+            }).catch(() => {});
+          }
         } catch {}
       }
     };

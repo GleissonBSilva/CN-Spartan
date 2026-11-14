@@ -23,6 +23,7 @@ import { useAuthProfile } from '../hooks/useAuthProfile';
 import { getLocalDeviceId, getLocalDeviceName, type ActiveDevice } from '../hooks/useScreenLimiter';
 import { supabase } from '../lib/supabase';
 import { DEFAULT_PLANS, getSavedPlans, type PlanTier } from '../constants/plans';
+import { generatePixPayload, getPixQrCodeUrl, DEFAULT_PIX_CONFIG, type PixConfig } from '../utils/pix';
 
 interface AccountModalProps {
   isOpen: boolean;
@@ -64,10 +65,44 @@ export const AccountModal: React.FC<AccountModalProps> = ({
 
   // Estados de Pix e Cópia
   const [copiedPix, setCopiedPix] = useState(false);
+  const [copiedPixKey, setCopiedPixKey] = useState(false);
   const [showPixDetails, setShowPixDetails] = useState(false);
+  const [selectedPlanForPix, setSelectedPlanForPix] = useState<PlanTier | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
 
   const plans = getSavedPlans().length > 0 ? getSavedPlans() : DEFAULT_PLANS;
+
+  // Configuração Pix do sistema (com sincronização via Supabase e fallback seguro)
+  const [pixConfig, setPixConfig] = useState<PixConfig>(() => {
+    try {
+      const saved = localStorage.getItem('spartan_pix_config');
+      return saved ? JSON.parse(saved) : DEFAULT_PIX_CONFIG;
+    } catch {
+      return DEFAULT_PIX_CONFIG;
+    }
+  });
+
+  useEffect(() => {
+    const fetchPixConfig = async () => {
+      try {
+        const { data } = await supabase
+          .from('system_settings')
+          .select('value')
+          .eq('key', 'pix_config')
+          .maybeSingle();
+
+        if (data?.value && typeof data.value === 'object' && (data.value as any).key) {
+          setPixConfig(data.value as PixConfig);
+          localStorage.setItem('spartan_pix_config', JSON.stringify(data.value));
+        }
+      } catch {
+        // Usa fallback local
+      }
+    };
+    if (isOpen) {
+      fetchPixConfig();
+    }
+  }, [isOpen]);
 
   // Carregar dados iniciais do perfil
   useEffect(() => {
@@ -101,17 +136,28 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   const currentPlanName = profile?.plan_name || 'SPARTAN PRO';
   const maxScreens = profile?.max_screens || 1;
 
-  // Configuração Pix do sistema
-  const savedPix = localStorage.getItem('spartan_pix_config');
-  const pixConfig = savedPix
-    ? JSON.parse(savedPix)
-    : { key: 'gleisson1984@gmail.com', recipientName: 'Gleisson B Silva', city: 'Manaus' };
+  const currentPlan = plans.find((p) => p.name.toLowerCase() === (profile?.plan_name || '').toLowerCase()) || plans[1] || plans[0];
+  const activePixPlan = selectedPlanForPix || currentPlan;
+  const pixAmount = activePixPlan?.monthlyPrice || 59.90;
+
+  const pixPayload = generatePixPayload({
+    key: pixConfig.key,
+    recipientName: pixConfig.recipientName,
+    city: pixConfig.city,
+    amount: pixAmount,
+    txId: (user?.id || 'spartan').replace(/[^a-zA-Z0-9]/g, '').slice(0, 20),
+  });
 
   const handleCopyPix = () => {
-    const payload = `00020126580014br.gov.bcb.pix0136${pixConfig.key}520400005303986540599.005802BR5913${pixConfig.recipientName.slice(0, 13).toUpperCase()}6009${(pixConfig.city || 'MANAUS').slice(0, 9).toUpperCase()}62070503***6304E8A2`;
-    navigator.clipboard.writeText(payload);
+    navigator.clipboard.writeText(pixPayload);
     setCopiedPix(true);
     setTimeout(() => setCopiedPix(false), 2500);
+  };
+
+  const handleCopyPixKey = () => {
+    navigator.clipboard.writeText(pixConfig.key);
+    setCopiedPixKey(true);
+    setTimeout(() => setCopiedPixKey(false), 2500);
   };
 
   // Salvar Informações de Contato / Nome
@@ -287,6 +333,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
         type: 'success',
         text: `Solicitação para o plano ${plan.name} enviada! Finalize pelo WhatsApp ou realize o Pix para ativação imediata.`,
       });
+      setSelectedPlanForPix(plan);
       setShowPixDetails(true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao solicitar troca de plano.';
@@ -629,7 +676,20 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                           Pagamento Instantâneo Pix Spartan
                         </h4>
                       </div>
-                      <span className="text-[11px] text-emerald-400 font-bold">Liberação Imediata</span>
+                      <span className="text-[11px] text-emerald-400 font-bold">
+                        Plano {activePixPlan.name} • R$ {pixAmount.toFixed(2).replace('.', ',')}
+                      </span>
+                    </div>
+
+                    {/* QR Code Real Escaneável com Câmera de Qualquer Banco */}
+                    <div className="w-48 h-48 mx-auto bg-white p-2 rounded-2xl flex flex-col items-center justify-center shadow-xl border-2 border-emerald-500/40 my-1">
+                      <img
+                        src={getPixQrCodeUrl(pixPayload, 260)}
+                        alt="QR Code Pix Cine Spartan"
+                        className="w-40 h-40 object-contain rounded-lg"
+                        loading="eager"
+                      />
+                      <span className="text-[9px] font-black text-black tracking-wider uppercase mt-1">CINE SPARTAN PIX</span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -649,15 +709,26 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                       </div>
                     </div>
 
-                    {/* Copiar Chave */}
-                    <button
-                      type="button"
-                      onClick={handleCopyPix}
-                      className="w-full py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
-                    >
-                      {copiedPix ? <FaCheck className="text-emerald-400" /> : <FaCopy />}
-                      <span>{copiedPix ? 'Chave Pix Copiada com Sucesso!' : 'Copiar Chave Pix'}</span>
-                    </button>
+                    {/* Botões de Cópia: Código Copia e Cola e Chave Pix */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCopyPix}
+                        className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-1.5"
+                      >
+                        {copiedPix ? <FaCheck className="text-white" /> : <FaCopy />}
+                        <span>{copiedPix ? 'Código Pix Copiado!' : 'Copiar Código Copia e Cola'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleCopyPixKey}
+                        className="w-full py-2.5 bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/40 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5"
+                      >
+                        {copiedPixKey ? <FaCheck className="text-emerald-300" /> : <FaCopy />}
+                        <span>{copiedPixKey ? 'Chave Copiada!' : 'Copiar Apenas a Chave'}</span>
+                      </button>
+                    </div>
 
                     <p className="text-[11px] text-gray-400 text-center">
                       Após realizar o Pix, envie o comprovante no WhatsApp com o e-mail{' '}

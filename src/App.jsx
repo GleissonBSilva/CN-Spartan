@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, useNavigate, useLocation } from 'react-router-dom';
-import { App as CapApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import ParentComponent from './pages/Home/ParentComponent';
@@ -28,16 +28,20 @@ function TvNavigationHandler() {
 
   useEffect(() => {
     let backListener;
-    try {
-      backListener = CapApp.addListener('backButton', () => {
-        if (location.pathname !== '/' && location.pathname !== '') {
-          navigate(-1);
-        } else {
-          CapApp.exitApp();
+    if (Capacitor.isNativePlatform()) {
+      import('@capacitor/app').then(({ App: CapApp }) => {
+        try {
+          backListener = CapApp.addListener('backButton', () => {
+            if (location.pathname !== '/' && location.pathname !== '') {
+              navigate(-1);
+            } else {
+              CapApp.exitApp();
+            }
+          });
+        } catch {
+          // Native fallback
         }
-      });
-    } catch {
-      // Browser environment fallback
+      }).catch(() => {});
     }
 
     const handleKeyDown = (e) => {

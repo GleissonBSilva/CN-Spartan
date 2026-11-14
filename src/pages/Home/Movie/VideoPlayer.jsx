@@ -10,19 +10,19 @@ import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
 const SERVERS = {
   dublado: [
     {
+      id: 'superflix_dub',
+      name: '🍿 SuperFlix HD (Principal • Áudio 100% Dublado BR)',
+      url: (id) => `https://superflixapi.boats/filme/${id}`
+    },
+    {
       id: 'vidlink_direct',
-      name: '⭐ VidLink Ultra HD (Rápido • Sem Anúncios • Principal)',
+      name: '⭐ VidLink Ultra HD (Rápido • Sem Anúncios)',
       url: (id) => `https://vidlink.pro/movie/${id}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
     },
     {
       id: 'multiembed_dub',
       name: '📺 MultiEmbed Dublado (Multi-Áudio BR)',
       url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
-    },
-    {
-      id: 'superflix_dub',
-      name: '🍿 SuperFlix Dublado BR (Alternativo)',
-      url: (id) => `https://superflixapi.boats/filme/${id}`
     },
     {
       id: 'vidsrc_sh',

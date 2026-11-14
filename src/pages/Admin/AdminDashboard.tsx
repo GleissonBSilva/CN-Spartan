@@ -39,6 +39,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuthProfile } from '../../hooks/useAuthProfile';
 import type { Profile, ProfileStatus } from '../../types/supabase';
 import { DEFAULT_PLANS, getSavedPlans, savePlansConfig, type PlanTier } from '../../constants/plans';
+import { generatePixPayload, getPixQrCodeUrl } from '../../utils/pix';
 import SEO from '../Home/SEO';
 
 // Tipagem de Cobrança Pix
@@ -1470,12 +1471,26 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     });
   };
 
-  // Copiar código Pix
+  // Copiar código Pix Copia e Cola (BR Code Oficial BACEN)
+  const [copiedPixKey, setCopiedPixKey] = useState(false);
   const handleCopyPixCode = (hash: string) => {
-    const payload = `00020126580014br.gov.bcb.pix0136${pixConfig.key}520400005303986540599.005802BR5913${pixConfig.recipientName.slice(0, 13).toUpperCase()}6009${pixConfig.city.slice(0, 9).toUpperCase()}62070503***6304E8A2`;
+    const amount = selectedPix?.amount || 59.90;
+    const payload = generatePixPayload({
+      key: pixConfig.key,
+      recipientName: pixConfig.recipientName,
+      city: pixConfig.city,
+      amount,
+      txId: (hash || '***').replace(/[^a-zA-Z0-9]/g, '').slice(0, 25),
+    });
     navigator.clipboard.writeText(payload);
     setCopiedPix(true);
     setTimeout(() => setCopiedPix(false), 2000);
+  };
+
+  const handleCopyPixKey = () => {
+    navigator.clipboard.writeText(pixConfig.key);
+    setCopiedPixKey(true);
+    setTimeout(() => setCopiedPixKey(false), 2000);
   };
 
   // Diagnóstico 360°
@@ -3892,26 +3907,60 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                 </div>
               </div>
 
-              {/* Simulação Visual de QR Code */}
-              <div className="w-48 h-48 mx-auto bg-white p-3 rounded-2xl flex flex-col items-center justify-center shadow-lg relative my-4">
-                <FaQrcode className="text-black text-8xl" />
-                <span className="text-[10px] font-bold text-black mt-2">CINE SPARTAN PIX</span>
-              </div>
+              {/* QR Code Oficial Escaneável com Payload Real */}
+              {(() => {
+                const currentPixPayload = generatePixPayload({
+                  key: pixConfig.key,
+                  recipientName: pixConfig.recipientName,
+                  city: pixConfig.city,
+                  amount: selectedPix.amount,
+                  txId: (selectedPix.hash || '***').replace(/[^a-zA-Z0-9]/g, '').slice(0, 25),
+                });
+                const qrUrl = getPixQrCodeUrl(currentPixPayload, 260);
 
-              <div className="space-y-3">
-                <div className="bg-black/60 p-3 rounded-xl border border-gray-800 text-[11px] font-mono text-gray-300 break-all select-all space-y-1">
-                  <div><strong className="text-purple-400">Chave Pix:</strong> {pixConfig.key} ({pixConfig.keyType})</div>
-                  <div><strong className="text-gray-400">Titular:</strong> {pixConfig.recipientName} • {pixConfig.city}</div>
-                  <div className="text-[10px] text-gray-500 pt-1 border-t border-gray-800 truncate">Payload: 00020126580014br.gov.bcb.pix0136{pixConfig.key}52040000...</div>
-                </div>
-                <button
-                  onClick={() => handleCopyPixCode(selectedPix.hash)}
-                  className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg transition"
-                >
-                  {copiedPix ? <FaCheck className="text-emerald-300" /> : <FaCopy />}
-                  <span>{copiedPix ? 'Código Pix Copiado!' : 'Copiar Chave Copia e Cola'}</span>
-                </button>
-              </div>
+                return (
+                  <>
+                    <div className="w-52 h-52 mx-auto bg-white p-2.5 rounded-2xl flex flex-col items-center justify-center shadow-xl border-2 border-emerald-500/40 my-3">
+                      <img
+                        src={qrUrl}
+                        alt="QR Code Pix Oficial"
+                        className="w-44 h-44 object-contain rounded-lg"
+                        loading="eager"
+                      />
+                      <span className="text-[10px] font-black text-black tracking-wider uppercase mt-1">CINE SPARTAN PIX</span>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      <div className="bg-black/60 p-3 rounded-xl border border-gray-800 text-[11px] font-mono text-gray-300 break-all select-all space-y-1">
+                        <div><strong className="text-purple-400">Chave Pix:</strong> {pixConfig.key} ({pixConfig.keyType})</div>
+                        <div><strong className="text-gray-400">Titular:</strong> {pixConfig.recipientName} • {pixConfig.city}</div>
+                        <div className="text-[10px] text-gray-500 pt-1 border-t border-gray-800 truncate" title={currentPixPayload}>
+                          Payload BR Code: {currentPixPayload}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyPixCode(selectedPix.hash)}
+                          className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-lg transition"
+                        >
+                          {copiedPix ? <FaCheck className="text-white" /> : <FaCopy />}
+                          <span>{copiedPix ? 'Código Copiado!' : 'Copiar Copia e Cola'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCopyPixKey}
+                          className="w-full py-2.5 bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/40 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition"
+                        >
+                          {copiedPixKey ? <FaCheck className="text-emerald-300" /> : <FaCopy />}
+                          <span>{copiedPixKey ? 'Chave Copiada!' : 'Copiar Chave'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </motion.div>
           </div>
         )}
