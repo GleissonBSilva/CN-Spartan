@@ -521,36 +521,85 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                 )}
             </div>
 
-            {/* Seletor Rápido de Servidores Spartan */}
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 px-1">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider mr-1 flex items-center gap-1">
-                        <FaSyncAlt className="text-red-500 text-[10px]" />
-                        <span>Servidor:</span>
-                    </span>
-                    {currentSources.map((srv, idx) => (
-                        <button
-                            key={srv.id}
-                            type="button"
-                            onClick={() => {
-                                setSourceIdx(idx);
-                                setHasStarted(true);
-                                showToast(`Conectado ao ${srv.name}`);
-                            }}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                                sourceIdx === idx
-                                    ? 'bg-red-600 text-white shadow-lg shadow-red-600/30 ring-1 ring-white/30'
-                                    : 'bg-[#12151e] text-gray-400 hover:text-white hover:bg-[#1a1e2b] border border-white/5'
-                            }`}
-                        >
-                            <span>{srv.name}</span>
-                            {sourceIdx === idx && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
-                        </button>
-                    ))}
+            {/* Controles Principais de Áudio, Legendas e Servidores Spartan */}
+            <div className="mt-3 space-y-2.5 px-1">
+                {/* 1. Barra de Idioma & Legendas */}
+                <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-[#10131d] rounded-2xl border border-white/5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <FaVolumeUp className="text-red-400 text-xs" />
+                            <span>Áudio & Legendas:</span>
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                            <button
+                                type="button"
+                                onClick={() => handleModeChange('dublado')}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                    streamMode === 'dublado'
+                                        ? 'bg-red-600 text-white shadow-lg shadow-red-600/40 ring-1 ring-white/30 font-black'
+                                        : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                                }`}
+                            >
+                                <span>🇧🇷 Dublado (Português)</span>
+                                {streamMode === 'dublado' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => handleModeChange('legendado')}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                    streamMode === 'legendado'
+                                        ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/40 ring-1 ring-white/30 font-black'
+                                        : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                                }`}
+                            >
+                                <FaClosedCaptioning className="text-xs" />
+                                <span>💬 Original + Legendas PT-BR</span>
+                                {streamMode === 'legendado' && <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="text-[11px] text-gray-400">
+                        {streamMode === 'dublado' ? (
+                            <span className="text-emerald-400 font-semibold">✓ Áudio nativo 100% dublado em Português-BR</span>
+                        ) : (
+                            <span className="text-amber-300 font-semibold">✓ Áudio original em alta definição com legendas PT-BR</span>
+                        )}
+                    </div>
                 </div>
 
-                <div className="text-[11px] text-gray-400 italic">
-                    {sourceIdx === 0 && 'Se o episódio exibir "No ID", alterne para o Servidor 2 (MultiEmbed)'}
+                {/* 2. Servidores Alternativos para a modalidade ativa */}
+                <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider mr-1 flex items-center gap-1">
+                            <FaSyncAlt className="text-red-500 text-[10px]" />
+                            <span>Servidor Reserva:</span>
+                        </span>
+                        {currentSources.map((srv, idx) => (
+                            <button
+                                key={srv.id}
+                                type="button"
+                                onClick={() => {
+                                    setSourceIdx(idx);
+                                    setHasStarted(true);
+                                    showToast(`Conectado ao ${srv.name}`);
+                                }}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                    sourceIdx === idx
+                                        ? 'bg-red-600 text-white shadow-lg shadow-red-600/30 ring-1 ring-white/30'
+                                        : 'bg-[#12151e] text-gray-400 hover:text-white hover:bg-[#1a1e2b] border border-white/5'
+                                }`}
+                            >
+                                <span>{srv.name}</span>
+                                {sourceIdx === idx && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="text-[11px] text-gray-400 italic">
+                        {sourceIdx === 0 && 'Se o episódio demorar a responder, selecione outro servidor reserva'}
+                    </div>
                 </div>
             </div>
         </div>
