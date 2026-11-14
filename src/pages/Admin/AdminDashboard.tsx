@@ -461,11 +461,11 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       ...fullPayload
     };
     try {
-      fetchApi('/api/clients', {
+      await fetchApi('/api/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cloudPayload)
-      }).catch(() => {});
+      });
     } catch {}
 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profileId);
@@ -891,13 +891,10 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             return true;
           });
 
-          // 2. Atualiza dados de perfis existentes (aparelhos ativos, telas, planos, expirações e status)
+          // 2. Atualiza dados de telemetria de perfis existentes (aparelhos ativos, telas conectadas, pings, IP e plataforma)
+          // REGRA DE OURO SPARTAN: O Administrador no Painel Admin é a autoridade absoluta.
+          // O polling automático em segundo plano NUNCA deve reverter o plano, telas, validade ou status que o Admin configurou!
           const updatedList = currentList.map((p) => {
-            const isBeingEdited = editingProfileRef.current && (
-              editingProfileRef.current.id === p.id ||
-              (editingProfileRef.current.email && p.email && editingProfileRef.current.email.toLowerCase() === p.email.toLowerCase())
-            );
-
             const match = remoteList.find(
               (r: any) =>
                 r.id === p.id ||
@@ -909,43 +906,21 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             const nextPlatform = match.last_platform || p.last_platform;
             const nextIp = match.last_ip || p.last_ip;
             const nextSeen = match.last_seen_at || p.last_seen_at;
-            const nextPlan = isBeingEdited ? p.plan_name : (match.plan_name || p.plan_name);
-            const nextScreens = isBeingEdited ? p.max_screens : Number(match.max_screens ?? p.max_screens);
-            const nextStatus = isBeingEdited ? p.status : (match.status || p.status);
-            const nextExpires = isBeingEdited ? p.expires_at : (match.expires_at || p.expires_at);
-            const nextIsTrial = isBeingEdited ? p.is_trial : (match.is_trial !== undefined ? match.is_trial : p.is_trial);
-            const nextName = isBeingEdited ? p.full_name : (match.full_name || p.full_name);
-            const nextWhatsapp = isBeingEdited ? p.whatsapp : (match.whatsapp || p.whatsapp);
 
-            const hasChanged =
+            const hasTelemetryChanged =
               JSON.stringify(remoteDevices) !== JSON.stringify(p.active_devices || []) ||
               nextPlatform !== p.last_platform ||
               nextIp !== p.last_ip ||
-              nextSeen !== p.last_seen_at ||
-              nextPlan !== p.plan_name ||
-              nextScreens !== p.max_screens ||
-              nextStatus !== p.status ||
-              nextExpires !== p.expires_at ||
-              nextIsTrial !== p.is_trial ||
-              nextName !== p.full_name ||
-              nextWhatsapp !== p.whatsapp;
+              nextSeen !== p.last_seen_at;
 
-            if (hasChanged) {
+            if (hasTelemetryChanged) {
               changed = true;
               return {
-                ...p,
-                ...match,
+                ...p, // Preserva integralmente tudo que o Admin alterou (plano, telas, status, validade, dados)
                 active_devices: remoteDevices,
                 last_platform: nextPlatform,
                 last_ip: nextIp,
                 last_seen_at: nextSeen,
-                plan_name: nextPlan,
-                max_screens: nextScreens,
-                status: nextStatus,
-                expires_at: nextExpires,
-                is_trial: nextIsTrial,
-                full_name: nextName,
-                whatsapp: nextWhatsapp,
               };
             }
             return p;
