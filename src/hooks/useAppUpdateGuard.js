@@ -11,6 +11,9 @@ const CONFIG_URLS = [
   'https://cn-spartan.vercel.app/app-config.json'
 ];
 
+// Flag para evitar consultas repetidas se a tabela system_settings ainda não tiver sido criada
+let hasSystemSettingsFailed = false;
+
 /**
  * Detecta se o aplicativo está sendo executado no CineSpartan TV Box ou APK Android (Capacitor/Nativo).
  * Retorna false quando acessado diretamente pelo navegador web no PC / Desktop.
@@ -60,18 +63,24 @@ export function useAppUpdateGuard() {
   const fetchRemoteConfig = async () => {
     let baseConfig = null;
 
-    // 1. Busca a configuração persistente no Supabase (system_settings -> app_security_config)
-    try {
-      const { data, error } = await supabase
-        .from('system_settings')
-        .select('value')
-        .eq('key', 'app_security_config')
-        .maybeSingle();
+    // 1. Busca a configuração persistente no Supabase se disponível
+    if (!hasSystemSettingsFailed) {
+      try {
+        const { data, error } = await supabase
+          .from('system_settings')
+          .select('value')
+          .eq('key', 'app_security_config')
+          .maybeSingle();
 
-      if (!error && data && data.value && typeof data.value === 'object') {
-        baseConfig = data.value;
+        if (error) {
+          hasSystemSettingsFailed = true;
+        } else if (data && data.value && typeof data.value === 'object') {
+          baseConfig = data.value;
+        }
+      } catch {
+        hasSystemSettingsFailed = true;
       }
-    } catch {}
+    }
 
     // 2. Busca nas rotas de API e arquivos remotos (também obtém clientIp)
     for (const url of CONFIG_URLS) {

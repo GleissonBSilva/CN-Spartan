@@ -474,7 +474,8 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       if (fullPayload.full_name !== undefined) basePayload.full_name = fullPayload.full_name;
       if (fullPayload.active_devices !== undefined) basePayload.active_devices = fullPayload.active_devices;
 
-      if (Object.keys(basePayload).length > 0) {
+      const isProfileUuid = typeof profileId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profileId);
+      if (isProfileUuid && Object.keys(basePayload).length > 0) {
         try {
           await supabase
             .from('profiles')
@@ -610,7 +611,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       try {
         const res = await supabase
           .from('profiles')
-          .select('id, email, role, status, plan_name, expires_at, max_screens, created_at, full_name, whatsapp, is_trial, trial_used, active_devices, admin_updated_at')
+          .select('id, email, role, status, plan_name, expires_at, max_screens, created_at')
           .order('created_at', { ascending: false });
         data = res.data;
         error = res.error;
@@ -799,7 +800,9 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         const next = prev.map((p) => {
           if (p.role !== 'admin' && p.status === 'ativo' && new Date(p.expires_at).getTime() <= Date.now()) {
             changed = true;
-            supabase.from('profiles').update({ status: 'vencido' }).eq('id', p.id).then(() => {});
+            if (typeof p.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p.id)) {
+              supabase.from('profiles').update({ status: 'vencido' }).eq('id', p.id).then(() => {});
+            }
             return { ...p, status: 'vencido' as ProfileStatus };
           }
           return p;

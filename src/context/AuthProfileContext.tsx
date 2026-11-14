@@ -139,35 +139,13 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         try {
           const res = await supabase
             .from('profiles')
-            .select('id, email, role, status, plan_name, expires_at, max_screens, created_at, full_name, whatsapp, is_trial, trial_used, active_devices, admin_updated_at')
+            .select('id, email, role, status, plan_name, expires_at, max_screens, created_at')
             .eq('id', userId)
             .maybeSingle();
-          if (res.error) {
-            // Fallback resiliente caso alguma coluna nova não exista
-            const fallbackRes = await supabase
-              .from('profiles')
-              .select('id, email, role, status, plan_name, expires_at, max_screens, created_at')
-              .eq('id', userId)
-              .maybeSingle();
-            data = (fallbackRes.data as Profile) || null;
-            error = fallbackRes.error;
-          } else {
-            data = (res.data as Profile) || null;
-            error = null;
-          }
-        } catch (e: any) {
-          // Fallback resiliente
-          try {
-            const res = await supabase
-              .from('profiles')
-              .select('id, email, role, status, plan_name, expires_at, max_screens, created_at')
-              .eq('id', userId)
-              .maybeSingle();
-            data = (res.data as Profile) || null;
-            error = res.error;
-          } catch {
-            error = { message: 'Erro ao consultar profiles' };
-          }
+          data = (res.data as Profile) || null;
+          error = res.error;
+        } catch {
+          error = { message: 'Erro ao consultar profiles' };
         }
       }
 
@@ -230,15 +208,18 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         // Bloqueio automático ao finalizar o período de teste ou assinatura
         const isMaster = cleanEmail === ADMIN_MASTER_EMAIL || raw.role === 'admin';
+        const isRawUuid = typeof raw.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw.id);
         if (!isMaster && new Date(resolvedExpiresAt).getTime() <= Date.now() && resolvedStatus === 'ativo') {
           resolvedStatus = 'vencido';
-          try {
-            await supabase
-              .from('profiles')
-              .update({ status: 'vencido' })
-              .eq('id', raw.id);
-          } catch {
-            // ignore
+          if (isRawUuid) {
+            try {
+              await supabase
+                .from('profiles')
+                .update({ status: 'vencido' })
+                .eq('id', raw.id);
+            } catch {
+              // ignore
+            }
           }
         }
 
@@ -263,14 +244,14 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           admin_updated_at: localStoredProfile?.admin_updated_at,
         };
 
-        // Se o banco estava sem o plano/telas/whatsapp escolhidos no cadastro, sincroniza no Supabase
+        // Se o banco estava sem o plano/telas escolhidos no cadastro, sincroniza no Supabase
+        const isMergedUuid = typeof mergedProfile.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(mergedProfile.id);
         if (
+          isMergedUuid &&
           data &&
           (data.plan_name !== mergedProfile.plan_name ||
             data.max_screens !== mergedProfile.max_screens ||
-            data.status !== mergedProfile.status ||
-            (mergedProfile.whatsapp && !data.whatsapp) ||
-            (mergedProfile.full_name && !data.full_name))
+            data.status !== mergedProfile.status)
         ) {
           try {
             await supabase
@@ -279,8 +260,6 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 plan_name: mergedProfile.plan_name,
                 max_screens: mergedProfile.max_screens,
                 status: mergedProfile.status,
-                whatsapp: mergedProfile.whatsapp || data.whatsapp || null,
-                full_name: mergedProfile.full_name || data.full_name || null,
               })
               .eq('id', mergedProfile.id);
           } catch {
@@ -588,7 +567,9 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           const blockedProfile: Profile = { ...profile, status: 'vencido' };
           setProfile(blockedProfile);
           syncLocalProfileRegistry(blockedProfile);
-          supabase.from('profiles').update({ status: 'vencido' }).eq('id', profile.id).then(() => {});
+          if (typeof profile.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profile.id)) {
+            supabase.from('profiles').update({ status: 'vencido' }).eq('id', profile.id).then(() => {});
+          }
         }
       }
       checkCloudStatus();

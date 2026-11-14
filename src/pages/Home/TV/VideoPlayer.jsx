@@ -25,9 +25,9 @@ const SERVERS = {
       url: (id, s, e) => `https://vidsrc.sh/embed/tv?tmdb=${id}&season=${s}&episode=${e}`
     },
     {
-      id: 'superflix_dub',
-      name: '🍿 SuperFlix Séries BR (Alternativo)',
-      url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
+      id: 'embedsu_dub',
+      name: '🍿 EmbedSu Séries HD (Multi-Áudio & CC)',
+      url: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}`
     }
   ],
   legendado: [

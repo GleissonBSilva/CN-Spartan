@@ -25,9 +25,9 @@ const SERVERS = {
       url: (id) => `https://vidsrc.sh/embed/movie?tmdb=${id}`
     },
     {
-      id: 'superflix_dub',
-      name: '🍿 SuperFlix Dublado BR (Alternativo)',
-      url: (id) => `https://superflixapi.boats/filme/${id}`
+      id: 'embedsu_dub',
+      name: '🍿 EmbedSu Ultra HD (Multi-Áudio & CC)',
+      url: (id) => `https://embed.su/embed/movie/${id}`
     }
   ],
   legendado: [
