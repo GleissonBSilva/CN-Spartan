@@ -66,6 +66,15 @@ function loadFromDisk() {
     }
   } catch {}
 
+  // Garante coerência entre planos e quantidade de telas
+  memoryProfiles = memoryProfiles.map(p => {
+    const plan = String(p.plan_name || '').toUpperCase();
+    let screens = Number(p.max_screens || 1);
+    if (plan.includes('START') && screens > 1) screens = 1;
+    else if (plan.includes('PRO') && screens > 2) screens = 2;
+    return { ...p, max_screens: screens };
+  });
+
   // Garante que os perfis seed existam se não tiverem sido deletados
   for (const seed of SEED_PROFILES) {
     const isDeleted = deletedAccounts.includes(seed.id) || deletedAccounts.includes(seed.email.toLowerCase());
@@ -177,7 +186,17 @@ export default async function handler(req, res) {
       const targetExpiresAt = profile.expires_at || memoryProfiles[existingIdx].expires_at;
       const targetIsTrial = profile.is_trial !== undefined ? Boolean(profile.is_trial) : memoryProfiles[existingIdx].is_trial;
       const targetPlan = profile.plan_name || memoryProfiles[existingIdx].plan_name;
-      const targetScreens = profile.max_screens || memoryProfiles[existingIdx].max_screens;
+      let targetScreens = profile.max_screens !== undefined ? Number(profile.max_screens) : memoryProfiles[existingIdx].max_screens;
+
+      // Sincroniza telas com o plano correspondente oficial
+      const cleanPlanUpper = String(targetPlan || '').toUpperCase();
+      if (cleanPlanUpper.includes('START') && targetScreens > 1) {
+        targetScreens = 1;
+      } else if (cleanPlanUpper.includes('PRO') && targetScreens > 2) {
+        targetScreens = 2;
+      } else if (cleanPlanUpper.includes('BUSINESS') && targetScreens < 5) {
+        targetScreens = 5;
+      }
 
       memoryProfiles[existingIdx] = {
         ...memoryProfiles[existingIdx],
@@ -203,6 +222,13 @@ export default async function handler(req, res) {
       const initialStatus = profile.status ? profile.status : (isTrial ? 'ativo' : 'vencido');
       const initialExpires = profile.expires_at || new Date(Date.now() + trialDays * 86400000).toISOString();
 
+      const initialPlan = profile.plan_name || 'SPARTAN START';
+      const initialPlanUpper = initialPlan.toUpperCase();
+      let initialScreens = Number(profile.max_screens || 1);
+      if (initialPlanUpper.includes('START')) initialScreens = 1;
+      else if (initialPlanUpper.includes('PRO')) initialScreens = 2;
+      else if (initialPlanUpper.includes('BUSINESS')) initialScreens = 5;
+
       memoryProfiles.unshift({
         id: cleanId,
         email: cleanEmail,
@@ -210,8 +236,8 @@ export default async function handler(req, res) {
         whatsapp: profile.whatsapp || profile.phone || '',
         role: profile.role || 'client',
         status: initialStatus,
-        plan_name: profile.plan_name || 'SPARTAN START',
-        max_screens: Number(profile.max_screens || 1),
+        plan_name: initialPlan,
+        max_screens: initialScreens,
         is_trial: isTrial,
         trial_used: Boolean(profile.trial_used),
         active_devices: Array.isArray(nextDevices) ? nextDevices : [],

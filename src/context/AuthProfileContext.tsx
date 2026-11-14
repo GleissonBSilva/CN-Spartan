@@ -201,6 +201,16 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           1
         );
 
+        // Garante estrita coerência entre o plano ativo e a quantidade de telas simultâneas
+        const upperPlan = resolvedPlan.toUpperCase();
+        if (upperPlan.includes('START') && resolvedScreens > 1) {
+          resolvedScreens = 1;
+        } else if (upperPlan.includes('PRO') && resolvedScreens > 2) {
+          resolvedScreens = 2;
+        } else if (upperPlan.includes('BUSINESS') && resolvedScreens < 5) {
+          resolvedScreens = 5;
+        }
+
         // Precedência de expiração: compara timestamps admin_updated_at para que a edição mais recente (nuvem ou local) prevaleça sem oscilações
         const localAdminTime = localStoredProfile?.admin_updated_at ? new Date(localStoredProfile.admin_updated_at).getTime() : 0;
         const cloudAdminTime = (cloudProfile?.admin_updated_at || cloudProfile?.updated_at) ? new Date(cloudProfile.admin_updated_at || cloudProfile.updated_at!).getTime() : 0;

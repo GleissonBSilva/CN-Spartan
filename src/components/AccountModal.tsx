@@ -188,7 +188,14 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   // Status visual da conta
   const isTrial = profile?.is_trial || profile?.plan_name?.toLowerCase().includes('teste');
   const currentPlanName = profile?.plan_name || 'SPARTAN PRO';
-  const maxScreens = profile?.max_screens || 1;
+  const maxScreens = (() => {
+    const rawScreens = Number(profile?.max_screens || 1);
+    const plan = String(profile?.plan_name || '').toUpperCase();
+    if (plan.includes('START') && rawScreens > 1) return 1;
+    if (plan.includes('PRO') && rawScreens > 2) return 2;
+    if (plan.includes('BUSINESS') && rawScreens < 5) return 5;
+    return rawScreens;
+  })();
 
   const currentPlan = plans.find((p) => p.name.toLowerCase() === (profile?.plan_name || '').toLowerCase()) || plans[1] || plans[0];
   const activePixPlan = selectedPlanForPix || currentPlan;

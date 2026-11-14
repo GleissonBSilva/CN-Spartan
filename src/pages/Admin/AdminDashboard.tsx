@@ -703,12 +703,16 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
               : needsPlanSync
               ? localMatch!.plan_name
               : dbP.plan_name;
-          const mergedScreens =
+          let mergedScreens =
             hasAdminEdit && localMatch?.max_screens
               ? Number(localMatch.max_screens)
               : dbP.max_screens && dbP.max_screens > 1
               ? dbP.max_screens
               : localMatch?.max_screens || dbP.max_screens || 1;
+          const mergedPlanUpper = String(mergedPlan || '').toUpperCase();
+          if (mergedPlanUpper.includes('START') && mergedScreens > 1) mergedScreens = 1;
+          else if (mergedPlanUpper.includes('PRO') && mergedScreens > 2) mergedScreens = 2;
+          else if (mergedPlanUpper.includes('BUSINESS') && mergedScreens < 5) mergedScreens = 5;
           const mergedWhatsapp =
             localMatch?.whatsapp || dbP.whatsapp || undefined;
           const mergedName =
@@ -1740,8 +1744,9 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           ? p.plan_name
           : 'SPARTAN PRO';
 
-      const foundPlanObj = plans.find((pl) => pl.name.toUpperCase() === unlockedPlan.toUpperCase());
-      const unlockedScreens = p.max_screens > 1 ? p.max_screens : foundPlanObj?.screens || 1;
+      const foundPlanObj = plans.find((pl) => pl.name.toUpperCase() === unlockedPlan.toUpperCase()) || DEFAULT_PLANS.find((pl) => pl.name.toUpperCase() === unlockedPlan.toUpperCase());
+      const planUpper = unlockedPlan.toUpperCase();
+      const unlockedScreens = foundPlanObj ? foundPlanObj.screens : (planUpper.includes('BUSINESS') ? 5 : planUpper.includes('PRO') ? 2 : 1);
       const planAmount = foundPlanObj?.monthlyPrice || 59.9;
 
       await persistProfileToSupabase(p.id, {

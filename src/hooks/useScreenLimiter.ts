@@ -72,7 +72,13 @@ const normalizeDeviceEntry = (raw: any): ActiveDevice | null => {
   const deviceId = String(raw.deviceId || raw.id || '').trim();
   if (!deviceId) return null;
   const deviceName = String(raw.deviceName || raw.platform || 'Aparelho Conectado').trim();
-  const lastPing = Number(raw.lastPing ?? raw.last_seen ?? 0);
+  let lastPing = Number(raw.lastPing ?? raw.last_seen ?? 0);
+  if (isNaN(lastPing) || lastPing <= 0) {
+    if (typeof raw.last_seen === 'string' || typeof raw.lastPing === 'string') {
+      const parsedDate = new Date(raw.last_seen || raw.lastPing).getTime();
+      if (!isNaN(parsedDate) && parsedDate > 0) lastPing = parsedDate;
+    }
+  }
   if (!Number.isFinite(lastPing) || lastPing <= 0) return null;
   return {
     deviceId,
@@ -96,7 +102,14 @@ export function useScreenLimiter(isPlaying: boolean = true) {
   const platformType = getLocalPlatformType();
   const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const maxScreens = profile?.max_screens || 1;
+  const maxScreens = (() => {
+    const rawScreens = Number(profile?.max_screens || 1);
+    const plan = String(profile?.plan_name || '').toUpperCase();
+    if (plan.includes('START') && rawScreens > 1) return 1;
+    if (plan.includes('PRO') && rawScreens > 2) return 2;
+    if (plan.includes('BUSINESS') && rawScreens < 5) return 5;
+    return rawScreens;
+  })();
 
   // Persiste a lista de dispositivos ativos no localStorage, /api/clients e Supabase (cross-device)
   const persistActiveDevices = useCallback(
@@ -198,9 +211,9 @@ export function useScreenLimiter(isPlaying: boolean = true) {
           .map(normalizeDeviceEntry)
           .filter((item): item is ActiveDevice => item !== null);
 
-        // 3. Limpar sessões de outros aparelhos que expiraram (mais de 65s sem ping)
+        // 3. Limpar sessões de outros aparelhos que expiraram (mais de 65s sem ping) ou inválidas
         const otherValidSessions = sessions.filter(
-          (s) => s.deviceId !== deviceId && now - s.lastPing < INACTIVE_TIMEOUT_MS
+          (s) => s.deviceId !== deviceId && now - s.lastPing >= 0 && now - s.lastPing < INACTIVE_TIMEOUT_MS
         );
 
         // 4. Checar se este dispositivo cabe no limite de telas do plano
