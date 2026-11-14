@@ -577,6 +577,7 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                         <iframe
                             key={`${movieId}-${isPlayingTrailer ? 'trailer' : streamMode}-${activeServer.id}`}
                             src={iframeSrc}
+                            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                             allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *; display-capture *"
                             title={title || 'Player de Filme'}
                             referrerPolicy="no-referrer-when-downgrade"

@@ -136,8 +136,15 @@ export default async function handler(req, res) {
     const cleanId = profile.id ? String(profile.id) : `usr-${Date.now()}`;
     const isMaster = cleanEmail === 'gleisson1984@gmail.com';
 
-    // Se o cliente foi excluído pelo administrador, ele NÃO pode se auto-promover a 'ativo'
-    const isDeleted = !isMaster && (deletedAccounts.includes(cleanId) || (cleanEmail && deletedAccounts.includes(cleanEmail)));
+    // Se o Administrador realizou uma atualização/reativação explícita, remove da lista negra
+    const isExplicitAdminUpdate = Boolean(profile.admin_updated_at);
+    if (isExplicitAdminUpdate || isMaster) {
+      if (cleanId) deletedAccounts = deletedAccounts.filter(x => x !== cleanId);
+      if (cleanEmail) deletedAccounts = deletedAccounts.filter(x => x !== cleanEmail);
+    }
+
+    // Se o cliente foi excluído pelo administrador e não é edição explícita, não pode se auto-promover
+    const isDeleted = !isMaster && !isExplicitAdminUpdate && (deletedAccounts.includes(cleanId) || (cleanEmail && deletedAccounts.includes(cleanEmail)));
     if (isDeleted) {
       profile.status = 'vencido';
       profile.is_trial = false;

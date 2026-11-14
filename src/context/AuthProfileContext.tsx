@@ -92,11 +92,12 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           const profilesList: Profile[] = Array.isArray(cloudData) ? cloudData : (cloudData.profiles || []);
           const deletedList: string[] = Array.isArray(cloudData?.deleted) ? cloudData.deleted : [];
 
-          // Se a conta foi excluída pelo Administrador, revoga acesso imediatamente
-          if (
-            deletedList.includes(userId) ||
-            (cleanEmail && deletedList.includes(cleanEmail))
-          ) {
+          // Se a conta consta como deletada, mas está ativa na lista de perfis do admin, prevalece o perfil ativo
+          const isActivelyRegistered = profilesList.some(
+            (p: Profile) => (p.id === userId || (cleanEmail && p.email?.toLowerCase() === cleanEmail)) && p.status === 'ativo'
+          );
+
+          if (!isActivelyRegistered && (deletedList.includes(userId) || (cleanEmail && deletedList.includes(cleanEmail)))) {
             isCloudDeleted = true;
           } else {
             cloudProfile = profilesList.find(
@@ -523,8 +524,12 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           const profilesList: Profile[] = Array.isArray(cloudData) ? cloudData : (cloudData.profiles || []);
           const deletedList: string[] = Array.isArray(cloudData?.deleted) ? cloudData.deleted : [];
 
-          // 1. Cliente excluído pelo Admin: revoga credenciais e encerra a reprodução na hora
-          if (deletedList.includes(user.id) || (cleanEmail && deletedList.includes(cleanEmail))) {
+          // 1. Cliente excluído pelo Admin: revoga credenciais apenas se NÃO for perfil ativo
+          const isActivelyRegistered = profilesList.some(
+            (p: Profile) => (p.id === user.id || (cleanEmail && p.email?.toLowerCase() === cleanEmail)) && p.status === 'ativo'
+          );
+
+          if (!isActivelyRegistered && (deletedList.includes(user.id) || (cleanEmail && deletedList.includes(cleanEmail)))) {
             console.warn('[Spartan Security] Conta excluída pela administração. Encerrando sessão...');
             localStorage.removeItem('weflix_user');
             localStorage.removeItem('spartan_registered_profiles');
