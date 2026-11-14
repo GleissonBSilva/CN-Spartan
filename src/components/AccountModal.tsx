@@ -70,7 +70,10 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   const [selectedPlanForPix, setSelectedPlanForPix] = useState<PlanTier | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
 
-  const plans = getSavedPlans().length > 0 ? getSavedPlans() : DEFAULT_PLANS;
+  const [plans, setPlans] = useState<PlanTier[]>(() => {
+    const saved = getSavedPlans();
+    return saved.length > 0 ? saved : DEFAULT_PLANS;
+  });
 
   // Configuração Pix do sistema (com sincronização via /api/app-config, Supabase e fallback seguro)
   const [pixConfig, setPixConfig] = useState<PixConfig>(() => {
@@ -93,8 +96,8 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   }, []);
 
   useEffect(() => {
-    const fetchPixConfig = async () => {
-      // 1. Tenta sincronizar a chave configurada pelo Admin em /api/app-config
+    const fetchRemoteSettings = async () => {
+      // 1. Tenta sincronizar a chave Pix e regras de planos configuradas pelo Admin em /api/app-config
       try {
         const res = await fetch('/api/app-config');
         if (res.ok) {
@@ -102,8 +105,12 @@ export const AccountModal: React.FC<AccountModalProps> = ({
           if (cfg?.pixConfig?.key) {
             setPixConfig(cfg.pixConfig);
             localStorage.setItem('spartan_pix_config', JSON.stringify(cfg.pixConfig));
-            return;
           }
+          if (Array.isArray(cfg?.plansConfig) && cfg.plansConfig.length > 0) {
+            setPlans(cfg.plansConfig);
+            savePlansConfig(cfg.plansConfig);
+          }
+          return;
         }
       } catch {
         try {
@@ -113,8 +120,12 @@ export const AccountModal: React.FC<AccountModalProps> = ({
             if (cfg?.pixConfig?.key) {
               setPixConfig(cfg.pixConfig);
               localStorage.setItem('spartan_pix_config', JSON.stringify(cfg.pixConfig));
-              return;
             }
+            if (Array.isArray(cfg?.plansConfig) && cfg.plansConfig.length > 0) {
+              setPlans(cfg.plansConfig);
+              savePlansConfig(cfg.plansConfig);
+            }
+            return;
           }
         } catch {}
       }
@@ -123,13 +134,19 @@ export const AccountModal: React.FC<AccountModalProps> = ({
       try {
         const { data } = await supabase
           .from('system_settings')
-          .select('value')
-          .eq('key', 'pix_config')
-          .maybeSingle();
+          .select('key, value')
+          .in('key', ['pix_config', 'plans_config']);
 
-        if (data?.value && typeof data.value === 'object' && (data.value as any).key) {
-          setPixConfig(data.value as PixConfig);
-          localStorage.setItem('spartan_pix_config', JSON.stringify(data.value));
+        if (Array.isArray(data)) {
+          for (const row of data) {
+            if (row.key === 'pix_config' && row.value && (row.value as any).key) {
+              setPixConfig(row.value as PixConfig);
+              localStorage.setItem('spartan_pix_config', JSON.stringify(row.value));
+            } else if (row.key === 'plans_config' && Array.isArray(row.value) && row.value.length > 0) {
+              setPlans(row.value);
+              savePlansConfig(row.value);
+            }
+          }
         }
       } catch {
         // Usa fallback local
@@ -137,7 +154,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
     };
 
     if (isOpen) {
-      fetchPixConfig();
+      fetchRemoteSettings();
     }
   }, [isOpen]);
 
@@ -303,75 +320,24 @@ export const AccountModal: React.FC<AccountModalProps> = ({
     }
   };
 
-  // Solicitar Troca de Plano
+  // Solicitar Troca de Plano (Controle Total do Admin: cliente apenas solicita e paga, quem ativa é o admin)
   const handleRequestPlanChange = async (plan: PlanTier) => {
     setMessage(null);
     try {
-      const targetId = profile?.id || user?.id || '';
-      const targetEmail = (profile?.email || user?.email || '').toLowerCase();
-      const nowIso = new Date().toISOString();
-
-      // 1. Atualiza imediatamente no registro compartilhado com o Painel Admin e na sessão local
-      try {
-        const regList = JSON.parse(localStorage.getItem('spartan_registered_profiles') || '[]');
-        if (Array.isArray(regList)) {
-          const updatedList = regList.map((item) =>
-            item.id === targetId || item.email?.toLowerCase() === targetEmail
-              ? {
-                  ...item,
-                  plan_name: plan.name,
-                  max_screens: Number(plan.screens),
-                  admin_updated_at: nowIso,
-                }
-              : item
-          );
-          localStorage.setItem('spartan_registered_profiles', JSON.stringify(updatedList));
-        }
-        const rawWeflix = localStorage.getItem('weflix_user');
-        if (rawWeflix) {
-          const parsedWeflix = JSON.parse(rawWeflix);
-          localStorage.setItem(
-            'weflix_user',
-            JSON.stringify({
-              ...parsedWeflix,
-              plan_name: plan.name,
-              max_screens: Number(plan.screens),
-            })
-          );
-        }
-      } catch {
-        // ignore
-      }
-
-      // 2. Registrar preferência no perfil do Supabase
-      if (targetId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId)) {
-        try {
-          await supabase
-            .from('profiles')
-            .update({
-              plan_name: plan.name,
-              max_screens: plan.screens,
-            })
-            .eq('id', targetId);
-        } catch {
-          // ignore
-        }
-      }
-
-      window.dispatchEvent(new Event('spartan_auth_updated'));
-      await refreshProfile();
-
-      // Montar mensagem para o WhatsApp do suporte
-      const textMsg = encodeURIComponent(
-        `Olá! Sou o cliente ${user?.email || ''} e gostaria de migrar meu plano Cine Spartan para o ${plan.name} (${plan.screens} telas) por R$ ${plan.monthlyPrice.toFixed(2)}/mês. Como faço o pagamento via Pix?`
-      );
-      window.open(`https://wa.me/5592993746740?text=${textMsg}`, '_blank');
-      setMessage({
-        type: 'success',
-        text: `Solicitação para o plano ${plan.name} enviada! Finalize pelo WhatsApp ou realize o Pix para ativação imediata.`,
-      });
+      // 1. Atualiza apenas a preferência visual de Pix e QR Code para o plano solicitado
       setSelectedPlanForPix(plan);
       setShowPixDetails(true);
+
+      // 2. Montar mensagem formatada para o WhatsApp do suporte/admin
+      const textMsg = encodeURIComponent(
+        `Olá! Sou o cliente ${user?.email || ''} e gostaria de solicitar a troca do meu plano Cine Spartan para o ${plan.name} (${plan.screens} telas) por R$ ${plan.monthlyPrice.toFixed(2)}/mês. Segue meu comprovante Pix para liberação:`
+      );
+      window.open(`https://wa.me/5592993746740?text=${textMsg}`, '_blank');
+
+      setMessage({
+        type: 'success',
+        text: `Solicitação para o ${plan.name} iniciada! Realize o Pix de R$ ${plan.monthlyPrice.toFixed(2)} abaixo e envie o comprovante no WhatsApp para ativação pelo administrador.`,
+      });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao solicitar troca de plano.';
       setMessage({ type: 'error', text: msg });

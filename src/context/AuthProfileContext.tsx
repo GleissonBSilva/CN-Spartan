@@ -181,24 +181,25 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const metaName = userMeta?.full_name || userMeta?.display_name || cloudProfile?.full_name || localStoredProfile?.full_name;
         const metaPhone = userMeta?.whatsapp || cloudProfile?.whatsapp || localStoredProfile?.whatsapp;
 
-        // Se a nuvem ou o Admin editou os dados deste cliente, prevalece a alteração do Admin
+        // O Administrador tem autoridade absoluta sobre o plano e telas do cliente (controle total do Admin)
         let resolvedPlan =
+          (cloudProfile?.admin_updated_at && cloudProfile?.plan_name) ||
+          (localStoredProfile?.admin_updated_at && localStoredProfile?.plan_name) ||
+          data?.plan_name ||
           cloudProfile?.plan_name ||
-          (hasAdminEdit && localStoredProfile?.plan_name
-            ? localStoredProfile.plan_name
-            : raw.plan_name && !raw.plan_name.toLowerCase().startsWith('teste grátis') && raw.plan_name !== 'Mensal'
-            ? raw.plan_name
-            : metaPlan || raw.plan_name || 'SPARTAN PRO');
+          localStoredProfile?.plan_name ||
+          metaPlan ||
+          'SPARTAN START';
 
-        let resolvedScreens =
+        let resolvedScreens = Number(
+          (cloudProfile?.admin_updated_at && cloudProfile?.max_screens) ||
+          (localStoredProfile?.admin_updated_at && localStoredProfile?.max_screens) ||
+          data?.max_screens ||
           cloudProfile?.max_screens ||
-          (hasAdminEdit && localStoredProfile?.max_screens
-            ? Number(localStoredProfile.max_screens)
-            : raw.max_screens && raw.max_screens > 1
-            ? raw.max_screens
-            : metaScreens > 0
-            ? metaScreens
-            : raw.max_screens || 1);
+          localStoredProfile?.max_screens ||
+          metaScreens ||
+          1
+        );
 
         // Precedência de expiração: compara timestamps admin_updated_at para que a edição mais recente (nuvem ou local) prevaleça sem oscilações
         const localAdminTime = localStoredProfile?.admin_updated_at ? new Date(localStoredProfile.admin_updated_at).getTime() : 0;

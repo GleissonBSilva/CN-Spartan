@@ -331,6 +331,11 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
               localStorage.setItem('spartan_pix_config', JSON.stringify(remote.pixConfig));
             } catch {}
           }
+
+          if (Array.isArray(remote.plansConfig) && remote.plansConfig.length > 0) {
+            setPlans(remote.plansConfig);
+            savePlansConfig(remote.plansConfig);
+          }
         }
       })
       .catch(() => {});
@@ -1399,6 +1404,25 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     setSavingPlanId(planId);
     try {
       savePlansConfig(plans);
+
+      // 1. Sincroniza imediatamente com a nuvem /api/app-config para todos os clientes
+      try {
+        await fetch('/api/app-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plansConfig: plans }),
+        });
+      } catch {
+        try {
+          await fetch('https://cn-spartan.vercel.app/api/app-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plansConfig: plans }),
+          });
+        } catch {}
+      }
+
+      // 2. Persiste no Supabase system_settings se disponível
       try {
         await supabase.from('system_settings').upsert({
           key: 'plans_config',
@@ -1408,7 +1432,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       } catch {}
       setNotification({
         type: 'success',
-        message: 'Regras e preços do plano atualizados com sucesso!',
+        message: 'Regras e preços do plano atualizados com sucesso e propagados para os clientes!',
       });
     } finally {
       setSavingPlanId(null);

@@ -60,7 +60,8 @@ export default async function handler(req, res) {
       recipientName: 'Gleisson B Silva',
       city: 'Manaus',
       customMessage: 'Olá! Segue sua cobrança Pix Cine Spartan para ativação ou renovação imediata:'
-    }
+    },
+    plansConfig: null
   };
 
   const saved = readSavedConfig();
@@ -91,7 +92,8 @@ export default async function handler(req, res) {
           recipientName: String(body.pixConfig.recipientName || config.pixConfig?.recipientName || 'Gleisson B Silva').trim(),
           city: String(body.pixConfig.city || config.pixConfig?.city || 'Manaus').trim(),
           customMessage: String(body.pixConfig.customMessage || config.pixConfig?.customMessage || '')
-        } : config.pixConfig
+        } : config.pixConfig,
+        plansConfig: Array.isArray(body.plansConfig) && body.plansConfig.length > 0 ? body.plansConfig : config.plansConfig
       };
       writeSavedConfig(nextConfig);
       config = { ...config, ...nextConfig };
