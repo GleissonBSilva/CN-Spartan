@@ -681,41 +681,23 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
               : dbP.is_trial !== undefined
               ? dbP.is_trial
               : localMatch?.is_trial ?? Boolean(dbP.plan_name?.toLowerCase().includes('teste'));
-          const mergedExpiresAt =
-            hasAdminEdit && localMatch?.expires_at ? localMatch.expires_at : dbP.expires_at;
+          // Se o perfil está marcado como suspenso (pelo banco ou pelo Admin), prevalece estritamente 'suspenso'
+          let finalStatus: ProfileStatus = dbP.status;
+          let finalExpiresAt: string = dbP.expires_at;
 
-          // Se qualquer fonte segura marcar como 'suspenso', prevalece estritamente 'suspenso' (sem alternar)
-          let baseStatus: ProfileStatus = dbP.status;
           if (dbP.status === 'suspenso' || localMatch?.status === 'suspenso') {
-            baseStatus = 'suspenso';
+            finalStatus = 'suspenso';
           } else if (hasAdminEdit && localMatch?.status) {
-            baseStatus = localMatch.status;
+            finalStatus = localMatch.status;
           }
 
-          // Bloqueio automático imediato ao finalizar o período de teste ou expirar a assinatura
-          const isExpiredNow = dbP.role !== 'admin' && new Date(mergedExpiresAt).getTime() <= Date.now();
-          const finalStatus: ProfileStatus =
-            baseStatus === 'suspenso'
-              ? 'suspenso'
-              : isExpiredNow && baseStatus === 'ativo'
-              ? 'vencido'
-              : baseStatus;
+          if (hasAdminEdit && localMatch?.expires_at) {
+            finalExpiresAt = localMatch.expires_at;
+          }
 
-          // Sincroniza no banco caso haja divergência
-          if (
-            mergedPlan !== dbP.plan_name ||
-            mergedScreens !== dbP.max_screens ||
-            mergedExpiresAt !== dbP.expires_at ||
-            finalStatus !== dbP.status
-          ) {
-            persistProfileToSupabase(dbP.id, {
-              plan_name: mergedPlan,
-              max_screens: mergedScreens,
-              whatsapp: mergedWhatsapp || null,
-              is_trial: mergedIsTrial,
-              expires_at: mergedExpiresAt,
-              status: finalStatus,
-            });
+          // Bloqueio automático imediato ao expirar a assinatura (apenas se não estiver suspenso)
+          if (finalStatus !== 'suspenso' && dbP.role !== 'admin' && new Date(finalExpiresAt).getTime() <= Date.now()) {
+            finalStatus = 'vencido';
           }
 
           return {
@@ -726,7 +708,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             plan_name: mergedPlan,
             max_screens: mergedScreens,
             is_trial: mergedIsTrial,
-            expires_at: mergedExpiresAt,
+            expires_at: finalExpiresAt,
             status: finalStatus,
             active_devices:
               Array.isArray(localMatch?.active_devices) && localMatch!.active_devices.length > 0
@@ -737,7 +719,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             last_platform: localMatch?.last_platform || dbP.last_platform,
             last_ip: localMatch?.last_ip || dbP.last_ip,
             last_seen_at: localMatch?.last_seen_at || dbP.last_seen_at,
-            admin_updated_at: localMatch?.admin_updated_at,
+            admin_updated_at: localMatch?.admin_updated_at || dbP.admin_updated_at,
           };
         });
 
