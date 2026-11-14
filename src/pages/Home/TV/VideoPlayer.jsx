@@ -10,14 +10,19 @@ import { useScreenLimiter } from '../../../hooks/useScreenLimiter';
 const SERVERS = {
   dublado: [
     {
-      id: 'vidlink_direct',
-      name: '⭐ VidLink Séries HD (Zero Anúncios • Recomendado)',
-      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
+      id: 'superflix_dub',
+      name: '🍿 SuperFlix Séries BR (100% Dublado • Principal)',
+      url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
     },
     {
       id: 'multiembed_dub',
       name: '📺 MultiEmbed Séries (Multi-Áudio BR)',
       url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
+    },
+    {
+      id: 'vidlink_direct',
+      name: '⭐ VidLink Séries HD (Sem Anúncios • Alternativo)',
+      url: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true&primaryColor=ef4444&secondaryColor=1f2937&icons=vid`
     },
     {
       id: 'vidsrc_sh',
@@ -26,7 +31,7 @@ const SERVERS = {
     },
     {
       id: 'embedsu_dub',
-      name: '🍿 EmbedSu Séries HD (Multi-Áudio & CC)',
+      name: '🎬 EmbedSu Séries HD (Multi-Áudio & CC)',
       url: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}`
     }
   ],
