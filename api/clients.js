@@ -46,20 +46,6 @@ const SEED_PROFILES = [
     trial_used: true,
     expires_at: new Date(Date.now() + 28 * 86400000).toISOString(),
     created_at: '2026-11-10T10:00:00.000Z'
-  },
-  {
-    id: 'usr-spartan-vip-1',
-    email: 'cliente.spartan@gmail.com',
-    full_name: 'Rodrigo Spartan VIP',
-    whatsapp: '(92) 98455-6677',
-    role: 'client',
-    status: 'ativo',
-    plan_name: 'SPARTAN START',
-    max_screens: 1,
-    is_trial: false,
-    trial_used: true,
-    expires_at: new Date(Date.now() + 25 * 86400000).toISOString(),
-    created_at: '2026-11-08T12:00:00.000Z'
   }
 ];
 
