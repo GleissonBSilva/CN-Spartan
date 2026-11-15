@@ -32,6 +32,20 @@ const SEED_PROFILES = [
     trial_used: true,
     expires_at: '2026-11-16T01:44:54.699Z',
     created_at: '2026-11-15T01:44:54.702Z'
+  },
+  {
+    id: 'usr-amandha-1',
+    email: 'amandha.azevedo19@gmail.com',
+    full_name: 'Amanda Castro de Azevedo',
+    whatsapp: '(92) 99374-6740',
+    role: 'client',
+    status: 'ativo',
+    plan_name: 'SPARTAN START',
+    max_screens: 1,
+    is_trial: false,
+    trial_used: true,
+    expires_at: '2026-11-20T23:59:59.000Z',
+    created_at: '2026-11-10T10:00:00.000Z'
   }
 ];
 
@@ -39,7 +53,7 @@ const TMP_DIR = os.tmpdir();
 const PROFILES_FILE = path.join(TMP_DIR, 'spartan_clients.json');
 const DELETED_FILE = path.join(TMP_DIR, 'spartan_deleted.json');
 
-const BANNED_MOCKS = ['mock-2', 'mock-3', 'carlos.spartan@gmail.com', 'mariana.costa@hotmail.com', 'usr-amandha-1', 'amandha.azevedo19@gmail.com'];
+const BANNED_MOCKS = ['mock-2', 'mock-3', 'carlos.spartan@gmail.com', 'mariana.costa@hotmail.com'];
 
 let memoryProfiles = [...SEED_PROFILES];
 let deletedAccounts = [...BANNED_MOCKS];

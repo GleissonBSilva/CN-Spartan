@@ -687,6 +687,20 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           trial_used: true,
           created_at: '2026-11-15T01:44:54.702Z',
         },
+        {
+          id: 'usr-amandha-1',
+          email: 'amandha.azevedo19@gmail.com',
+          full_name: 'Amanda Castro de Azevedo',
+          whatsapp: '(92) 99374-6740',
+          role: 'client',
+          status: 'ativo',
+          plan_name: 'SPARTAN START',
+          expires_at: '2026-11-20T23:59:59.000Z',
+          max_screens: 1,
+          is_trial: false,
+          trial_used: true,
+          created_at: '2026-11-10T10:00:00.000Z',
+        },
       ];
 
       let data: any = null;
