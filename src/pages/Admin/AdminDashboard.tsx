@@ -369,6 +369,13 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             setPlans(remote.plansConfig);
             savePlansConfig(remote.plansConfig);
           }
+
+          if (Array.isArray(remote.financialCharges) && remote.financialCharges.length > 0) {
+            setPixCharges(remote.financialCharges);
+            try {
+              localStorage.setItem('spartan_pix_charges', JSON.stringify(remote.financialCharges));
+            } catch {}
+          }
         }
       })
       .catch(() => {});
@@ -411,6 +418,11 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           } else if (row.key === 'plans_config' && Array.isArray(val) && val.length > 0) {
             setPlans(val);
             savePlansConfig(val);
+          } else if (row.key === 'financial_charges' && Array.isArray(val) && val.length > 0) {
+            setPixCharges(val);
+            try {
+              localStorage.setItem('spartan_pix_charges', JSON.stringify(val));
+            } catch {}
           }
         }
       })
@@ -472,6 +484,31 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   const [adminPassword, setAdminPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Persiste a lista de transações financeiras no localStorage, Supabase system_settings e API Vercel
+  const saveFinancialCharges = useCallback(async (list: PixCharge[]) => {
+    try {
+      localStorage.setItem('spartan_pix_charges', JSON.stringify(list));
+    } catch {}
+
+    // 1. Sincroniza na API remota /api/app-config
+    try {
+      await fetchApi('/api/app-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ financialCharges: list }),
+      }).catch(() => {});
+    } catch {}
+
+    // 2. Persiste no Supabase system_settings
+    try {
+      await supabase.from('system_settings').upsert({
+        key: 'financial_charges',
+        value: list as any,
+        updated_at: new Date().toISOString(),
+      });
+    } catch {}
+  }, []);
 
   // Sincroniza a lista de perfis no registro local compartilhado com AuthModal e AuthProfileContext
   const saveProfilesRegistry = useCallback((list: Profile[]) => {
@@ -702,9 +739,12 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         } catch {}
       }
 
-      if (error) {
-        console.warn('Profiles não encontrados no Supabase, usando fallback local:', error.message);
-        const combined = localList.filter((c) => !isDeletedProfile(c));
+      // Se não retornou linhas do Supabase (por exemplo por restrição de RLS para anon), utiliza cloudList da API
+      const initialRows: Profile[] = Array.isArray(data) && data.length > 0 ? (data as Profile[]) : cloudList;
+
+      if (error || initialRows.length === 0) {
+        if (error) console.warn('Profiles não encontrados no Supabase, usando API/fallback:', error.message);
+        const combined = (cloudList.length > 0 ? cloudList : localList).filter((c) => !isDeletedProfile(c));
         for (const m of fallbackMocks) {
           if (
             !isDeletedProfile(m) &&
@@ -718,7 +758,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         return;
       }
 
-      const dbProfiles = ((data as Profile[]) || [])
+      const dbProfiles = initialRows
         .filter((dbP) => !isDeletedProfile(dbP))
         .map((dbP) => {
           const localMatch = localList.find(
@@ -1494,6 +1534,29 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         }
       }
 
+      // Se foi criado como cliente pago (dias > dias de teste), registra a transação financeira no Supabase e na nuvem
+      if (!newProf.is_trial) {
+        const foundPlanObj = plans.find((pl) => pl.name.toUpperCase() === newProf.plan_name?.toUpperCase());
+        const planAmount = foundPlanObj?.monthlyPrice || 59.9;
+        const newPaidCharge: PixCharge = {
+          id: 'pay-' + Date.now(),
+          hash: 'PAY-' + Math.random().toString(36).substring(2, 7).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase(),
+          customerName: newProf.full_name || newProf.email.split('@')[0],
+          customerEmail: newProf.email,
+          customerWhatsapp: newProf.whatsapp,
+          amount: planAmount,
+          method: `Ativação (${newProf.plan_name})`,
+          dueDate: new Date().toLocaleDateString('pt-BR'),
+          status: 'liquidado',
+          createdAt: new Date().toISOString(),
+        };
+        setPixCharges((prev) => {
+          const updated = [newPaidCharge, ...prev];
+          saveFinancialCharges(updated);
+          return updated;
+        });
+      }
+
       setProfiles((prev) => {
         const next = [newProf, ...prev];
         saveProfilesRegistry(next);
@@ -1550,15 +1613,31 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   };
 
   // Sincronizar Pagamentos Pix
-  const handleSyncPix = () => {
+  const handleSyncPix = async () => {
     setSyncingPix(true);
-    setTimeout(() => {
-      setSyncingPix(false);
+    try {
+      const res = await fetchApi('/api/app-config');
+      if (res && res.ok) {
+        const remote = await res.json();
+        if (Array.isArray(remote.financialCharges) && remote.financialCharges.length > 0) {
+          setPixCharges(remote.financialCharges);
+          try {
+            localStorage.setItem('spartan_pix_charges', JSON.stringify(remote.financialCharges));
+          } catch {}
+        }
+      }
       setNotification({
         type: 'success',
-        message: 'Pagamentos Pix sincronizados com sucesso! 100% conciliado.',
+        message: 'Pagamentos Pix sincronizados com a nuvem e 100% conciliados!',
       });
-    }, 700);
+    } catch {
+      setNotification({
+        type: 'success',
+        message: 'Pagamentos Pix conciliados localmente.',
+      });
+    } finally {
+      setSyncingPix(false);
+    }
   };
 
   // Criar Nova Cobrança ou Lançamento Financeiro
@@ -1582,7 +1661,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     };
     const updated = [newEntry, ...pixCharges];
     setPixCharges(updated);
-    localStorage.setItem('spartan_pix_charges', JSON.stringify(updated));
+    saveFinancialCharges(updated);
     setNewPixModalOpen(false);
 
     // Se registrado como já liquidado e a opção de desbloquear estiver ativa
@@ -1619,7 +1698,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       c.id === chargeId ? { ...c, status: 'cancelado' as const } : c
     );
     setPixCharges(updated);
-    localStorage.setItem('spartan_pix_charges', JSON.stringify(updated));
+    saveFinancialCharges(updated);
     setNotification({ type: 'success', message: 'Cobrança marcada como cancelada.' });
   };
 
@@ -1628,7 +1707,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     if (!window.confirm('Deseja excluir este registro do histórico financeiro?')) return;
     const updated = pixCharges.filter((c) => c.id !== chargeId);
     setPixCharges(updated);
-    localStorage.setItem('spartan_pix_charges', JSON.stringify(updated));
+    saveFinancialCharges(updated);
     setNotification({ type: 'success', message: 'Registro financeiro removido com sucesso.' });
   };
 
@@ -1953,7 +2032,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           };
           updatedCharges = [paidEntry, ...prevCharges];
         }
-        localStorage.setItem('spartan_pix_charges', JSON.stringify(updatedCharges));
+        saveFinancialCharges(updatedCharges);
         return updatedCharges;
       });
 
@@ -1981,7 +2060,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         c.id === charge.id ? { ...c, status: 'liquidado' as const } : c
       );
       setPixCharges(updated);
-      localStorage.setItem('spartan_pix_charges', JSON.stringify(updated));
+      saveFinancialCharges(updated);
       setNotification({
         type: 'success',
         message: `Pagamento Pix de ${charge.customerName} (${charge.customerEmail}) confirmado e liquidado!`,

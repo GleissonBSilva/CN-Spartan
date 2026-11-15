@@ -88,7 +88,8 @@ export default async function handler(req, res) {
       city: 'Manaus',
       customMessage: 'Olá! Segue sua cobrança Pix Cine Spartan para ativação ou renovação imediata:'
     },
-    plansConfig: null
+    plansConfig: null,
+    financialCharges: null
   };
 
   // 1. Carrega do cache temporário se existir
@@ -114,6 +115,9 @@ export default async function handler(req, res) {
     }
     if (Array.isArray(supabaseSettings.plans_config) && supabaseSettings.plans_config.length > 0) {
       config.plansConfig = supabaseSettings.plans_config;
+    }
+    if (Array.isArray(supabaseSettings.financial_charges) && supabaseSettings.financial_charges.length > 0) {
+      config.financialCharges = supabaseSettings.financial_charges;
     }
   }
 
@@ -141,7 +145,8 @@ export default async function handler(req, res) {
           city: String(body.pixConfig.city || config.pixConfig?.city || 'Manaus').trim(),
           customMessage: String(body.pixConfig.customMessage || config.pixConfig?.customMessage || '')
         } : config.pixConfig,
-        plansConfig: Array.isArray(body.plansConfig) && body.plansConfig.length > 0 ? body.plansConfig : config.plansConfig
+        plansConfig: Array.isArray(body.plansConfig) && body.plansConfig.length > 0 ? body.plansConfig : config.plansConfig,
+        financialCharges: Array.isArray(body.financialCharges) ? body.financialCharges : config.financialCharges
       };
       writeSavedConfig(nextConfig);
       config = { ...config, ...nextConfig };
