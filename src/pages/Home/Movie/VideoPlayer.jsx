@@ -11,25 +11,14 @@ import { fetchApi } from '../../../lib/apiConfig';
 const SERVERS = [
   {
     id: 'superflix',
-    isDubbed: true,
-    name: '🍿 SuperFlix (Dublado BR 1)',
-    shortName: '🍿 Dublado 1',
+    name: '🍿 SuperFlix (Dublado BR)',
+    shortName: '🍿 Dublado BR',
     badge: '100% Dublado BR',
-    desc: 'Áudio nativo 100% dublado em Português-BR (SuperFlix Principal)',
+    desc: 'Áudio nativo 100% dublado em Português-BR (SuperFlix)',
     url: (id) => `https://superflixapi.boats/filme/${id}`
   },
   {
-    id: 'superflix_lat',
-    isDubbed: true,
-    name: '🇧🇷 SuperFlix (Dublado BR 2)',
-    shortName: '🇧🇷 Dublado 2',
-    badge: '100% Dublado BR',
-    desc: 'Áudio nativo 100% dublado em Português-BR (SuperFlix Reserva)',
-    url: (id) => `https://superflixapi.lat/filme/${id}`
-  },
-  {
     id: 'vidlink',
-    isDubbed: false,
     name: '⭐ VidLink (Original HD)',
     shortName: '⭐ Original HD',
     badge: 'Áudio Original HD',
@@ -38,16 +27,14 @@ const SERVERS = [
   },
   {
     id: 'multiembed',
-    isDubbed: false,
     name: '📺 MultiEmbed',
     shortName: '📺 MultiEmbed',
     badge: 'Multi-Fonte',
-    desc: 'Servidor alternativo multi-fontes com legendas (MultiEmbed)',
+    desc: 'Servidor alternativo multi-fontes (MultiEmbed)',
     url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`
   },
   {
     id: 'embedsu',
-    isDubbed: false,
     name: '🎬 EmbedSu HD',
     shortName: '🎬 EmbedSu',
     badge: 'Reserva HD',
@@ -56,8 +43,7 @@ const SERVERS = [
   },
   {
     id: 'vidsrc',
-    isDubbed: false,
-    name: '⚡ VidSrc Fast',
+    name: '⚡ VidSrc Rápido',
     shortName: '⚡ VidSrc',
     badge: 'Reserva',
     desc: 'Servidor reserva rápido (VidSrc)',
@@ -157,12 +143,7 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                         if (current && data.statusMap[current.id] === false) {
                             const recIdx = SERVERS.findIndex(s => s.id === data.recommendedId);
                             if (recIdx !== -1 && recIdx !== prevIdx) {
-                                const recServer = SERVERS[recIdx];
-                                if (current.isDubbed && !recServer.isDubbed) {
-                                    showToast(`⚠️ Servidores Dublado BR instáveis neste filme. Alternado para ${recServer.name}`);
-                                } else {
-                                    showToast(`🔄 Conectado ao servidor reserva ${recServer.name}`);
-                                }
+                                showToast(`🔄 ${current.name} indisponível para este filme. Conectado ao ${SERVERS[recIdx].name}`);
                                 return recIdx;
                             }
                         }
@@ -221,8 +202,8 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
     const handleStartPlay = (startAsTrailer = false) => {
         setIsPlayingTrailer(startAsTrailer);
         setHasStarted(true);
-        if (!startAsTrailer && !activeServer.isDubbed) {
-            showToast('💡 Dica: Se o áudio iniciar mudo ou em outro idioma, use o menu do player para legendas');
+        if (!startAsTrailer && sourceIdx !== 0) {
+            showToast('💡 Dica: Se o áudio iniciar mudo, toque no ícone 🔊 no player para desmutar');
         }
     };
 
@@ -450,10 +431,10 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                                     ? 'bg-red-600 text-white shadow-red-900/50 ring-2 ring-white/20'
                                     : 'bg-black/60 hover:bg-black/90 text-gray-300 hover:text-white border border-white/15 backdrop-blur-md'
                             }`}
-                            title="Assistir Dublado em Português (SuperFlix Principal)"
+                            title="Assistir Dublado em Português (SuperFlix)"
                         >
                             <FaVolumeUp className="text-[10px] sm:text-xs" />
-                            <span>🇧🇷 Dublado 1</span>
+                            <span>🇧🇷 Dublado (SuperFlix)</span>
                         </button>
 
                         <button
@@ -461,24 +442,10 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                             onClick={() => handleSelectServer(1)}
                             className={`flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold transition-all shadow-md cursor-pointer shrink-0 ${
                                 !isPlayingTrailer && sourceIdx === 1
-                                    ? 'bg-red-600 text-white shadow-red-900/50 ring-2 ring-white/20'
-                                    : 'bg-black/60 hover:bg-black/90 text-gray-300 hover:text-white border border-white/15 backdrop-blur-md'
-                            }`}
-                            title="Assistir Dublado em Português (SuperFlix Reserva)"
-                        >
-                            <FaVolumeUp className="text-[10px] sm:text-xs" />
-                            <span>🇧🇷 Dublado 2</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => handleSelectServer(2)}
-                            className={`flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold transition-all shadow-md cursor-pointer shrink-0 ${
-                                !isPlayingTrailer && sourceIdx === 2
                                     ? 'bg-amber-500 text-black shadow-amber-900/50 ring-2 ring-white/20 font-black'
                                     : 'bg-black/60 hover:bg-black/90 text-gray-300 hover:text-white border border-white/15 backdrop-blur-md'
                             }`}
-                            title="Assistir com Áudio Original HD / Legendas (VidLink)"
+                            title="Assistir com Áudio Original HD (VidLink)"
                         >
                             <FaFilm className="text-[10px] sm:text-xs" />
                             <span className="sm:hidden">Original HD</span>
@@ -629,9 +596,11 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                                 <span>
                                     {isPlayingTrailer
                                         ? '🎬 Trailer Oficial'
-                                        : activeServer.isDubbed
-                                            ? `🇧🇷 ${activeServer.name}`
-                                            : `⭐ ${activeServer.name}`}
+                                        : sourceIdx === 0
+                                            ? '🇧🇷 SuperFlix (Áudio 100% Dublado BR)'
+                                            : sourceIdx === 1
+                                                ? '⭐ VidLink (Áudio Original Ultra HD)'
+                                                : `📺 ${activeServer.name}`}
                                 </span>
                             </div>
 
@@ -686,7 +655,7 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                                         onClick={() => handleSelectServer(idx)}
                                         className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                                             isSelected
-                                                ? srv.isDubbed
+                                                ? idx === 0
                                                     ? 'bg-red-600 text-white shadow-lg shadow-red-600/40 ring-1 ring-white/30 font-black'
                                                     : 'bg-amber-500 text-black shadow-lg shadow-amber-500/40 ring-1 ring-white/30 font-black'
                                                 : 'bg-[#141824] text-gray-400 hover:text-white hover:bg-[#1e2334] border border-white/5'
@@ -701,7 +670,7 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                                             <span className="w-1.5 h-1.5 rounded-full bg-amber-400/80 shrink-0" title="Servidor oscilando para este título" />
                                         )}
                                         {isSelected && (
-                                            <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${srv.isDubbed ? 'bg-emerald-300' : 'bg-black'}`} />
+                                            <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${idx === 0 ? 'bg-emerald-300' : 'bg-black'}`} />
                                         )}
                                     </button>
                                 );
@@ -733,10 +702,12 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                     <div className="text-[11px] text-gray-400">
                         {isPlayingTrailer ? (
                             <span className="text-blue-400 font-semibold">🎬 Reproduzindo Trailer Oficial (YouTube)</span>
-                        ) : activeServer.isDubbed ? (
-                            <span className="text-emerald-400 font-semibold">✓ Áudio nativo 100% dublado em Português-BR ({activeServer.name})</span>
+                        ) : sourceIdx === 0 ? (
+                            <span className="text-emerald-400 font-semibold">✓ Áudio nativo 100% dublado em Português-BR (SuperFlix)</span>
+                        ) : sourceIdx === 1 ? (
+                            <span className="text-amber-300 font-semibold">✓ Áudio original em Ultra HD / 4K sem anúncios (VidLink)</span>
                         ) : (
-                            <span className="text-amber-300 font-semibold">✓ Áudio original em alta definição / legendado ({activeServer.name})</span>
+                            <span className="text-gray-300 font-medium">✓ Servidor reserva conectado: {activeServer.name}</span>
                         )}
                     </div>
                 </div>

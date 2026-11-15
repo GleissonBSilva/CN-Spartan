@@ -199,7 +199,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0', // Expose on all network interfaces
     watch: {
-      ignored: ['**/android/**', '**/*.apk', '**/media-src/**', '**/public/originals/**']
+      ignored: ['**/android/**', '**/*.apk']
     },
     headers: {
       'Permissions-Policy': 'fullscreen=*, picture-in-picture=*, autoplay=*, encrypted-media=*, screen-wake-lock=*'

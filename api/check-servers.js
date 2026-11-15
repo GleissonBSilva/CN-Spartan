@@ -13,20 +13,18 @@ export default async function handler(req, res) {
 
   const serverTargets = type === 'tv'
     ? [
-        { id: 'superflix', dubbed: true, url: `https://superflixapi.boats/serie/${id}/${s}/${e}` },
-        { id: 'superflix_lat', dubbed: true, url: `https://superflixapi.lat/serie/${id}/${s}/${e}` },
-        { id: 'vidlink', dubbed: false, url: `https://vidlink.pro/tv/${id}/${s}/${e}` },
-        { id: 'multiembed', dubbed: false, url: `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}` },
-        { id: 'embedsu', dubbed: false, url: `https://embed.su/embed/tv/${id}/${s}/${e}` },
-        { id: 'vidsrc', dubbed: false, url: `https://vidsrc.sh/embed/tv?tmdb=${id}&season=${s}&episode=${e}` }
+        { id: 'superflix', url: `https://superflixapi.boats/serie/${id}/${s}/${e}` },
+        { id: 'vidlink', url: `https://vidlink.pro/tv/${id}/${s}/${e}` },
+        { id: 'multiembed', url: `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}` },
+        { id: 'embedsu', url: `https://embed.su/embed/tv/${id}/${s}/${e}` },
+        { id: 'vidsrc', url: `https://vidsrc.sh/embed/tv?tmdb=${id}&season=${s}&episode=${e}` }
       ]
     : [
-        { id: 'superflix', dubbed: true, url: `https://superflixapi.boats/filme/${id}` },
-        { id: 'superflix_lat', dubbed: true, url: `https://superflixapi.lat/filme/${id}` },
-        { id: 'vidlink', dubbed: false, url: `https://vidlink.pro/movie/${id}` },
-        { id: 'multiembed', dubbed: false, url: `https://multiembed.mov/?video_id=${id}&tmdb=1` },
-        { id: 'embedsu', dubbed: false, url: `https://embed.su/embed/movie/${id}` },
-        { id: 'vidsrc', dubbed: false, url: `https://vidsrc.sh/embed/movie?tmdb=${id}` }
+        { id: 'superflix', url: `https://superflixapi.boats/filme/${id}` },
+        { id: 'vidlink', url: `https://vidlink.pro/movie/${id}` },
+        { id: 'multiembed', url: `https://multiembed.mov/?video_id=${id}&tmdb=1` },
+        { id: 'embedsu', url: `https://embed.su/embed/movie/${id}` },
+        { id: 'vidsrc', url: `https://vidsrc.sh/embed/movie?tmdb=${id}` }
       ];
 
   const results = await Promise.all(
@@ -41,7 +39,6 @@ export default async function handler(req, res) {
         const ok = response.status >= 200 && response.status < 400;
         return {
           id: target.id,
-          dubbed: target.dubbed,
           ok,
           status: response.status,
           latency: Date.now() - start
@@ -49,7 +46,6 @@ export default async function handler(req, res) {
       } catch (err) {
         return {
           id: target.id,
-          dubbed: target.dubbed,
           ok: false,
           error: err.name || 'Offline',
           latency: Date.now() - start
@@ -59,29 +55,19 @@ export default async function handler(req, res) {
   );
 
   const statusMap = {};
-  let firstOnlineDubbed = null;
-  let firstOnlineOriginal = null;
+  let recommendedId = 'superflix';
+  let firstOnline = null;
 
   for (const r of results) {
     statusMap[r.id] = r.ok;
-    if (r.ok) {
-      if (r.dubbed && !firstOnlineDubbed) {
-        firstOnlineDubbed = r.id;
-      }
-      if (!r.dubbed && !firstOnlineOriginal) {
-        firstOnlineOriginal = r.id;
-      }
+    if (r.ok && !firstOnline) {
+      firstOnline = r.id;
     }
   }
 
-  // Prioridade absoluta: Manter o áudio DUBLADO em Português-BR
-  let recommendedId = 'superflix';
-  if (!statusMap.superflix) {
-    if (firstOnlineDubbed) {
-      recommendedId = firstOnlineDubbed;
-    } else if (firstOnlineOriginal) {
-      recommendedId = firstOnlineOriginal;
-    }
+  // Se o SuperFlix estiver offline para o título, recomenda o primeiro servidor online
+  if (!statusMap.superflix && firstOnline) {
+    recommendedId = firstOnline;
   }
 
   return res.status(200).json({

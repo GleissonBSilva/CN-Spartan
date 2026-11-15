@@ -27,5 +27,3 @@ dist-ssr
 .codegpt
 *.zip
 scratch/
-public/originals/
-media-src/
