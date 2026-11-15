@@ -34,6 +34,13 @@ import {
   FaGlobe,
   FaPowerOff,
   FaEye,
+  FaCreditCard,
+  FaBarcode,
+  FaCalendarDay,
+  FaCalendarAlt,
+  FaHistory,
+  FaExchangeAlt,
+  FaFilter,
 } from 'react-icons/fa';
 import { supabase } from '../../lib/supabase';
 import { useAuthProfile } from '../../hooks/useAuthProfile';
@@ -205,12 +212,29 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   const [copiedPix, setCopiedPix] = useState(false);
   const [syncingPix, setSyncingPix] = useState(false);
 
-  // Modal Novo Pix
-  const [newPixData, setNewPixData] = useState({
+  // Filtros Avançados de Gestão Financeira (Dia, Mês, Ano e Tipos de Pagamento)
+  const [financePeriod, setFinancePeriod] = useState<'all' | 'today' | 'month' | 'year'>('month');
+  const [financeMethodFilter, setFinanceMethodFilter] = useState<'all' | 'pix' | 'cartao' | 'boleto' | 'outro'>('all');
+  const [financeStatusFilter, setFinanceStatusFilter] = useState<'all' | 'liquidado' | 'pendente' | 'cancelado'>('all');
+  const [financeSearch, setFinanceSearch] = useState('');
+
+  // Modal Novo Lançamento / Cobrança
+  const [newPixData, setNewPixData] = useState<{
+    customerName: string;
+    customerEmail: string;
+    customerWhatsapp: string;
+    amount: number;
+    method: string;
+    status: 'pendente' | 'liquidado';
+    unlockClient: boolean;
+  }>({
     customerName: '',
     customerEmail: '',
     customerWhatsapp: '',
-    amount: 99.0,
+    amount: 59.9,
+    method: 'Pix Instantâneo',
+    status: 'pendente',
+    unlockClient: true,
   });
 
   // Configurações do Pix do Master Admin
@@ -1482,30 +1506,75 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     }, 700);
   };
 
-  // Criar Nova Cobrança Pix
-  const handleCreatePix = (e: React.FormEvent) => {
+  // Criar Nova Cobrança ou Lançamento Financeiro
+  const handleCreatePix = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPixData.customerEmail) return;
+    const isPaid = newPixData.status === 'liquidado';
+    const methodClean = newPixData.method || 'Pix Instantâneo';
+    const hashPrefix = methodClean.toLowerCase().includes('cart') ? 'CARD' : methodClean.toLowerCase().includes('bolet') ? 'BOL' : 'PIX';
     const newEntry: PixCharge = {
-      id: 'pix-' + Date.now(),
-      hash: 'PIX-' + Math.random().toString(36).substring(2, 7).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase(),
+      id: 'charge-' + Date.now(),
+      hash: `${hashPrefix}-${Math.random().toString(36).substring(2, 7).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
       customerName: newPixData.customerName || 'Cliente Spartan',
       customerEmail: newPixData.customerEmail,
       customerWhatsapp: newPixData.customerWhatsapp ? newPixData.customerWhatsapp.replace(/\D/g, '') : undefined,
-      amount: Number(newPixData.amount),
-      method: 'Pix Instantâneo',
-      dueDate: new Date(Date.now() + 3 * 86400000).toLocaleDateString('pt-BR'),
-      status: 'pendente',
-      createdAt: new Date().toLocaleString('pt-BR'),
+      amount: Number(newPixData.amount) || 0,
+      method: methodClean,
+      dueDate: new Date().toLocaleDateString('pt-BR'),
+      status: newPixData.status,
+      createdAt: new Date().toISOString(),
     };
     const updated = [newEntry, ...pixCharges];
     setPixCharges(updated);
     localStorage.setItem('spartan_pix_charges', JSON.stringify(updated));
     setNewPixModalOpen(false);
-    setNewPixData({ customerName: '', customerEmail: '', customerWhatsapp: '', amount: 99.0 });
-    setSelectedPix(newEntry);
-    setPixModalOpen(true);
-    setNotification({ type: 'success', message: 'Cobrança Pix gerada com sucesso!' });
+
+    // Se registrado como já liquidado e a opção de desbloquear estiver ativa
+    if (isPaid && newPixData.unlockClient) {
+      const match = profiles.find((p) => p.email.toLowerCase() === newPixData.customerEmail.toLowerCase());
+      if (match) {
+        await handleConfirmPaymentAndUnlock(match);
+      }
+    }
+
+    setNewPixData({
+      customerName: '',
+      customerEmail: '',
+      customerWhatsapp: '',
+      amount: 59.9,
+      method: 'Pix Instantâneo',
+      status: 'pendente',
+      unlockClient: true,
+    });
+
+    if (!isPaid && methodClean.toLowerCase().includes('pix')) {
+      setSelectedPix(newEntry);
+      setPixModalOpen(true);
+    }
+    setNotification({
+      type: 'success',
+      message: isPaid ? 'Pagamento registrado e liquidado com sucesso!' : 'Cobrança gerada com sucesso!',
+    });
+  };
+
+  // Cancelar cobrança
+  const handleCancelCharge = (chargeId: string) => {
+    const updated = pixCharges.map((c) =>
+      c.id === chargeId ? { ...c, status: 'cancelado' as const } : c
+    );
+    setPixCharges(updated);
+    localStorage.setItem('spartan_pix_charges', JSON.stringify(updated));
+    setNotification({ type: 'success', message: 'Cobrança marcada como cancelada.' });
+  };
+
+  // Excluir registro financeiro
+  const handleDeleteCharge = (chargeId: string) => {
+    if (!window.confirm('Deseja excluir este registro do histórico financeiro?')) return;
+    const updated = pixCharges.filter((c) => c.id !== chargeId);
+    setPixCharges(updated);
+    localStorage.setItem('spartan_pix_charges', JSON.stringify(updated));
+    setNotification({ type: 'success', message: 'Registro financeiro removido com sucesso.' });
   };
 
   // Salvar Configurações do Pix
@@ -1972,6 +2041,199 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     };
   }, [profiles, pixCharges, plans]);
 
+  // Cálculos Avançados do Módulo Financeiro (Dia, Mês, Ano e Métodos de Pagamento)
+  const financialStats = useMemo(() => {
+    const now = new Date();
+
+    const parseChargeDate = (c: PixCharge): Date => {
+      const raw = c.createdAt || c.dueDate || '';
+      if (!raw) return new Date();
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(raw)) {
+        const [datePart, timePart] = raw.split(/[\s,]+/);
+        const [d, m, y] = datePart.split('/').map(Number);
+        const [hh, mm] = (timePart || '00:00').split(':').map(Number);
+        return new Date(y, m - 1, d, hh || 0, mm || 0);
+      }
+      const parsed = new Date(raw);
+      return isNaN(parsed.getTime()) ? new Date() : parsed;
+    };
+
+    const getMethodKey = (methodStr?: string): 'pix' | 'cartao' | 'boleto' | 'outro' => {
+      const lower = (methodStr || '').toLowerCase();
+      if (lower.includes('pix')) return 'pix';
+      if (
+        lower.includes('cart') ||
+        lower.includes('créd') ||
+        lower.includes('cred') ||
+        lower.includes('déb') ||
+        lower.includes('deb') ||
+        lower.includes('card')
+      )
+        return 'cartao';
+      if (lower.includes('bolet')) return 'boleto';
+      return 'outro';
+    };
+
+    const isToday = (d: Date) =>
+      d.getDate() === now.getDate() &&
+      d.getMonth() === now.getMonth() &&
+      d.getFullYear() === now.getFullYear();
+
+    const isThisMonth = (d: Date) =>
+      d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+
+    const isThisYear = (d: Date) => d.getFullYear() === now.getFullYear();
+
+    // 1. Métricas do DIA (Hoje)
+    const todayCharges = pixCharges.filter((c) => isToday(parseChargeDate(c)));
+    const todayLiquidado = todayCharges
+      .filter((c) => c.status === 'liquidado')
+      .reduce((acc, c) => acc + Number(c.amount || 0), 0);
+    const todayCountLiquidado = todayCharges.filter((c) => c.status === 'liquidado').length;
+    const todayPendente = todayCharges
+      .filter((c) => c.status === 'pendente')
+      .reduce((acc, c) => acc + Number(c.amount || 0), 0);
+    const todayCountPendente = todayCharges.filter((c) => c.status === 'pendente').length;
+
+    // 2. Métricas do MÊS (Mês Atual)
+    const monthCharges = pixCharges.filter((c) => isThisMonth(parseChargeDate(c)));
+    const monthLiquidado = monthCharges
+      .filter((c) => c.status === 'liquidado')
+      .reduce((acc, c) => acc + Number(c.amount || 0), 0);
+    const monthCountLiquidado = monthCharges.filter((c) => c.status === 'liquidado').length;
+    const monthPendente = monthCharges
+      .filter((c) => c.status === 'pendente')
+      .reduce((acc, c) => acc + Number(c.amount || 0), 0);
+    const monthCountPendente = monthCharges.filter((c) => c.status === 'pendente').length;
+
+    // 3. Métricas do ANO (Ano Atual)
+    const yearCharges = pixCharges.filter((c) => isThisYear(parseChargeDate(c)));
+    const yearLiquidado = yearCharges
+      .filter((c) => c.status === 'liquidado')
+      .reduce((acc, c) => acc + Number(c.amount || 0), 0);
+    const yearCountLiquidado = yearCharges.filter((c) => c.status === 'liquidado').length;
+    const yearPendente = yearCharges
+      .filter((c) => c.status === 'pendente')
+      .reduce((acc, c) => acc + Number(c.amount || 0), 0);
+    const yearCountPendente = yearCharges.filter((c) => c.status === 'pendente').length;
+
+    // 4. Métricas Totais Históricas
+    const allLiquidado = pixCharges
+      .filter((c) => c.status === 'liquidado')
+      .reduce((acc, c) => acc + Number(c.amount || 0), 0);
+    const allCountLiquidado = pixCharges.filter((c) => c.status === 'liquidado').length;
+    const allPendente = pixCharges
+      .filter((c) => c.status === 'pendente')
+      .reduce((acc, c) => acc + Number(c.amount || 0), 0);
+    const allCountPendente = pixCharges.filter((c) => c.status === 'pendente').length;
+
+    // 5. Métricas do Período Selecionado no Filtro (Hoje, Mês, Ano ou Todos)
+    let selectedPeriodCharges = pixCharges;
+    if (financePeriod === 'today') {
+      selectedPeriodCharges = todayCharges;
+    } else if (financePeriod === 'month') {
+      selectedPeriodCharges = monthCharges;
+    } else if (financePeriod === 'year') {
+      selectedPeriodCharges = yearCharges;
+    }
+
+    const periodLiquidado = selectedPeriodCharges
+      .filter((c) => c.status === 'liquidado')
+      .reduce((acc, c) => acc + Number(c.amount || 0), 0);
+    const periodCountLiquidado = selectedPeriodCharges.filter((c) => c.status === 'liquidado').length;
+    const periodPendente = selectedPeriodCharges
+      .filter((c) => c.status === 'pendente')
+      .reduce((acc, c) => acc + Number(c.amount || 0), 0);
+    const periodCountPendente = selectedPeriodCharges.filter((c) => c.status === 'pendente').length;
+    const periodTicketMedio =
+      periodCountLiquidado > 0 ? periodLiquidado / periodCountLiquidado : 0;
+    const periodTaxaConversao =
+      selectedPeriodCharges.length > 0
+        ? Math.round((periodCountLiquidado / selectedPeriodCharges.length) * 100)
+        : 0;
+
+    // 6. Faturamento por Tipo de Pagamento no Período Selecionado
+    const periodLiquidadoCharges = selectedPeriodCharges.filter((c) => c.status === 'liquidado');
+    const pixChargesList = periodLiquidadoCharges.filter((c) => getMethodKey(c.method) === 'pix');
+    const cartaoChargesList = periodLiquidadoCharges.filter((c) => getMethodKey(c.method) === 'cartao');
+    const boletoChargesList = periodLiquidadoCharges.filter((c) => getMethodKey(c.method) === 'boleto');
+    const outroChargesList = periodLiquidadoCharges.filter((c) => getMethodKey(c.method) === 'outro');
+
+    const pixTotal = pixChargesList.reduce((acc, c) => acc + Number(c.amount || 0), 0);
+    const cartaoTotal = cartaoChargesList.reduce((acc, c) => acc + Number(c.amount || 0), 0);
+    const boletoTotal = boletoChargesList.reduce((acc, c) => acc + Number(c.amount || 0), 0);
+    const outroTotal = outroChargesList.reduce((acc, c) => acc + Number(c.amount || 0), 0);
+
+    const baseForPct = Math.max(1, periodLiquidado);
+    const pixPct = Math.round((pixTotal / baseForPct) * 100);
+    const cartaoPct = Math.round((cartaoTotal / baseForPct) * 100);
+    const boletoPct = Math.round((boletoTotal / baseForPct) * 100);
+    const outroPct = Math.max(0, 100 - pixPct - cartaoPct - boletoPct);
+
+    // 7. Lista Filtrada para a Tabela Financeira
+    const filteredCharges = selectedPeriodCharges.filter((c) => {
+      // Filtro de Método
+      if (financeMethodFilter !== 'all' && getMethodKey(c.method) !== financeMethodFilter) {
+        return false;
+      }
+      // Filtro de Status
+      if (financeStatusFilter !== 'all' && c.status !== financeStatusFilter) {
+        return false;
+      }
+      // Busca por texto
+      if (financeSearch.trim()) {
+        const query = financeSearch.toLowerCase().trim();
+        const nameMatch = (c.customerName || '').toLowerCase().includes(query);
+        const emailMatch = (c.customerEmail || '').toLowerCase().includes(query);
+        const hashMatch = (c.hash || '').toLowerCase().includes(query);
+        const methodMatch = (c.method || '').toLowerCase().includes(query);
+        if (!nameMatch && !emailMatch && !hashMatch && !methodMatch) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    return {
+      todayLiquidado,
+      todayCountLiquidado,
+      todayPendente,
+      todayCountPendente,
+      monthLiquidado,
+      monthCountLiquidado,
+      monthPendente,
+      monthCountPendente,
+      yearLiquidado,
+      yearCountLiquidado,
+      yearPendente,
+      yearCountPendente,
+      allLiquidado,
+      allCountLiquidado,
+      allPendente,
+      allCountPendente,
+      periodLiquidado,
+      periodCountLiquidado,
+      periodPendente,
+      periodCountPendente,
+      periodTicketMedio,
+      periodTaxaConversao,
+      pixTotal,
+      pixCount: pixChargesList.length,
+      pixPct,
+      cartaoTotal,
+      cartaoCount: cartaoChargesList.length,
+      cartaoPct,
+      boletoTotal,
+      boletoCount: boletoChargesList.length,
+      boletoPct,
+      outroTotal,
+      outroCount: outroChargesList.length,
+      outroPct,
+      filteredCharges,
+      getMethodKey,
+    };
+  }, [pixCharges, financePeriod, financeMethodFilter, financeStatusFilter, financeSearch]);
+
   // Clientes filtrados
   const filteredProfiles = useMemo(() => {
     const now = Date.now();
@@ -2146,7 +2408,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
       {/* HEADER MASTER DO PAINEL */}
       <header className="bg-[#101018] border-b border-purple-900/30 sticky top-0 z-40 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+        <div className="w-full max-w-[1850px] mx-auto px-3 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate('/')}
@@ -2174,10 +2436,10 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           </div>
 
           {/* Abas Principais de Navegação */}
-          <nav className="flex items-center gap-1.5 bg-black/40 p-1.5 rounded-2xl border border-gray-800">
+          <nav className="flex items-center gap-1.5 bg-black/40 p-1.5 rounded-2xl border border-gray-800 overflow-x-auto max-w-full scrollbar-none">
             <button
               onClick={() => setActiveTab('overview')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
                 activeTab === 'overview'
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
@@ -2188,7 +2450,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             </button>
             <button
               onClick={() => setActiveTab('users')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
                 activeTab === 'users'
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
@@ -2199,18 +2461,18 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             </button>
             <button
               onClick={() => setActiveTab('finance')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
                 activeTab === 'finance'
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
               }`}
             >
               <FaMoneyBillWave />
-              <span>Financeiro & Pix</span>
+              <span>Financeiro & Gestão</span>
             </button>
             <button
               onClick={() => setActiveTab('plans')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
                 activeTab === 'plans'
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
@@ -2221,7 +2483,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             </button>
             <button
               onClick={() => setActiveTab('security')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
                 activeTab === 'security'
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
@@ -2235,7 +2497,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       </header>
 
       {/* CONTEÚDO PRINCIPAL DAS ABAS */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1">
+      <main className="w-full max-w-[1850px] mx-auto px-3 sm:px-6 lg:px-8 py-6 w-full flex-1">
         {/* =========================================================================
             1. ABA: VISÃO GERAL (MRR SAAS)
            ========================================================================= */}
@@ -3061,52 +3323,465 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         )}
 
         {/* =========================================================================
-            3. ABA: FINANCEIRO, COBRANÇA & GESTÃO PIX (/admin/finance)
+            3. ABA: FINANCEIRO, COBRANÇA & GESTÃO COMPLETA (/admin/finance)
            ========================================================================= */}
         {activeTab === 'finance' && (
           <div className="space-y-6">
-            {/* Métricas Financeiras Topo */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-              <div className="bg-[#12121c] border border-purple-900/30 rounded-2xl p-5 shadow-lg">
-                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                  Total Faturado (Liquidado)
-                </span>
-                <div className="text-2xl font-black text-emerald-400">
-                  R$ {dashboardStats.totalLiquidado.toFixed(2).replace('.', ',')}
+            {/* Cabeçalho do Módulo Financeiro */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-[#12121c] border border-purple-900/30 rounded-2xl p-5 shadow-lg">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-600 flex items-center justify-center text-white text-lg shadow-md shadow-emerald-600/25">
+                    <FaMoneyBillWave />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-white flex items-center gap-2">
+                      <span>Controle Financeiro & Meios de Pagamento</span>
+                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        100% Conciliado
+                      </span>
+                    </h2>
+                    <p className="text-xs text-gray-400">
+                      Fluxo de caixa segregado por Dia, Mês e Ano, com controle de Pix, Cartão, Boleto e conciliação automática.
+                    </p>
+                  </div>
                 </div>
-                <p className="text-[11px] text-gray-400 mt-2">Pagamentos confirmados via Pix instantâneo</p>
               </div>
 
-              <div className="bg-[#12121c] border border-purple-900/30 rounded-2xl p-5 shadow-lg">
-                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                  Aguardando Pagamento (Em Teste / Vencidos)
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  onClick={() => setPixConfigModalOpen(true)}
+                  className="px-3.5 py-2 bg-[#1c1c2b] hover:bg-[#252538] border border-gray-700 hover:border-purple-500 text-gray-300 hover:text-white rounded-xl text-xs font-bold flex items-center gap-2 transition"
+                >
+                  <FaSlidersH className="text-xs text-purple-400" />
+                  <span>Chave Pix</span>
+                </button>
+                <button
+                  onClick={handleSyncPix}
+                  disabled={syncingPix}
+                  className="px-3.5 py-2 bg-[#1c1c2b] hover:bg-[#252538] border border-gray-700 text-gray-200 rounded-xl text-xs font-bold flex items-center gap-2 transition"
+                >
+                  <FaSyncAlt className={syncingPix ? 'animate-spin text-emerald-400' : 'text-gray-400'} />
+                  <span>{syncingPix ? 'Sincronizando...' : 'Conciliar'}</span>
+                </button>
+                <button
+                  onClick={() => setNewPixModalOpen(true)}
+                  className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/25 transition"
+                >
+                  <FaPlus className="text-xs" />
+                  <span>Novo Lançamento</span>
+                </button>
+              </div>
+            </div>
+
+            {/* PAINEL COMPARATIVO DE PERÍODOS (HOJE vs MÊS vs ANO vs GERAL) */}
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <FaChartLine className="text-purple-400" />
+                  <span>Faturamento por Período (Dia, Mês e Ano)</span>
                 </span>
-                <div className="text-2xl font-black text-amber-400">
-                  R$ {dashboardStats.totalPendente.toFixed(2).replace('.', ',')}
-                </div>
-                <p className="text-[11px] text-gray-400 mt-2">
-                  {pixCharges.filter((c) => c.status === 'pendente').length} cobranças aguardando confirmação Pix
-                </p>
+                <span className="text-[11px] text-gray-400">
+                  Clique no card para filtrar a tabela automaticamente
+                </span>
               </div>
 
-              <div className="bg-[#12121c] border border-purple-900/30 rounded-2xl p-5 shadow-lg">
-                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                  Cobranças Pix Geradas
-                </span>
-                <div className="text-2xl font-black text-cyan-300">{pixCharges.length} Registros</div>
-                <p className="text-[11px] text-gray-400 mt-2">Geradas automaticamente no cadastro do cliente</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* 1. Card HOJE (Dia) */}
+                <button
+                  type="button"
+                  onClick={() => setFinancePeriod('today')}
+                  className={`text-left p-4 rounded-2xl border transition relative overflow-hidden group shadow-lg ${
+                    financePeriod === 'today'
+                      ? 'bg-gradient-to-br from-emerald-950/70 via-[#141824] to-[#101018] border-emerald-500 ring-2 ring-emerald-500/30'
+                      : 'bg-[#12121c] border-purple-900/30 hover:border-emerald-500/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                      <FaCalendarDay className="text-xs" />
+                      <span>Faturamento Hoje (Dia)</span>
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-bold border border-emerald-500/20">
+                      Dia {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                    </span>
+                  </div>
+                  <div className="text-2xl font-black text-white tracking-tight">
+                    R$ {financialStats.todayLiquidado.toFixed(2).replace('.', ',')}
+                  </div>
+                  <div className="mt-2.5 flex items-center justify-between text-[11px] text-gray-400 border-t border-gray-800/80 pt-2">
+                    <span className="text-emerald-400 font-semibold">
+                      {financialStats.todayCountLiquidado} recebimento(s) hoje
+                    </span>
+                    <span className="text-amber-400/90 font-mono">
+                      Pend: R$ {financialStats.todayPendente.toFixed(2).replace('.', ',')}
+                    </span>
+                  </div>
+                </button>
+
+                {/* 2. Card ESTE MÊS */}
+                <button
+                  type="button"
+                  onClick={() => setFinancePeriod('month')}
+                  className={`text-left p-4 rounded-2xl border transition relative overflow-hidden group shadow-lg ${
+                    financePeriod === 'month'
+                      ? 'bg-gradient-to-br from-cyan-950/70 via-[#141824] to-[#101018] border-cyan-500 ring-2 ring-cyan-500/30'
+                      : 'bg-[#12121c] border-purple-900/30 hover:border-cyan-500/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1">
+                      <FaCalendarAlt className="text-xs" />
+                      <span>Faturamento Este Mês</span>
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 font-bold border border-cyan-500/20">
+                      {new Date().toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="text-2xl font-black text-white tracking-tight">
+                    R$ {financialStats.monthLiquidado.toFixed(2).replace('.', ',')}
+                  </div>
+                  <div className="mt-2.5 flex items-center justify-between text-[11px] text-gray-400 border-t border-gray-800/80 pt-2">
+                    <span className="text-cyan-400 font-semibold">
+                      {financialStats.monthCountLiquidado} liquidado(s) no mês
+                    </span>
+                    <span className="text-amber-400/90 font-mono">
+                      Pend: R$ {financialStats.monthPendente.toFixed(2).replace('.', ',')}
+                    </span>
+                  </div>
+                </button>
+
+                {/* 3. Card ESTE ANO */}
+                <button
+                  type="button"
+                  onClick={() => setFinancePeriod('year')}
+                  className={`text-left p-4 rounded-2xl border transition relative overflow-hidden group shadow-lg ${
+                    financePeriod === 'year'
+                      ? 'bg-gradient-to-br from-purple-950/70 via-[#141824] to-[#101018] border-purple-500 ring-2 ring-purple-500/30'
+                      : 'bg-[#12121c] border-purple-900/30 hover:border-purple-500/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wider flex items-center gap-1">
+                      <FaHistory className="text-xs" />
+                      <span>Faturamento Este Ano</span>
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 font-bold border border-purple-500/20">
+                      Ano {new Date().getFullYear()}
+                    </span>
+                  </div>
+                  <div className="text-2xl font-black text-white tracking-tight">
+                    R$ {financialStats.yearLiquidado.toFixed(2).replace('.', ',')}
+                  </div>
+                  <div className="mt-2.5 flex items-center justify-between text-[11px] text-gray-400 border-t border-gray-800/80 pt-2">
+                    <span className="text-purple-400 font-semibold">
+                      {financialStats.yearCountLiquidado} no ano corrente
+                    </span>
+                    <span className="text-amber-400/90 font-mono">
+                      Pend: R$ {financialStats.yearPendente.toFixed(2).replace('.', ',')}
+                    </span>
+                  </div>
+                </button>
+
+                {/* 4. Card GERAL / ACUMULADO */}
+                <button
+                  type="button"
+                  onClick={() => setFinancePeriod('all')}
+                  className={`text-left p-4 rounded-2xl border transition relative overflow-hidden group shadow-lg ${
+                    financePeriod === 'all'
+                      ? 'bg-gradient-to-br from-indigo-950/70 via-[#141824] to-[#101018] border-indigo-500 ring-2 ring-indigo-500/30'
+                      : 'bg-[#12121c] border-purple-900/30 hover:border-indigo-500/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1">
+                      <FaExchangeAlt className="text-xs" />
+                      <span>Total Histórico</span>
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 font-bold border border-indigo-500/20">
+                      Geral
+                    </span>
+                  </div>
+                  <div className="text-2xl font-black text-white tracking-tight">
+                    R$ {financialStats.allLiquidado.toFixed(2).replace('.', ',')}
+                  </div>
+                  <div className="mt-2.5 flex items-center justify-between text-[11px] text-gray-400 border-t border-gray-800/80 pt-2">
+                    <span className="text-indigo-400 font-semibold">
+                      {financialStats.allCountLiquidado} recebimento(s) total
+                    </span>
+                    <span className="text-amber-400/90 font-mono">
+                      Pend: R$ {financialStats.allPendente.toFixed(2).replace('.', ',')}
+                    </span>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* BARRA DE SELEÇÃO DE PERÍODO & DETALHAMENTO DE PERFORMANCE */}
+            <div className="bg-[#12121c] border border-purple-900/30 rounded-2xl p-5 shadow-lg space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-gray-800">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-gray-300">Filtro de Período Ativo:</span>
+                  <div className="inline-flex p-1 bg-black/50 border border-gray-800 rounded-xl gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setFinancePeriod('today')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                        financePeriod === 'today'
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <FaCalendarDay className="text-[11px]" />
+                      <span>Hoje (Dia)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFinancePeriod('month')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                        financePeriod === 'month'
+                          ? 'bg-cyan-600 text-white shadow-sm'
+                          : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <FaCalendarAlt className="text-[11px]" />
+                      <span>Este Mês</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFinancePeriod('year')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                        financePeriod === 'year'
+                          ? 'bg-purple-600 text-white shadow-sm'
+                          : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <FaHistory className="text-[11px]" />
+                      <span>Este Ano</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFinancePeriod('all')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                        financePeriod === 'all'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <FaExchangeAlt className="text-[11px]" />
+                      <span>Todo o Período</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="text-xs text-gray-400 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>
+                    Exibindo dados de:{' '}
+                    <strong className="text-white">
+                      {financePeriod === 'today'
+                        ? 'Hoje (Dia Corrente)'
+                        : financePeriod === 'month'
+                        ? 'Mês Atual'
+                        : financePeriod === 'year'
+                        ? 'Ano Fiscal Atual'
+                        : 'Histórico Completo'}
+                    </strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* 4 Métricas Dinâmicas do Período */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-black/40 border border-gray-800/80 rounded-xl p-3.5">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                    Faturado no Período
+                  </span>
+                  <div className="text-xl font-black text-emerald-400">
+                    R$ {financialStats.periodLiquidado.toFixed(2).replace('.', ',')}
+                  </div>
+                  <span className="text-[10px] text-gray-500 mt-1 block">
+                    {financialStats.periodCountLiquidado} cobrança(s) recebida(s)
+                  </span>
+                </div>
+
+                <div className="bg-black/40 border border-gray-800/80 rounded-xl p-3.5">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                    Aguardando Pagamento
+                  </span>
+                  <div className="text-xl font-black text-amber-400">
+                    R$ {financialStats.periodPendente.toFixed(2).replace('.', ',')}
+                  </div>
+                  <span className="text-[10px] text-gray-500 mt-1 block">
+                    {financialStats.periodCountPendente} cobrança(s) pendente(s)
+                  </span>
+                </div>
+
+                <div className="bg-black/40 border border-gray-800/80 rounded-xl p-3.5">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                    Ticket Médio
+                  </span>
+                  <div className="text-xl font-black text-purple-300">
+                    R$ {financialStats.periodTicketMedio.toFixed(2).replace('.', ',')}
+                  </div>
+                  <span className="text-[10px] text-gray-500 mt-1 block">Por cliente liquidado</span>
+                </div>
+
+                <div className="bg-black/40 border border-gray-800/80 rounded-xl p-3.5">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                    Taxa de Liquidação
+                  </span>
+                  <div className="text-xl font-black text-cyan-300">
+                    {financialStats.periodTaxaConversao}%
+                  </div>
+                  <span className="text-[10px] text-gray-500 mt-1 block">Pagos vs Emitidos no período</span>
+                </div>
+              </div>
+            </div>
+
+            {/* DISTRIBUIÇÃO POR TIPOS DE PAGAMENTO (PIX, CARTÃO, BOLETO, OUTROS) */}
+            <div className="bg-[#12121c] border border-purple-900/30 rounded-2xl p-5 shadow-lg space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-800">
+                <div className="flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center">
+                    <FaSlidersH />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">
+                      Distribuição por Meios de Pagamento (
+                      {financePeriod === 'today'
+                        ? 'Hoje'
+                        : financePeriod === 'month'
+                        ? 'Este Mês'
+                        : financePeriod === 'year'
+                        ? 'Este Ano'
+                        : 'Histórico'}
+                      )
+                    </h3>
+                    <p className="text-[11px] text-gray-400">
+                      Volume arrecadado e participação percentual por cada método
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-xs font-mono font-bold text-gray-300 bg-black/40 px-3 py-1 rounded-lg border border-gray-800">
+                  Total Liquidado: <span className="text-emerald-400">R$ {financialStats.periodLiquidado.toFixed(2).replace('.', ',')}</span>
+                </div>
+              </div>
+
+              {/* Barra de Progresso Multi-Método */}
+              <div className="w-full h-3 bg-black/60 rounded-full overflow-hidden flex shadow-inner border border-gray-800">
+                <div
+                  style={{ width: `${financialStats.pixPct}%` }}
+                  className="bg-emerald-500 h-full transition-all duration-500"
+                  title={`Pix: ${financialStats.pixPct}% (R$ ${financialStats.pixTotal.toFixed(2)})`}
+                />
+                <div
+                  style={{ width: `${financialStats.cartaoPct}%` }}
+                  className="bg-purple-500 h-full transition-all duration-500"
+                  title={`Cartão de Crédito: ${financialStats.cartaoPct}% (R$ ${financialStats.cartaoTotal.toFixed(2)})`}
+                />
+                <div
+                  style={{ width: `${financialStats.boletoPct}%` }}
+                  className="bg-amber-500 h-full transition-all duration-500"
+                  title={`Boleto Bancário: ${financialStats.boletoPct}% (R$ ${financialStats.boletoTotal.toFixed(2)})`}
+                />
+                <div
+                  style={{ width: `${financialStats.outroPct}%` }}
+                  className="bg-cyan-500 h-full transition-all duration-500"
+                  title={`Outros/Dinheiro: ${financialStats.outroPct}% (R$ ${financialStats.outroTotal.toFixed(2)})`}
+                />
+              </div>
+
+              {/* Grid dos 4 Tipos de Pagamento */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                {/* 1. Pix Instantâneo */}
+                <div className="bg-[#161624] border border-emerald-500/20 rounded-xl p-4 flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 mb-1">
+                      <FaBolt className="text-xs" />
+                      <span>Pix Instantâneo</span>
+                    </div>
+                    <div className="text-lg font-black text-white">
+                      R$ {financialStats.pixTotal.toFixed(2).replace('.', ',')}
+                    </div>
+                    <span className="text-[10px] text-gray-400 block mt-1">
+                      {financialStats.pixCount} transação(ões) liquidada(s)
+                    </span>
+                  </div>
+                  <span className="text-xs font-mono font-black px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                    {financialStats.pixPct}%
+                  </span>
+                </div>
+
+                {/* 2. Cartão de Crédito */}
+                <div className="bg-[#161624] border border-purple-500/20 rounded-xl p-4 flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-purple-400 mb-1">
+                      <FaCreditCard className="text-xs" />
+                      <span>Cartão de Crédito</span>
+                    </div>
+                    <div className="text-lg font-black text-white">
+                      R$ {financialStats.cartaoTotal.toFixed(2).replace('.', ',')}
+                    </div>
+                    <span className="text-[10px] text-gray-400 block mt-1">
+                      {financialStats.cartaoCount} transação(ões) liquidada(s)
+                    </span>
+                  </div>
+                  <span className="text-xs font-mono font-black px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                    {financialStats.cartaoPct}%
+                  </span>
+                </div>
+
+                {/* 3. Boleto Bancário */}
+                <div className="bg-[#161624] border border-amber-500/20 rounded-xl p-4 flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400 mb-1">
+                      <FaBarcode className="text-xs" />
+                      <span>Boleto Bancário</span>
+                    </div>
+                    <div className="text-lg font-black text-white">
+                      R$ {financialStats.boletoTotal.toFixed(2).replace('.', ',')}
+                    </div>
+                    <span className="text-[10px] text-gray-400 block mt-1">
+                      {financialStats.boletoCount} transação(ões) liquidada(s)
+                    </span>
+                  </div>
+                  <span className="text-xs font-mono font-black px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                    {financialStats.boletoPct}%
+                  </span>
+                </div>
+
+                {/* 4. Outros / Dinheiro */}
+                <div className="bg-[#161624] border border-cyan-500/20 rounded-xl p-4 flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-400 mb-1">
+                      <FaMoneyBillWave className="text-xs" />
+                      <span>Transferência / Dinheiro</span>
+                    </div>
+                    <div className="text-lg font-black text-white">
+                      R$ {financialStats.outroTotal.toFixed(2).replace('.', ',')}
+                    </div>
+                    <span className="text-[10px] text-gray-400 block mt-1">
+                      {financialStats.outroCount} transação(ões) liquidada(s)
+                    </span>
+                  </div>
+                  <span className="text-xs font-mono font-black px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+                    {financialStats.outroPct}%
+                  </span>
+                </div>
               </div>
             </div>
 
             {/* Banner e Atalho de Configuração do Pix */}
             <div className="bg-[#141422] border border-purple-800/40 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg">
               <div className="flex items-center gap-3.5">
-                <div className="w-11 h-11 rounded-2xl bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center justify-center text-lg shadow-inner">
-                  <FaSlidersH />
+                <div className="w-11 h-11 rounded-2xl bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center justify-center text-lg shadow-inner shrink-0">
+                  <FaBolt className="text-emerald-400" />
                 </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-bold text-gray-300">Chave Pix de Recebimento:</span>
+                    <span className="text-xs font-bold text-gray-300">Chave Pix de Recebimento Direto:</span>
                     <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-lg border border-emerald-500/25">
                       {pixConfig.key}
                     </span>
@@ -3115,178 +3790,238 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                     </span>
                   </div>
                   <p className="text-[11px] text-gray-400 mt-1">
-                    Titular: <strong className="text-white">{pixConfig.recipientName}</strong> • {pixConfig.city}
+                    Titular: <strong className="text-white">{pixConfig.recipientName}</strong> • {pixConfig.city} (Propagado universalmente para APKs e Web)
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setPixConfigModalOpen(true)}
-                className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-purple-600/30 transition shrink-0"
+                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-purple-600/30 transition shrink-0"
               >
                 <FaSlidersH className="text-xs" />
-                <span>Configurar Chave Pix</span>
+                <span>Alterar Chave Pix</span>
               </button>
             </div>
 
-            {/* Ações de Faturamento Manual */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#12121c] border border-purple-900/30 rounded-2xl p-4">
-              <div>
-                <h3 className="text-sm font-bold text-white">Faturamento Manual & Conciliação</h3>
-                <p className="text-xs text-gray-400">Emita QR Codes Pix em tempo real e sincronize com a API</p>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <button
-                  onClick={handleSyncPix}
-                  disabled={syncingPix}
-                  className="px-4 py-2 bg-[#1c1c2b] hover:bg-[#252538] border border-gray-700 text-gray-200 rounded-xl text-xs font-bold flex items-center gap-2 transition"
-                >
-                  <FaSyncAlt className={syncingPix ? 'animate-spin text-purple-400' : 'text-gray-400'} />
-                  <span>{syncingPix ? 'Sincronizando...' : 'Sincronizar Pagamentos'}</span>
-                </button>
-                <button
-                  onClick={() => setNewPixModalOpen(true)}
-                  className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/25 transition"
-                >
-                  <FaQrcode />
-                  <span>Emitir Cobrança Pix</span>
-                </button>
-              </div>
-            </div>
+            {/* TABELA DE LANÇAMENTOS E HISTÓRICO FINANCEIRO */}
+            <div className="bg-[#12121c] border border-purple-900/30 rounded-2xl overflow-hidden shadow-xl space-y-0">
+              {/* Barra de Filtros da Tabela */}
+              <div className="p-4 border-b border-gray-800 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 bg-[#141422]">
+                {/* Filtros de Método e Status */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold text-gray-400 flex items-center gap-1 mr-1">
+                    <FaFilter className="text-[10px]" />
+                    <span>Filtrar:</span>
+                  </span>
 
-            {/* Histórico de Cobranças Pix */}
-            <div className="bg-[#12121c] border border-purple-900/30 rounded-2xl overflow-hidden shadow-xl">
-              <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-                <h3 className="text-sm font-bold text-white">Histórico de Cobranças Pix</h3>
-                <span className="text-xs text-gray-400">{pixCharges.length} cobranças no sistema</span>
+                  {/* Seletor de Tipo de Pagamento */}
+                  <select
+                    value={financeMethodFilter}
+                    onChange={(e) => setFinanceMethodFilter(e.target.value as any)}
+                    className="px-3 py-1.5 bg-black/50 border border-gray-700 rounded-xl text-xs text-white focus:border-purple-500 outline-none font-medium"
+                  >
+                    <option value="all">Todos os Métodos</option>
+                    <option value="pix">⚡ Pix Instantâneo</option>
+                    <option value="cartao">💳 Cartão de Crédito</option>
+                    <option value="boleto">📄 Boleto Bancário</option>
+                    <option value="outro">💵 Transferência / Dinheiro</option>
+                  </select>
+
+                  {/* Seletor de Situação/Status */}
+                  <select
+                    value={financeStatusFilter}
+                    onChange={(e) => setFinanceStatusFilter(e.target.value as any)}
+                    className="px-3 py-1.5 bg-black/50 border border-gray-700 rounded-xl text-xs text-white focus:border-purple-500 outline-none font-medium"
+                  >
+                    <option value="all">Todas as Situações</option>
+                    <option value="liquidado">✅ Liquidado / Pago</option>
+                    <option value="pendente">⏳ Aguardando / Pendente</option>
+                    <option value="cancelado">❌ Cancelado / Falhou</option>
+                  </select>
+                </div>
+
+                {/* Campo de Busca Rápida */}
+                <div className="relative min-w-[280px]">
+                  <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
+                  <input
+                    type="text"
+                    placeholder="Buscar por cliente, e-mail, hash ou valor..."
+                    value={financeSearch}
+                    onChange={(e) => setFinanceSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-1.5 bg-black/50 border border-gray-800 focus:border-purple-500 rounded-xl text-xs text-white outline-none transition"
+                  />
+                </div>
               </div>
-              <div className="overflow-x-auto">
+
+              {/* Tabela Responsiva Autoadaptável */}
+              <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-purple-900/40">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-[#181826] text-gray-400 font-semibold uppercase text-[10px] tracking-wider border-b border-gray-800">
                     <tr>
-                      <th className="py-3 px-4">Código / Hash Pix</th>
-                      <th className="py-3 px-4">Assinante</th>
+                      <th className="py-3 px-4">Identificador / Hash</th>
+                      <th className="py-3 px-4">Assinante / Cliente</th>
                       <th className="py-3 px-4">Valor</th>
-                      <th className="py-3 px-4">Método</th>
-                      <th className="py-3 px-4">Vencimento</th>
-                      <th className="py-3 px-4">Status</th>
-                      <th className="py-3 px-4 text-right">Ações</th>
+                      <th className="py-3 px-4">Tipo de Pagamento</th>
+                      <th className="py-3 px-4">Vencimento / Data</th>
+                      <th className="py-3 px-4">Situação</th>
+                      <th className="py-3 px-4 text-right">Ações Rápidas</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800/60">
-                    {pixCharges.map((charge) => (
-                      <tr key={charge.id} className="hover:bg-white/[0.02] transition">
-                        {/* Hash */}
-                        <td className="py-3 px-4 font-mono text-purple-400 font-medium">
-                          <button
-                            onClick={() => handleCopyPixCode(charge.hash)}
-                            className="flex items-center gap-1.5 hover:text-purple-300"
-                            title="Clique para copiar código"
-                          >
-                            <span>{charge.hash}</span>
-                            <FaCopy className="text-[10px] text-gray-500" />
-                          </button>
-                        </td>
-
-                        {/* Assinante */}
-                        <td className="py-3 px-4">
-                          <div className="font-semibold text-white">{charge.customerName}</div>
-                          <div className="text-[10px] text-gray-400">{charge.customerEmail}</div>
-                          {charge.customerWhatsapp && (
-                            <div className="text-[10px] text-emerald-400 font-mono flex items-center gap-1 mt-0.5 font-bold">
-                              <FaWhatsapp className="text-[10px]" />
-                              <span>{charge.customerWhatsapp}</span>
-                            </div>
-                          )}
-                        </td>
-
-                        {/* Valor */}
-                        <td className="py-3 px-4 font-bold text-white">
-                          R$ {charge.amount.toFixed(2).replace('.', ',')}
-                        </td>
-
-                        {/* Método */}
-                        <td className="py-3 px-4 text-gray-300 flex items-center gap-1.5">
-                          <FaBolt className="text-cyan-400 text-xs" />
-                          <span>{charge.method}</span>
-                        </td>
-
-                        {/* Vencimento */}
-                        <td className="py-3 px-4 text-gray-400 font-mono text-[11px]">{charge.dueDate}</td>
-
-                        {/* Status */}
-                        <td className="py-3 px-4">
-                          {charge.status === 'liquidado' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                              <FaCheckCircle className="text-[9px]" /> Liquidado / Pagou
-                            </span>
-                          ) : charge.status === 'cancelado' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/30">
-                              <FaBan className="text-[9px]" /> Cancelado / Falhou
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                              <FaSyncAlt className="text-[9px]" /> Aguardando Pix
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Ações */}
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {charge.status !== 'liquidado' && (
-                              <button
-                                onClick={() => handleConfirmPixCharge(charge)}
-                                className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 rounded-lg text-[10px] font-bold border border-emerald-500/40 transition flex items-center gap-1 shadow-sm"
-                                title="Confirmar pagamento Pix recebido e desbloquear o cliente automaticamente (+30 dias)"
-                              >
-                                <FaCheckCircle className="text-[10px] text-emerald-400" />
-                                <span>Confirmar & Desbloquear</span>
-                              </button>
-                            )}
-                            <a
-                              href={`https://wa.me/55${(charge.customerWhatsapp || '92993746740').replace(/\D/g, '')}?text=${encodeURIComponent(
-                                `Olá ${charge.customerName}! ${pixConfig.customMessage}\n\n🔑 Chave Pix (${pixConfig.keyType}): ${pixConfig.key}\n👤 Titular: ${pixConfig.recipientName}\n💰 Valor: R$ ${charge.amount.toFixed(2).replace('.', ',')}\n📋 Código Pix:\n${charge.hash}\n\nApós o pagamento, envie o comprovante para liberação imediata!`
-                              )}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-300 rounded-lg text-[10px] font-bold border border-emerald-500/20 transition flex items-center gap-1"
-                              title="Enviar Pix direto no WhatsApp do cliente"
-                            >
-                              <FaWhatsapp className="text-xs text-emerald-400" />
-                              <span>Enviar no Zap</span>
-                            </a>
-                            <button
-                              onClick={() => {
-                                setSelectedPix(charge);
-                                setPixModalOpen(true);
-                              }}
-                              className="px-2.5 py-1 bg-purple-500/10 hover:bg-purple-500/25 text-purple-300 rounded-lg text-[10px] font-bold border border-purple-500/20 transition"
-                            >
-                              Ver Pix
-                            </button>
-                            <button
-                              onClick={() => {
-                                setNotification({
-                                  type: 'success',
-                                  message: `Cobrança reemitida com sucesso para ${charge.customerEmail}!`,
-                                });
-                              }}
-                              className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-[10px] font-medium transition"
-                            >
-                              Faturar novamente
-                            </button>
-                            <button
-                              onClick={() => {
-                                alert(`Audit Log Pix:\nID: ${charge.id}\nHash: ${charge.hash}\nData: ${charge.createdAt}\nGateway: SpartanPix-Direct\nStatus: Conciliado`);
-                              }}
-                              className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-lg text-[10px] font-medium transition"
-                            >
-                              Log
-                            </button>
-                          </div>
+                    {financialStats.filteredCharges.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-gray-400">
+                          Nenhum lançamento financeiro encontrado para os filtros selecionados.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      financialStats.filteredCharges.map((charge) => {
+                        const mKey = financialStats.getMethodKey(charge.method);
+                        return (
+                          <tr key={charge.id} className="hover:bg-white/[0.02] transition">
+                            {/* Hash */}
+                            <td className="py-3 px-4 font-mono font-medium">
+                              <button
+                                onClick={() => handleCopyPixCode(charge.hash)}
+                                className="flex items-center gap-1.5 text-purple-400 hover:text-purple-300 transition"
+                                title="Clique para copiar código"
+                              >
+                                <span>{charge.hash}</span>
+                                <FaCopy className="text-[10px] text-gray-500" />
+                              </button>
+                            </td>
+
+                            {/* Assinante */}
+                            <td className="py-3 px-4">
+                              <div className="font-semibold text-white">{charge.customerName}</div>
+                              <div className="text-[10px] text-gray-400">{charge.customerEmail}</div>
+                              {charge.customerWhatsapp && (
+                                <div className="text-[10px] text-emerald-400 font-mono flex items-center gap-1 mt-0.5 font-bold">
+                                  <FaWhatsapp className="text-[10px]" />
+                                  <span>{charge.customerWhatsapp}</span>
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Valor */}
+                            <td className="py-3 px-4 font-bold text-white text-sm">
+                              R$ {charge.amount.toFixed(2).replace('.', ',')}
+                            </td>
+
+                            {/* Tipo de Pagamento com Badge */}
+                            <td className="py-3 px-4">
+                              {mKey === 'pix' ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+                                  <FaBolt className="text-[9px]" />
+                                  <span>{charge.method}</span>
+                                </span>
+                              ) : mKey === 'cartao' ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-purple-500/10 text-purple-300 border border-purple-500/25">
+                                  <FaCreditCard className="text-[9px]" />
+                                  <span>{charge.method}</span>
+                                </span>
+                              ) : mKey === 'boleto' ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/25">
+                                  <FaBarcode className="text-[9px]" />
+                                  <span>{charge.method}</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/25">
+                                  <FaMoneyBillWave className="text-[9px]" />
+                                  <span>{charge.method}</span>
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Vencimento / Data */}
+                            <td className="py-3 px-4 text-gray-400 font-mono text-[11px]">
+                              {charge.dueDate}
+                            </td>
+
+                            {/* Status */}
+                            <td className="py-3 px-4">
+                              {charge.status === 'liquidado' ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                                  <FaCheckCircle className="text-[9px]" /> Liquidado / Pago
+                                </span>
+                              ) : charge.status === 'cancelado' ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/30">
+                                  <FaBan className="text-[9px]" /> Cancelado
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                                  <FaSyncAlt className="text-[9px]" /> Aguardando Pagamento
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Ações */}
+                            <td className="py-3 px-4 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {charge.status !== 'liquidado' && (
+                                  <button
+                                    onClick={() => handleConfirmPixCharge(charge)}
+                                    className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 rounded-lg text-[10px] font-bold border border-emerald-500/40 transition flex items-center gap-1 shadow-sm"
+                                    title="Confirmar pagamento recebido e desbloquear cliente (+30 dias)"
+                                  >
+                                    <FaCheckCircle className="text-[10px] text-emerald-400" />
+                                    <span>Confirmar</span>
+                                  </button>
+                                )}
+
+                                <a
+                                  href={`https://wa.me/55${(charge.customerWhatsapp || '92993746740').replace(/\D/g, '')}?text=${encodeURIComponent(
+                                    `Olá ${charge.customerName}! Cine Spartan informa:\n\n${
+                                      charge.status === 'liquidado'
+                                        ? `Seu pagamento de R$ ${charge.amount.toFixed(2).replace('.', ',')} via ${charge.method} foi confirmado e sua assinatura está ativa!`
+                                        : `Cobrança Cine Spartan (${charge.method}):\n🔑 Chave Pix: ${pixConfig.key}\n💰 Valor: R$ ${charge.amount.toFixed(2).replace('.', ',')}\n📋 Código: ${charge.hash}\n\nEnvie o comprovante para liberação imediata!`
+                                    }`
+                                  )}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-300 rounded-lg text-[10px] font-bold border border-emerald-500/20 transition flex items-center gap-1"
+                                  title="Enviar no WhatsApp"
+                                >
+                                  <FaWhatsapp className="text-xs text-emerald-400" />
+                                  <span>Zap</span>
+                                </a>
+
+                                {mKey === 'pix' && (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedPix(charge);
+                                      setPixModalOpen(true);
+                                    }}
+                                    className="px-2 py-1 bg-purple-500/10 hover:bg-purple-500/25 text-purple-300 rounded-lg text-[10px] font-bold border border-purple-500/20 transition"
+                                    title="Visualizar QR Code Pix"
+                                  >
+                                    QR Code
+                                  </button>
+                                )}
+
+                                {charge.status === 'pendente' && (
+                                  <button
+                                    onClick={() => handleCancelCharge(charge.id)}
+                                    className="p-1.5 bg-gray-800 hover:bg-red-950/60 text-gray-400 hover:text-red-300 rounded-lg border border-gray-700/60 transition"
+                                    title="Cancelar cobrança"
+                                  >
+                                    <FaBan className="text-[10px]" />
+                                  </button>
+                                )}
+
+                                <button
+                                  onClick={() => handleDeleteCharge(charge.id)}
+                                  className="p-1.5 bg-gray-800 hover:bg-red-950/60 text-gray-400 hover:text-red-300 rounded-lg border border-gray-700/60 transition"
+                                  title="Excluir lançamento"
+                                >
+                                  <FaTrash className="text-[10px]" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -4060,7 +4795,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         )}
       </AnimatePresence>
 
-      {/* Modal 2: Emitir Nova Cobrança Pix */}
+      {/* Modal 2: Novo Registro / Cobrança Financeira */}
       <AnimatePresence>
         {newPixModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
@@ -4068,7 +4803,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-[#13131e] border border-purple-900/50 rounded-2xl p-6 shadow-2xl relative"
+              className="w-full max-w-md bg-[#13131e] border border-purple-900/50 rounded-2xl p-6 shadow-2xl relative max-h-[92vh] overflow-y-auto"
             >
               <button
                 onClick={() => setNewPixModalOpen(false)}
@@ -4077,15 +4812,20 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                 <FaTimes />
               </button>
 
-              <h3 className="text-lg font-bold text-white mb-1">Emitir Nova Cobrança Pix</h3>
-              <p className="text-xs text-gray-400 mb-5">Gere uma chave Pix direta com valor personalizado</p>
+              <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
+                <FaMoneyBillWave className="text-emerald-400" />
+                <span>Novo Lançamento Financeiro</span>
+              </h3>
+              <p className="text-xs text-gray-400 mb-5">
+                Emita cobranças ou registre pagamentos via Pix, Cartão, Boleto ou Dinheiro
+              </p>
 
               <form onSubmit={handleCreatePix} className="space-y-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-300 block mb-1">Nome do Cliente</label>
                   <input
                     type="text"
-                    placeholder="Ex: Carlos Silva"
+                    placeholder="Ex: João Silva"
                     value={newPixData.customerName}
                     onChange={(e) => setNewPixData({ ...newPixData, customerName: e.target.value })}
                     required
@@ -4104,7 +4844,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-emerald-400 block mb-1">WhatsApp para Envio (com DDD)</label>
+                  <label className="text-xs font-semibold text-emerald-400 block mb-1">WhatsApp para Notificação (com DDD)</label>
                   <input
                     type="tel"
                     placeholder="(92) 99374-6740"
@@ -4113,22 +4853,84 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                     className="w-full px-4 py-2 bg-black/60 border border-emerald-500/30 focus:border-emerald-500 rounded-xl text-xs text-white outline-none"
                   />
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-300 block mb-1">Valor da Cobrança (R$)</label>
-                  <input
-                    type="number"
-                    step="0.10"
-                    value={newPixData.amount}
-                    onChange={(e) => setNewPixData({ ...newPixData, amount: parseFloat(e.target.value) || 0 })}
-                    required
-                    className="w-full px-4 py-2 bg-black/60 border border-gray-800 focus:border-purple-500 rounded-xl text-xs text-white outline-none font-bold"
-                  />
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-300 block mb-1">Tipo de Pagamento</label>
+                    <select
+                      value={newPixData.method}
+                      onChange={(e) => setNewPixData({ ...newPixData, method: e.target.value })}
+                      className="w-full px-3 py-2 bg-black/60 border border-gray-800 focus:border-purple-500 rounded-xl text-xs text-white outline-none font-medium"
+                    >
+                      <option value="Pix Instantâneo">⚡ Pix Instantâneo</option>
+                      <option value="Cartão de Crédito">💳 Cartão de Crédito</option>
+                      <option value="Boleto Bancário">📄 Boleto Bancário</option>
+                      <option value="Transferência / Dinheiro">💵 Transferência / Dinheiro</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-gray-300 block mb-1">Valor (R$)</label>
+                    <input
+                      type="number"
+                      step="0.10"
+                      value={newPixData.amount}
+                      onChange={(e) => setNewPixData({ ...newPixData, amount: parseFloat(e.target.value) || 0 })}
+                      required
+                      className="w-full px-3 py-2 bg-black/60 border border-gray-800 focus:border-purple-500 rounded-xl text-xs text-white outline-none font-bold"
+                    />
+                  </div>
                 </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-300 block mb-1">Situação / Status Inicial</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewPixData({ ...newPixData, status: 'pendente' })}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 ${
+                        newPixData.status === 'pendente'
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-sm'
+                          : 'bg-black/40 border-gray-800 text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <span>⏳ Aguardando / Pendente</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewPixData({ ...newPixData, status: 'liquidado' })}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 ${
+                        newPixData.status === 'liquidado'
+                          ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-sm'
+                          : 'bg-black/40 border-gray-800 text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <span>✅ Já Pago / Liquidado</span>
+                    </button>
+                  </div>
+                </div>
+
+                {newPixData.status === 'liquidado' && (
+                  <div className="p-3 bg-emerald-950/40 border border-emerald-600/30 rounded-xl flex items-center gap-2.5">
+                    <input
+                      type="checkbox"
+                      id="unlockClientCheck"
+                      checked={newPixData.unlockClient}
+                      onChange={(e) => setNewPixData({ ...newPixData, unlockClient: e.target.checked })}
+                      className="w-4 h-4 rounded text-emerald-500 accent-emerald-500 cursor-pointer"
+                    />
+                    <label htmlFor="unlockClientCheck" className="text-[11px] text-emerald-200 cursor-pointer font-medium">
+                      Desbloquear / Renovar cliente por +30 dias se já estiver cadastrado
+                    </label>
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow-lg transition"
+                  className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-2"
                 >
-                  Gerar QR Code Pix
+                  <FaCheckCircle className="text-sm" />
+                  <span>{newPixData.status === 'liquidado' ? 'Registrar Pagamento Recebido' : 'Emitir Cobrança'}</span>
                 </button>
               </form>
             </motion.div>
