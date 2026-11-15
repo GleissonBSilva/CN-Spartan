@@ -311,6 +311,16 @@ const TvDetails = ({ tvId: tvIdProp }) => {
     setPlayingEpisode(nextEpisode.episode_number);
   };
 
+  const handleEpisodeEnd = useCallback(() => {
+    if (!sortedEpisodes.length || activeEpisodeIndex < 0 || !currentSeasonData) return;
+    const nextIndex = activeEpisodeIndex + 1;
+    if (nextIndex < sortedEpisodes.length) {
+      const nextEpisode = sortedEpisodes[nextIndex];
+      setPlayingSeason(currentSeasonData.season_number);
+      setPlayingEpisode(nextEpisode.episode_number);
+    }
+  }, [sortedEpisodes, activeEpisodeIndex, currentSeasonData]);
+
   const onEpisodeMouseDown = useCallback((e) => {
     const el = episodeListRef.current;
     if (!el) return;
@@ -711,6 +721,9 @@ const TvDetails = ({ tvId: tvIdProp }) => {
                 title={`${tv.name} • T${playingSeason}:E${playingEpisode}`}
                 backdrop={tv.backdrop_path ? `https://image.tmdb.org/t/p/w1280${tv.backdrop_path}` : undefined}
                 poster={tv.poster_path ? `https://image.tmdb.org/t/p/w780${tv.poster_path}` : undefined}
+                hasNextEpisode={activeEpisodeIndex >= 0 && activeEpisodeIndex < sortedEpisodes.length - 1}
+                nextEpisodeTitle={activeEpisodeIndex >= 0 && activeEpisodeIndex < sortedEpisodes.length - 1 ? sortedEpisodes[activeEpisodeIndex + 1]?.name : ''}
+                onNextEpisode={handleEpisodeEnd}
                 key={`${tvId}-${playingSeason}-${playingEpisode}`}
               />
             ) : (

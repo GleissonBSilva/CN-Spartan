@@ -1,6 +1,6 @@
 import { memo, useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { FaPlay, FaExpand, FaCompress, FaVolumeUp, FaClosedCaptioning, FaSyncAlt, FaQuestionCircle, FaTimes } from 'react-icons/fa';
+import { FaPlay, FaExpand, FaCompress, FaVolumeUp, FaClosedCaptioning, FaSyncAlt, FaQuestionCircle, FaTimes, FaStepForward } from 'react-icons/fa';
 import { useLanguage } from '../../../context/LanguageContext';
 import { useAuthProfile } from '../../../hooks/useAuthProfile';
 import SubscriptionLockGate from '../../../components/SubscriptionLockGate';
@@ -51,7 +51,7 @@ const SERVERS = [
   }
 ];
 
-const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster }) => {
+const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster, hasNextEpisode = false, nextEpisodeTitle = '', onNextEpisode }) => {
     const { language } = useLanguage();
     const { isActive, isAdmin, isSuspended, refreshProfile } = useAuthProfile();
     const [hasStarted, setHasStarted] = useState(false);
@@ -99,10 +99,12 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
     const [isCssFullscreen, setIsCssFullscreen] = useState(false);
     const [showControls, setShowControls] = useState(true);
     const [toastMessage, setToastMessage] = useState('');
+    const [nextCountdown, setNextCountdown] = useState(null);
 
     const playerContainerRef = useRef(null);
     const hideControlsTimerRef = useRef(null);
     const toastTimerRef = useRef(null);
+    const countdownTimerRef = useRef(null);
 
     const activeServer = SERVERS[sourceIdx] || SERVERS[0];
 
@@ -138,6 +140,58 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
         checkHealth();
         return () => { isCancelled = true; };
     }, [tvId, season, episode]);
+
+    // Dispara a contagem regressiva de 5 segundos para o próximo episódio
+    const triggerNextEpisodeCountdown = useCallback(() => {
+        if (!hasNextEpisode || typeof onNextEpisode !== 'function') return;
+        setNextCountdown(5);
+    }, [hasNextEpisode, onNextEpisode]);
+
+    // Efeito para decrementar o contador de 5 a 0 e dar play automático
+    useEffect(() => {
+        if (nextCountdown === null) return;
+        if (nextCountdown <= 0) {
+            setNextCountdown(null);
+            onNextEpisode?.();
+            return;
+        }
+        countdownTimerRef.current = setTimeout(() => {
+            setNextCountdown(prev => (prev !== null ? prev - 1 : null));
+        }, 1000);
+
+        return () => {
+            if (countdownTimerRef.current) clearTimeout(countdownTimerRef.current);
+        };
+    }, [nextCountdown, onNextEpisode]);
+
+    // Ouve mensagens de término ou eventos do iframe (SuperFlix, VidLink, etc.)
+    useEffect(() => {
+        if (!hasStarted) return;
+        const handlePlayerMessage = (e) => {
+            try {
+                let data = e.data;
+                if (typeof data === 'string') {
+                    try { data = JSON.parse(data); } catch {}
+                }
+                if (!data) return;
+
+                // Eventos de vídeo concluído disparados por embeds HTML5 / players externos
+                const isEnded =
+                    data.event === 'ended' ||
+                    data.type === 'ended' ||
+                    data === 'ended' ||
+                    data.status === 'ended' ||
+                    data.action === 'ended';
+
+                if (isEnded) {
+                    triggerNextEpisodeCountdown();
+                }
+            } catch {}
+        };
+
+        window.addEventListener('message', handlePlayerMessage);
+        return () => window.removeEventListener('message', handlePlayerMessage);
+    }, [hasStarted, triggerNextEpisodeCountdown]);
 
     // Protege contra desvios ou redirecionamentos maliciosos do window.top por players externos
     useEffect(() => {
@@ -417,6 +471,18 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                             <span className="hidden sm:inline">Sem Áudio?</span>
                         </button>
 
+                        {hasNextEpisode && hasStarted && (
+                            <button
+                                type="button"
+                                onClick={triggerNextEpisodeCountdown}
+                                className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-bold bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-md transition-all shadow-md cursor-pointer"
+                                title="Avançar para o próximo episódio"
+                            >
+                                <FaStepForward className="text-[10px]" />
+                                <span className="hidden sm:inline">Próximo Ep.</span>
+                            </button>
+                        )}
+
                         {hasStarted && (
                             <button
                                 type="button"
@@ -487,6 +553,54 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster })
                             >
                                 Entendi, voltar ao episódio
                             </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Overlay de Contagem Regressiva de 5 Segundos para o Próximo Episódio (Estilo Netflix) */}
+                {nextCountdown !== null && hasNextEpisode && (
+                    <div className="absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 text-center animate-fadeIn select-none">
+                        <div className="max-w-sm w-full bg-[#11131c] border border-white/20 rounded-2xl p-6 shadow-2xl flex flex-col items-center">
+                            <span className="text-[11px] font-bold text-red-400 uppercase tracking-widest mb-1">
+                                Próximo Episódio
+                            </span>
+                            <h4 className="text-sm sm:text-base font-black text-white line-clamp-1 mb-4">
+                                {nextEpisodeTitle ? `Ep. ${episode + 1} • ${nextEpisodeTitle}` : `Episódio ${episode + 1}`}
+                            </h4>
+
+                            {/* Círculo do Contador Regressivo */}
+                            <div className="relative w-20 h-20 flex items-center justify-center mb-5">
+                                <div className="w-20 h-20 rounded-full border-4 border-red-600/30 flex items-center justify-center">
+                                    <span className="text-3xl font-black text-white font-mono animate-pulse">
+                                        {nextCountdown}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <p className="text-xs text-gray-300 mb-5">
+                                Iniciando automaticamente em <strong className="text-red-400">{nextCountdown}s</strong> no <strong className="text-emerald-400">SuperFlix Dublado BR</strong>...
+                            </p>
+
+                            <div className="flex items-center gap-2.5 w-full">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setNextCountdown(null);
+                                        onNextEpisode?.();
+                                    }}
+                                    className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all shadow-lg shadow-red-900/40 flex items-center justify-center gap-1.5 cursor-pointer"
+                                >
+                                    <FaPlay className="text-[10px]" />
+                                    <span>Assistir Agora</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setNextCountdown(null)}
+                                    className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white font-semibold text-xs transition-all border border-white/10 cursor-pointer"
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -616,6 +730,9 @@ VideoPlayer.propTypes = {
     title: PropTypes.string,
     backdrop: PropTypes.string,
     poster: PropTypes.string,
+    hasNextEpisode: PropTypes.bool,
+    nextEpisodeTitle: PropTypes.string,
+    onNextEpisode: PropTypes.func,
 };
 
 export default memo(VideoPlayer);
