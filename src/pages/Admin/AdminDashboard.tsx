@@ -138,18 +138,6 @@ const INITIAL_PIX_CHARGES: PixCharge[] = [
     status: 'liquidado',
     createdAt: new Date().toISOString(),
   },
-  {
-    id: 'pay-3',
-    hash: 'PIX-1E55F-90BC-7721',
-    customerName: 'Amandha Azevedo',
-    customerEmail: 'amandha.azevedo19@gmail.com',
-    customerWhatsapp: '92991234567',
-    amount: 59.9,
-    method: 'Pix Instantâneo',
-    dueDate: new Date().toLocaleDateString('pt-BR'),
-    status: 'liquidado',
-    createdAt: new Date().toISOString(),
-  },
 ];
 
 interface AdminDashboardProps {
@@ -693,25 +681,11 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           role: 'client',
           status: 'ativo',
           plan_name: 'SPARTAN PRO (Teste Grátis)',
-          expires_at: new Date(Date.now() + 1 * 86400000).toISOString(),
+          expires_at: '2026-11-16T01:44:54.699Z',
           max_screens: 2,
           is_trial: true,
           trial_used: true,
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 'usr-amandha-1',
-          email: 'amandha.azevedo19@gmail.com',
-          full_name: 'Amandha Azevedo',
-          whatsapp: '(92) 99123-4567',
-          role: 'client',
-          status: 'ativo',
-          plan_name: 'SPARTAN PRO',
-          expires_at: new Date(Date.now() + 28 * 86400000).toISOString(),
-          max_screens: 2,
-          is_trial: false,
-          trial_used: true,
-          created_at: new Date().toISOString(),
+          created_at: '2026-11-15T01:44:54.702Z',
         },
       ];
 
