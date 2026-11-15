@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaTimes, FaGoogle, FaEnvelope, FaLock, FaUser, FaSpinner, FaExclamationCircle, FaCheckCircle, FaWhatsapp, FaTv } from 'react-icons/fa';
+import { FaTimes, FaEnvelope, FaLock, FaUser, FaSpinner, FaExclamationCircle, FaCheckCircle, FaWhatsapp, FaTv } from 'react-icons/fa';
 import { supabase } from '../lib/supabase';
 import { getSavedPlans } from '../constants/plans';
 import { useAuthProfile } from '../hooks/useAuthProfile';
@@ -27,8 +27,6 @@ export default function AuthModal({ isOpen, onClose }) {
   const [resetSent, setResetSent] = useState(false);
   const [showReset, setShowReset] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
-  // Holds a pending Google OAuthCredential when account collision detected
-  const [pendingGoogleCred, setPendingGoogleCred] = useState(null);
 
   const [verificationSent, setVerificationSent] = useState(false);
 
@@ -109,7 +107,6 @@ export default function AuthModal({ isOpen, onClose }) {
     setError('');
     setShowReset(false);
     setResetSent(false);
-    setPendingGoogleCred(null);
     setVerificationSent(false);
   };
 
@@ -516,23 +513,6 @@ export default function AuthModal({ isOpen, onClose }) {
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    setError('');
-    setLoading(true);
-    try {
-      const { error: supaOAuthErr } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin,
-        },
-      });
-      if (supaOAuthErr) throw supaOAuthErr;
-    } catch (err) {
-      setError(err?.message || 'Erro ao autenticar com o Google.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <AnimatePresence>
@@ -856,42 +836,18 @@ export default function AuthModal({ isOpen, onClose }) {
                   <button
                     type="submit"
                     disabled={loading}
-                    className={`w-full py-3.5 mt-2 flex justify-center items-center gap-2 disabled:opacity-50 text-white font-bold rounded-xl transition-all active:scale-[0.98] ${
-                      pendingGoogleCred
-                        ? 'bg-blue-600 hover:bg-blue-500 shadow-[0_0_20px_rgba(37,99,235,0.3)]'
-                        : 'bg-red-600 hover:bg-red-500 shadow-[0_0_20px_rgba(220,38,38,0.3)]'
-                    }`}
+                    className="w-full py-3.5 mt-2 flex justify-center items-center gap-2 disabled:opacity-50 text-white font-bold rounded-xl transition-all active:scale-[0.98] bg-red-600 hover:bg-red-500 shadow-[0_0_20px_rgba(220,38,38,0.3)]"
                   >
                     {loading && <FaSpinner className="animate-spin" />}
-                    {pendingGoogleCred
-                      ? <><FaGoogle /> Sign In & Link Google</>
-                      : isLogin
-                        ? 'Entrar'
-                        : trialEnabled && trialDays > 0
-                          ? `Criar Conta & Iniciar Teste (${selectedPlan.name.replace('SPARTAN ', '')})`
-                          : `Criar Conta (${selectedPlan.name.replace('SPARTAN ', '')})`
+                    {isLogin
+                      ? 'Entrar'
+                      : trialEnabled && trialDays > 0
+                        ? `Criar Conta & Iniciar Teste (${selectedPlan.name.replace('SPARTAN ', '')})`
+                        : `Criar Conta (${selectedPlan.name.replace('SPARTAN ', '')})`
                     }
                   </button>
                 </form>
                 )}
-
-                {/* Divider */}
-                <div className="flex items-center gap-3 my-6">
-                  <div className="flex-1 h-px bg-white/10" />
-                  <span className="text-xs text-gray-500 uppercase font-semibold">Or</span>
-                  <div className="flex-1 h-px bg-white/10" />
-                </div>
-
-                {/* Google Button */}
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={handleGoogleSignIn}
-                  className="w-full flex items-center justify-center gap-3 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold rounded-xl transition-all active:scale-[0.98] disabled:opacity-50"
-                >
-                  <FaGoogle className="text-red-500" />
-                  Continue with Google
-                </button>
               </div>
             </motion.div>
           </div>
