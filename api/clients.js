@@ -18,6 +18,48 @@ const SEED_PROFILES = [
     trial_used: true,
     expires_at: '2027-12-31T23:59:59.000Z',
     created_at: '2026-11-01T10:00:00.000Z'
+  },
+  {
+    id: 'usr-gsrobotic-1',
+    email: 'gsroboticmania@gmail.com',
+    full_name: 'GS Robotic (Cliente PRO)',
+    whatsapp: '(92) 99374-6740',
+    role: 'client',
+    status: 'ativo',
+    plan_name: 'SPARTAN PRO',
+    max_screens: 2,
+    is_trial: false,
+    trial_used: true,
+    expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+    created_at: '2026-11-05T10:00:00.000Z'
+  },
+  {
+    id: 'usr-amandha-1',
+    email: 'amandha.azevedo19@gmail.com',
+    full_name: 'Amandha Azevedo',
+    whatsapp: '(92) 99123-4567',
+    role: 'client',
+    status: 'ativo',
+    plan_name: 'SPARTAN PRO',
+    max_screens: 2,
+    is_trial: false,
+    trial_used: true,
+    expires_at: new Date(Date.now() + 28 * 86400000).toISOString(),
+    created_at: '2026-11-10T10:00:00.000Z'
+  },
+  {
+    id: 'usr-spartan-vip-1',
+    email: 'cliente.spartan@gmail.com',
+    full_name: 'Rodrigo Spartan VIP',
+    whatsapp: '(92) 98455-6677',
+    role: 'client',
+    status: 'ativo',
+    plan_name: 'SPARTAN START',
+    max_screens: 1,
+    is_trial: false,
+    trial_used: true,
+    expires_at: new Date(Date.now() + 25 * 86400000).toISOString(),
+    created_at: '2026-11-08T12:00:00.000Z'
   }
 ];
 

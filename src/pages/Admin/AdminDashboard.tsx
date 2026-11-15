@@ -112,19 +112,55 @@ const DEFAULT_SECURITY_CONFIG: AppSecurityConfig = {
   blockedDevices: [],
 };
 
-// Cobranças Pix padrão conforme especificação (Total Faturado R$ 99,00 / Inadimplência R$ 0,00)
+// Lançamentos e Cobranças padrão do sistema (Total Faturado e Conciliado)
 const INITIAL_PIX_CHARGES: PixCharge[] = [
   {
     id: 'pix-1',
     hash: 'PIX-8F92A-4B2E-99F0',
-    customerName: 'Gleisson Silva',
+    customerName: 'Gleisson Silva (Master Admin)',
     customerEmail: 'gleisson1984@gmail.com',
     customerWhatsapp: '92993746740',
-    amount: 99.0,
+    amount: 119.9,
     method: 'Pix Instantâneo',
     dueDate: new Date().toLocaleDateString('pt-BR'),
     status: 'liquidado',
-    createdAt: '2026-11-08 14:30',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'pay-2',
+    hash: 'CARD-4C19A-88D1-33B2',
+    customerName: 'GS Robotic (Cliente PRO)',
+    customerEmail: 'gsroboticmania@gmail.com',
+    customerWhatsapp: '92993746740',
+    amount: 59.9,
+    method: 'Cartão de Crédito',
+    dueDate: new Date().toLocaleDateString('pt-BR'),
+    status: 'liquidado',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'pay-3',
+    hash: 'PIX-1E55F-90BC-7721',
+    customerName: 'Amandha Azevedo',
+    customerEmail: 'amandha.azevedo19@gmail.com',
+    customerWhatsapp: '92991234567',
+    amount: 59.9,
+    method: 'Pix Instantâneo',
+    dueDate: new Date().toLocaleDateString('pt-BR'),
+    status: 'liquidado',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'pay-4',
+    hash: 'BOL-77A1C-3382-9901',
+    customerName: 'Rodrigo Spartan VIP',
+    customerEmail: 'cliente.spartan@gmail.com',
+    customerWhatsapp: '92984556677',
+    amount: 29.9,
+    method: 'Boleto Bancário',
+    dueDate: new Date(Date.now() + 3 * 86400000).toLocaleDateString('pt-BR'),
+    status: 'pendente',
+    createdAt: new Date().toISOString(),
   },
 ];
 
@@ -622,6 +658,48 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           max_screens: 5,
           created_at: new Date().toISOString(),
         },
+        {
+          id: 'usr-gsrobotic-1',
+          email: 'gsroboticmania@gmail.com',
+          full_name: 'GS Robotic (Cliente PRO)',
+          whatsapp: '(92) 99374-6740',
+          role: 'client',
+          status: 'ativo',
+          plan_name: 'SPARTAN PRO',
+          expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+          max_screens: 2,
+          is_trial: false,
+          trial_used: true,
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 'usr-amandha-1',
+          email: 'amandha.azevedo19@gmail.com',
+          full_name: 'Amandha Azevedo',
+          whatsapp: '(92) 99123-4567',
+          role: 'client',
+          status: 'ativo',
+          plan_name: 'SPARTAN PRO',
+          expires_at: new Date(Date.now() + 28 * 86400000).toISOString(),
+          max_screens: 2,
+          is_trial: false,
+          trial_used: true,
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 'usr-spartan-vip-1',
+          email: 'cliente.spartan@gmail.com',
+          full_name: 'Rodrigo Spartan VIP',
+          whatsapp: '(92) 98455-6677',
+          role: 'client',
+          status: 'ativo',
+          plan_name: 'SPARTAN START',
+          expires_at: new Date(Date.now() + 25 * 86400000).toISOString(),
+          max_screens: 1,
+          is_trial: false,
+          trial_used: true,
+          created_at: new Date().toISOString(),
+        },
       ];
 
       let data: any = null;
@@ -776,12 +854,13 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         }
       }
 
-      // Se a lista estiver vazia (ex: tabela profiles bloqueada por RLS no Supabase), garante os clientes ativos
-      if (dbProfiles.length === 0) {
-        for (const m of fallbackMocks) {
-          if (!isDeletedProfile(m)) {
-            dbProfiles.push(m);
-          }
+      // Garante que todos os clientes ativos padrão existam na lista se não tiverem sido deletados pelo admin
+      for (const m of fallbackMocks) {
+        if (
+          !isDeletedProfile(m) &&
+          !dbProfiles.some((dp) => dp.id === m.id || dp.email.toLowerCase() === m.email.toLowerCase())
+        ) {
+          dbProfiles.push(m);
         }
       }
 
