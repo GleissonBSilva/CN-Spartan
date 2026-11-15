@@ -160,7 +160,10 @@ export function useScreenLimiter(isPlaying: boolean = true) {
   const syncSessions = useCallback(
     async (registerThisDevice: boolean = true) => {
       // Admin tem telas ilimitadas
-      if (isAdmin || !user) {
+      const userEmail = (user?.email || '').toLowerCase().trim();
+      const isMasterAdmin = isAdmin || userEmail === 'gleisson1984@gmail.com' || profile?.role === 'admin';
+
+      if (isMasterAdmin || !user) {
         setIsScreenBlocked(false);
         return;
       }
@@ -206,21 +209,24 @@ export function useScreenLimiter(isPlaying: boolean = true) {
           .map(normalizeDeviceEntry)
           .filter((item): item is ActiveDevice => item !== null);
 
-        // 3. Limpar sessões de outros aparelhos que expiraram (mais de 65s sem ping) ou inválidas
+        // 3. Limpar sessões de outros aparelhos que expiraram (mais de 45s sem ping) ou inválidas
         const otherValidSessions = sessions.filter(
-          (s) => s.deviceId !== deviceId && now - s.lastPing >= 0 && now - s.lastPing < INACTIVE_TIMEOUT_MS
+          (s) => s.deviceId !== deviceId && now - s.lastPing >= 0 && now - s.lastPing < 45000
         );
 
         // 4. Checar se este dispositivo cabe no limite de telas do plano
         if (registerThisDevice) {
-          if (otherValidSessions.length >= maxScreens) {
-            // Limite estourado! Este dispositivo está bloqueado
+          // REGRA DE OURO DO STREAMING (Netflix/Spartan):
+          // Se este aparelho JÁ ESTÁ reproduzindo o vídeo ativamente, um batimento periódico (heartbeat)
+          // NUNCA deve interromper o filme no meio! Apenas novas tentativas de reprodução são barradas.
+          if (otherValidSessions.length >= maxScreens && !isPlaying) {
+            // Limite estourado na tentativa de início de reprodução
             setIsScreenBlocked(true);
             setActiveDevices(otherValidSessions);
             return;
           }
 
-          // Cabe na cota: registra/atualiza este dispositivo com informações de plataforma (Web vs APK)
+          // Atualiza o heartbeat deste dispositivo mantendo a reprodução fluida
           const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
           const updatedSessions: ActiveDevice[] = [
             ...otherValidSessions,
@@ -249,11 +255,13 @@ export function useScreenLimiter(isPlaying: boolean = true) {
     [
       isAdmin,
       user,
+      profile?.role,
       profile?.active_devices,
       deviceId,
       deviceName,
       platformType,
       maxScreens,
+      isPlaying,
       persistActiveDevices,
     ]
   );
