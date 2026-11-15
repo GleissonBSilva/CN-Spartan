@@ -498,26 +498,24 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       });
     } catch {}
 
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profileId);
-    if (!isUuid) return;
-
     try {
-      // Filtra estritamente apenas as colunas que existem na tabela profiles do Supabase
-      // para evitar erros 400 (Bad Request: column not found)
-      const basePayload: Record<string, any> = {};
-      if (fullPayload.status !== undefined) basePayload.status = fullPayload.status;
-      if (fullPayload.expires_at !== undefined) basePayload.expires_at = fullPayload.expires_at;
-      if (fullPayload.plan_name !== undefined) basePayload.plan_name = fullPayload.plan_name;
-      if (fullPayload.max_screens !== undefined) basePayload.max_screens = fullPayload.max_screens;
-      if (fullPayload.role !== undefined) basePayload.role = fullPayload.role;
-      if (fullPayload.email !== undefined) basePayload.email = fullPayload.email;
-      if (fullPayload.whatsapp !== undefined) basePayload.whatsapp = fullPayload.whatsapp;
-      if (fullPayload.full_name !== undefined) basePayload.full_name = fullPayload.full_name;
-      if (fullPayload.active_devices !== undefined) basePayload.active_devices = fullPayload.active_devices;
+      const isUuid = Boolean(profileId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profileId));
 
-      const isProfileUuid = typeof profileId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profileId);
-      if (isProfileUuid && Object.keys(basePayload).length > 0) {
-        // Se houver alteração de status, tenta prioritariamente via RPC com SECURITY DEFINER
+      // Se for UUID, atualiza no Supabase
+      if (isUuid) {
+        const basePayload: Record<string, any> = {};
+        if (fullPayload.status !== undefined) basePayload.status = fullPayload.status;
+        if (fullPayload.expires_at !== undefined) basePayload.expires_at = fullPayload.expires_at;
+        if (fullPayload.plan_name !== undefined) basePayload.plan_name = fullPayload.plan_name;
+        if (fullPayload.max_screens !== undefined) basePayload.max_screens = fullPayload.max_screens;
+        if (fullPayload.role !== undefined) basePayload.role = fullPayload.role;
+        if (fullPayload.email !== undefined) basePayload.email = fullPayload.email;
+        if (fullPayload.whatsapp !== undefined) basePayload.whatsapp = fullPayload.whatsapp;
+        if (fullPayload.full_name !== undefined) basePayload.full_name = fullPayload.full_name;
+        if (fullPayload.active_devices !== undefined) basePayload.active_devices = fullPayload.active_devices;
+        if (fullPayload.is_trial !== undefined) basePayload.is_trial = fullPayload.is_trial;
+        if (fullPayload.trial_used !== undefined) basePayload.trial_used = fullPayload.trial_used;
+
         if (basePayload.status) {
           try {
             await (supabase as any).rpc('update_profile_status_admin', {
@@ -537,26 +535,30 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           delete basePayload.whatsapp;
           delete basePayload.full_name;
           delete basePayload.active_devices;
-          await supabase
-            .from('profiles')
-            .update(basePayload)
-            .eq('id', profileId);
+          try {
+            await supabase
+              .from('profiles')
+              .update(basePayload)
+              .eq('id', profileId);
+          } catch {}
         }
       }
 
-      // Sincroniza em tempo real com /api/clients para unificar todas as TV Boxes e aparelhos do cliente
+      // SEMPRE sincroniza com /api/clients (mesmo para IDs customizados/não-UUID) para que o APK e TV Box recebam a alteração na hora!
       try {
         const cloudSyncBody = {
           id: profileId,
           ...fullPayload,
-          admin_updated_at: new Date().toISOString(),
+          admin_updated_at: fullPayload.admin_updated_at || new Date().toISOString(),
         };
-        fetchApi('/api/clients', {
+        await fetchApi('/api/clients', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(cloudSyncBody),
-        }).catch(() => {});
-      } catch {}
+        });
+      } catch (errApi) {
+        console.warn('Aviso ao sincronizar alteração na API:', errApi);
+      }
     } catch (err) {
       console.warn('Aviso ao sincronizar alteração no Supabase (mantido localmente):', err);
     }
@@ -653,10 +655,10 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           whatsapp: '(92) 99374-6740',
           role: 'client',
           status: 'ativo',
-          plan_name: 'SPARTAN PRO',
-          expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+          plan_name: 'SPARTAN PRO (Teste Grátis)',
+          expires_at: new Date(Date.now() + 1 * 86400000).toISOString(),
           max_screens: 2,
-          is_trial: false,
+          is_trial: true,
           trial_used: true,
           created_at: new Date().toISOString(),
         },

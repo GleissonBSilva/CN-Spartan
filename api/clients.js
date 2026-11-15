@@ -26,12 +26,12 @@ const SEED_PROFILES = [
     whatsapp: '(92) 99374-6740',
     role: 'client',
     status: 'ativo',
-    plan_name: 'SPARTAN PRO',
+    plan_name: 'SPARTAN PRO (Teste Grátis)',
     max_screens: 2,
-    is_trial: false,
+    is_trial: true,
     trial_used: true,
-    expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
-    created_at: '2026-11-05T10:00:00.000Z'
+    expires_at: new Date(Date.now() + 1 * 86400000).toISOString(),
+    created_at: new Date().toISOString()
   },
   {
     id: 'usr-amandha-1',
