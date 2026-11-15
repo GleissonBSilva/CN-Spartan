@@ -11,14 +11,25 @@ import { fetchApi } from '../../../lib/apiConfig';
 const SERVERS = [
   {
     id: 'superflix',
-    name: '🍿 SuperFlix Séries (Dublado BR)',
-    shortName: '🍿 Dublado BR',
+    isDubbed: true,
+    name: '🍿 SuperFlix (Dublado BR 1)',
+    shortName: '🍿 Dublado 1',
     badge: '100% Dublado BR',
-    desc: 'Áudio nativo 100% dublado em Português-BR (SuperFlix)',
+    desc: 'Áudio nativo 100% dublado em Português-BR (SuperFlix Principal)',
     url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
   },
   {
+    id: 'superflix_lat',
+    isDubbed: true,
+    name: '🇧🇷 SuperFlix (Dublado BR 2)',
+    shortName: '🇧🇷 Dublado 2',
+    badge: '100% Dublado BR',
+    desc: 'Áudio nativo 100% dublado em Português-BR (SuperFlix Reserva)',
+    url: (id, s, e) => `https://superflixapi.lat/serie/${id}/${s}/${e}`
+  },
+  {
     id: 'vidlink',
+    isDubbed: false,
     name: '⭐ VidLink Séries (Original HD)',
     shortName: '⭐ Original HD',
     badge: 'Áudio Original HD',
@@ -27,6 +38,7 @@ const SERVERS = [
   },
   {
     id: 'multiembed',
+    isDubbed: false,
     name: '📺 MultiEmbed Séries',
     shortName: '📺 MultiEmbed',
     badge: 'Multi-Fonte',
@@ -35,6 +47,7 @@ const SERVERS = [
   },
   {
     id: 'embedsu',
+    isDubbed: false,
     name: '🎬 EmbedSu Séries HD',
     shortName: '🎬 EmbedSu',
     badge: 'Reserva HD',
@@ -43,6 +56,7 @@ const SERVERS = [
   },
   {
     id: 'vidsrc',
+    isDubbed: false,
     name: '⚡ VidSrc Séries Fast',
     shortName: '⚡ VidSrc',
     badge: 'Reserva',
@@ -128,7 +142,12 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster, h
                         if (current && data.statusMap[current.id] === false) {
                             const recIdx = SERVERS.findIndex(s => s.id === data.recommendedId);
                             if (recIdx !== -1 && recIdx !== prevIdx) {
-                                showToast(`🔄 ${current.name} indisponível para este episódio. Conectado ao ${SERVERS[recIdx].name}`);
+                                const recServer = SERVERS[recIdx];
+                                if (current.isDubbed && !recServer.isDubbed) {
+                                    showToast(`⚠️ Servidores Dublado BR instáveis neste episódio. Alternado para ${recServer.name}`);
+                                } else {
+                                    showToast(`🔄 Conectado ao servidor reserva ${recServer.name}`);
+                                }
                                 return recIdx;
                             }
                         }
@@ -238,8 +257,8 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster, h
     // Ao clicar em Play
     const handleStartPlay = () => {
         setHasStarted(true);
-        if (sourceIdx !== 0) {
-            showToast('💡 Dica: Se o áudio iniciar mudo, toque no ícone 🔊 no player para desmutar');
+        if (!activeServer.isDubbed) {
+            showToast('💡 Dica: Se o áudio iniciar mudo ou em outro idioma, use o menu do player para legendas');
         }
     };
 
@@ -437,10 +456,10 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster, h
                                     ? 'bg-red-600 text-white shadow-red-900/50 ring-2 ring-white/20'
                                     : 'bg-black/60 hover:bg-black/90 text-gray-300 hover:text-white border border-white/15 backdrop-blur-md'
                             }`}
-                            title="Assistir Dublado em Português (SuperFlix)"
+                            title="Assistir Dublado em Português (SuperFlix Principal)"
                         >
                             <FaVolumeUp className="text-[10px] sm:text-xs" />
-                            <span>🇧🇷 Dublado (SuperFlix)</span>
+                            <span>🇧🇷 Dublado 1</span>
                         </button>
 
                         <button
@@ -448,10 +467,24 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster, h
                             onClick={() => handleSelectServer(1)}
                             className={`flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold transition-all shadow-md cursor-pointer shrink-0 ${
                                 sourceIdx === 1
+                                    ? 'bg-red-600 text-white shadow-red-900/50 ring-2 ring-white/20'
+                                    : 'bg-black/60 hover:bg-black/90 text-gray-300 hover:text-white border border-white/15 backdrop-blur-md'
+                            }`}
+                            title="Assistir Dublado em Português (SuperFlix Reserva)"
+                        >
+                            <FaVolumeUp className="text-[10px] sm:text-xs" />
+                            <span>🇧🇷 Dublado 2</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => handleSelectServer(2)}
+                            className={`flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold transition-all shadow-md cursor-pointer shrink-0 ${
+                                sourceIdx === 2
                                     ? 'bg-amber-500 text-black shadow-amber-900/50 ring-2 ring-white/20 font-black'
                                     : 'bg-black/60 hover:bg-black/90 text-gray-300 hover:text-white border border-white/15 backdrop-blur-md'
                             }`}
-                            title="Assistir com Áudio Original HD (VidLink)"
+                            title="Assistir com Áudio Original HD / Legendas (VidLink)"
                         >
                             <FaClosedCaptioning className="text-[10px] sm:text-xs" />
                             <span className="sm:hidden">Original HD</span>
@@ -640,11 +673,9 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster, h
                             </h3>
                             <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-gray-300 font-medium bg-black/70 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full border border-white/10 backdrop-blur-md">
                                 <span>
-                                    {sourceIdx === 0
-                                        ? '🇧🇷 SuperFlix (Áudio 100% Dublado BR)'
-                                        : sourceIdx === 1
-                                            ? '⭐ VidLink (Áudio Original Ultra HD)'
-                                            : `📺 ${activeServer.name}`}
+                                    {activeServer.isDubbed
+                                        ? `🇧🇷 ${activeServer.name}`
+                                        : `⭐ ${activeServer.name}`}
                                 </span>
                             </div>
                         </div>
@@ -684,7 +715,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster, h
                                         onClick={() => handleSelectServer(idx)}
                                         className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                                             isSelected
-                                                ? idx === 0
+                                                ? srv.isDubbed
                                                     ? 'bg-red-600 text-white shadow-lg shadow-red-600/40 ring-1 ring-white/30 font-black'
                                                     : 'bg-amber-500 text-black shadow-lg shadow-amber-500/40 ring-1 ring-white/30 font-black'
                                                 : 'bg-[#141824] text-gray-400 hover:text-white hover:bg-[#1e2334] border border-white/5'
@@ -699,7 +730,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster, h
                                             <span className="w-1.5 h-1.5 rounded-full bg-amber-400/80 shrink-0" title="Servidor oscilando para este episódio" />
                                         )}
                                         {isSelected && (
-                                            <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${idx === 0 ? 'bg-emerald-300' : 'bg-black'}`} />
+                                            <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${srv.isDubbed ? 'bg-emerald-300' : 'bg-black'}`} />
                                         )}
                                     </button>
                                 );
@@ -709,12 +740,10 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster, h
 
                     {/* Status 100% condizente com o selecionado */}
                     <div className="text-[11px] text-gray-400">
-                        {sourceIdx === 0 ? (
-                            <span className="text-emerald-400 font-semibold">✓ Áudio nativo 100% dublado em Português-BR (SuperFlix)</span>
-                        ) : sourceIdx === 1 ? (
-                            <span className="text-amber-300 font-semibold">✓ Áudio original em Ultra HD / 4K sem anúncios (VidLink)</span>
+                        {activeServer.isDubbed ? (
+                            <span className="text-emerald-400 font-semibold">✓ Áudio nativo 100% dublado em Português-BR ({activeServer.name})</span>
                         ) : (
-                            <span className="text-gray-300 font-medium">✓ Servidor reserva conectado: {activeServer.name}</span>
+                            <span className="text-amber-300 font-semibold">✓ Áudio original em alta definição / legendado ({activeServer.name})</span>
                         )}
                     </div>
                 </div>
