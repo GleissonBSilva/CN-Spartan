@@ -37,15 +37,15 @@ const SEED_PROFILES = [
     id: 'usr-amandha-1',
     email: 'amandha.azevedo19@gmail.com',
     full_name: 'Amanda Castro de Azevedo',
-    whatsapp: '(92) 99374-6740',
+    whatsapp: '(92) 99348-6301',
     role: 'client',
     status: 'ativo',
     plan_name: 'SPARTAN START',
     max_screens: 1,
-    is_trial: false,
+    is_trial: true,
     trial_used: true,
-    expires_at: '2026-11-20T23:59:59.000Z',
-    created_at: '2026-11-10T10:00:00.000Z'
+    expires_at: '2026-11-17T23:19:21.426Z',
+    created_at: '2026-11-14T23:19:21.426Z'
   }
 ];
 
