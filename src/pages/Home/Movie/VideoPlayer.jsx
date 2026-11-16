@@ -175,17 +175,7 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
         return () => { isCancelled = true; };
     }, [movieId]);
 
-    // Protege contra desvios ou redirecionamentos maliciosos do window.top por players externos
-    useEffect(() => {
-        if (!hasStarted) return;
-        const handleBeforeUnload = (e) => {
-            e.preventDefault();
-            e.returnValue = '';
-            return '';
-        };
-        window.addEventListener('beforeunload', handleBeforeUnload);
-        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }, [hasStarted]);
+
 
     const showToast = (msg) => {
         setToastMessage(msg);

@@ -292,6 +292,11 @@ export function useScreenLimiter(isPlaying: boolean = true) {
     setActiveDevices(mySession);
   }, [user, deviceId, deviceName, platformType, persistActiveDevices]);
 
+  const syncSessionsRef = useRef(syncSessions);
+  useEffect(() => {
+    syncSessionsRef.current = syncSessions;
+  }, [syncSessions]);
+
   // Iniciar e manter batimentos cardíacos (Heartbeat) de forma leve sem travar a thread
   useEffect(() => {
     if (!user || isAdmin || !isPlaying) {
@@ -300,16 +305,16 @@ export function useScreenLimiter(isPlaying: boolean = true) {
     }
 
     // Registro inicial
-    syncSessions(true);
+    syncSessionsRef.current(true);
 
     // Intervalo de batimento cardíaco (25s)
     heartbeatTimerRef.current = setInterval(() => {
-      syncSessions(true);
+      syncSessionsRef.current(true);
     }, 25000);
 
     // Desregistrar ao sair da página / fechar navegador
     const handleUnload = () => {
-      syncSessions(false);
+      syncSessionsRef.current(false);
     };
 
     window.addEventListener('beforeunload', handleUnload);
@@ -317,9 +322,9 @@ export function useScreenLimiter(isPlaying: boolean = true) {
     return () => {
       if (heartbeatTimerRef.current) clearInterval(heartbeatTimerRef.current);
       window.removeEventListener('beforeunload', handleUnload);
-      syncSessions(false);
+      syncSessionsRef.current(false);
     };
-  }, [user?.id, isAdmin, isPlaying, syncSessions]);
+  }, [user?.id, isAdmin, isPlaying]);
 
   return {
     isScreenBlocked,

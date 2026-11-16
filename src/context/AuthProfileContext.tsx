@@ -502,7 +502,12 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
   }, [fetchProfile, getFallbackCachedUser]);
 
-  // Verificador automático em tempo real: sincroniza com o Admin Dashboard a cada 10s
+  const profileRef = useRef<Profile | null>(profile);
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
+
+  // Verificador automático em tempo real: sincroniza com o Admin Dashboard a cada 30s
   // Se o cliente for suspenso, bloqueia imediatamente o player.
   // Se for deletado pelo admin, revoga a sessão na hora.
   useEffect(() => {
@@ -579,6 +584,18 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
               const targetPlan = localIsNewer ? current.plan_name : (cp.plan_name || current.plan_name);
               const targetScreens = localIsNewer ? current.max_screens : (cp.max_screens || current.max_screens);
 
+              // Previne loop infinito: se os valores essenciais forem idênticos, não recria objeto nem re-renderiza!
+              const hasCoreChanged =
+                current.status !== targetStatus ||
+                current.expires_at !== targetExpiresAt ||
+                current.is_trial !== targetIsTrial ||
+                current.plan_name !== targetPlan ||
+                current.max_screens !== targetScreens;
+
+              if (!hasCoreChanged) {
+                return current;
+              }
+
               const updated: Profile = {
                 ...current,
                 status: targetStatus,
@@ -592,16 +609,7 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 last_seen_at: cp.last_seen_at || current.last_seen_at,
               };
 
-              // Previne loop infinito do StorageEvent disparando fetchProfile repetidamente
-              const hasCoreChanged =
-                current.status !== updated.status ||
-                current.expires_at !== updated.expires_at ||
-                current.is_trial !== updated.is_trial ||
-                current.plan_name !== updated.plan_name;
-
-              if (hasCoreChanged) {
-                syncLocalProfileRegistry(updated);
-              }
+              syncLocalProfileRegistry(updated);
               return updated;
             });
           }
@@ -628,18 +636,19 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
               },
             ];
 
+            const currentProf = profileRef.current;
             fetchApi('/api/clients', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 id: cp?.id || user.id,
                 email: cleanEmail,
-                status: profile?.status || cp?.status,
-                expires_at: profile?.expires_at || cp?.expires_at,
-                is_trial: profile?.is_trial !== undefined ? profile?.is_trial : cp?.is_trial,
-                plan_name: profile?.plan_name || cp?.plan_name,
-                max_screens: profile?.max_screens || cp?.max_screens,
-                admin_updated_at: profile?.admin_updated_at || cp?.admin_updated_at,
+                status: currentProf?.status || cp?.status,
+                expires_at: currentProf?.expires_at || cp?.expires_at,
+                is_trial: currentProf?.is_trial !== undefined ? currentProf?.is_trial : cp?.is_trial,
+                plan_name: currentProf?.plan_name || cp?.plan_name,
+                max_screens: currentProf?.max_screens || cp?.max_screens,
+                admin_updated_at: currentProf?.admin_updated_at || cp?.admin_updated_at,
                 active_devices: updatedDevices,
                 last_platform: myPlatform,
                 last_seen_at: new Date().toISOString(),
@@ -653,19 +662,20 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
 
     const interval = setInterval(() => {
-      if (profile && profile.role !== 'admin') {
-        const expTime = new Date(profile.expires_at).getTime();
-        if (expTime <= Date.now() && profile.status === 'ativo') {
-          const blockedProfile: Profile = { ...profile, status: 'vencido' };
+      const currentProf = profileRef.current;
+      if (currentProf && currentProf.role !== 'admin') {
+        const expTime = new Date(currentProf.expires_at).getTime();
+        if (expTime <= Date.now() && currentProf.status === 'ativo') {
+          const blockedProfile: Profile = { ...currentProf, status: 'vencido' };
           setProfile(blockedProfile);
           syncLocalProfileRegistry(blockedProfile);
-          if (typeof profile.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profile.id)) {
-            supabase.from('profiles').update({ status: 'vencido' }).eq('id', profile.id).then(() => {});
+          if (typeof currentProf.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentProf.id)) {
+            supabase.from('profiles').update({ status: 'vencido' }).eq('id', currentProf.id).then(() => {});
           }
         }
       }
       checkCloudStatus();
-    }, 10000);
+    }, 30000);
 
     // Verificação inicial rápida
     checkCloudStatus();
@@ -682,7 +692,7 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
       clearInterval(interval);
       window.removeEventListener('storage', handleStorageSync);
     };
-  }, [profile, user, fetchProfile, syncLocalProfileRegistry]);
+  }, [user?.id, user?.email]);
 
   // Métricas e status da assinatura
   const { isAdmin, isExpired, isSuspended, isActive, daysRemaining, formattedExpiration } = useMemo(() => {

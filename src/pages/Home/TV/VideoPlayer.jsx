@@ -212,17 +212,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster, h
         return () => window.removeEventListener('message', handlePlayerMessage);
     }, [hasStarted, triggerNextEpisodeCountdown]);
 
-    // Protege contra desvios ou redirecionamentos maliciosos do window.top por players externos
-    useEffect(() => {
-        if (!hasStarted) return;
-        const handleBeforeUnload = (e) => {
-            e.preventDefault();
-            e.returnValue = '';
-            return '';
-        };
-        window.addEventListener('beforeunload', handleBeforeUnload);
-        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }, [hasStarted]);
+
 
     const showToast = (msg) => {
         setToastMessage(msg);
