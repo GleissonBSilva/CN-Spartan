@@ -602,6 +602,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       }
 
       // Sincroniza clientes cadastrados na nuvem (api/clients) para unificar todas as TV Boxes e aparelhos
+      let cloudList: Profile[] = [];
       let cloudDeleted: string[] = [];
       try {
         // Tenta obter da nuvem oficial da Vercel (onde os celulares e TV Boxes se comunicam)
@@ -609,12 +610,12 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
         if (clientRes && clientRes.ok) {
           const cloudData = await clientRes.json();
-          const cloudClients = Array.isArray(cloudData) ? cloudData : (cloudData.profiles || []);
+          cloudList = Array.isArray(cloudData) ? cloudData : (cloudData.profiles || []);
           if (Array.isArray(cloudData?.deleted)) {
             cloudDeleted = cloudData.deleted;
           }
-          if (Array.isArray(cloudClients)) {
-            for (const cc of cloudClients) {
+          if (Array.isArray(cloudList)) {
+            for (const cc of cloudList) {
               const existingIdx = localList.findIndex(lp => lp.id === cc.id || (cc.email && lp.email?.toLowerCase() === cc.email.toLowerCase()));
               if (existingIdx >= 0) {
                 const localAdminTime = localList[existingIdx].admin_updated_at ? new Date(localList[existingIdx].admin_updated_at).getTime() : 0;
@@ -672,34 +673,6 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           expires_at: new Date(Date.now() + 365 * 86400000).toISOString(),
           max_screens: 5,
           created_at: new Date().toISOString(),
-        },
-        {
-          id: 'usr-gsrobotic-1',
-          email: 'gsroboticmania@gmail.com',
-          full_name: 'GS Robotic (Cliente PRO)',
-          whatsapp: '(92) 99374-6740',
-          role: 'client',
-          status: 'ativo',
-          plan_name: 'SPARTAN PRO (Teste Grátis)',
-          expires_at: '2026-11-16T01:44:54.699Z',
-          max_screens: 2,
-          is_trial: true,
-          trial_used: true,
-          created_at: '2026-11-15T01:44:54.702Z',
-        },
-        {
-          id: 'usr-amandha-1',
-          email: 'amandha.azevedo19@gmail.com',
-          full_name: 'Amanda Castro de Azevedo',
-          whatsapp: '(92) 99348-6301',
-          role: 'client',
-          status: 'ativo',
-          plan_name: 'SPARTAN START',
-          expires_at: '2026-11-17T23:19:21.426Z',
-          max_screens: 1,
-          is_trial: true,
-          trial_used: true,
-          created_at: '2026-11-14T23:19:21.426Z',
         },
       ];
 
@@ -1461,7 +1434,9 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     if (!newUserData.email.trim()) return;
     setCreatingUser(true);
     try {
-      const dummyId = 'usr-' + Math.random().toString(36).substring(2, 9);
+      const dummyId = typeof crypto !== 'undefined' && crypto.randomUUID 
+        ? crypto.randomUUID() 
+        : '00000000-0000-4000-8000-' + Math.random().toString(16).substring(2, 14).padEnd(12, '0');
       const expiry = new Date();
       expiry.setDate(expiry.getDate() + newUserData.days);
 
@@ -1482,7 +1457,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
       // Sincroniza na nuvem para unificar com todos os aparelhos
       try {
-        fetch('/api/clients', {
+        fetchApi('/api/clients', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(newProf)
