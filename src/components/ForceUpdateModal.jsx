@@ -6,12 +6,11 @@ import { Capacitor } from '@capacitor/core';
 import { isTvBoxOrApk } from '../hooks/useAppUpdateGuard';
 
 const ForceUpdateModal = ({ reason, config, onRecheck }) => {
-  // Se for atualização de APK mas o usuário estiver navegando no PC, não bloqueia
-  if (reason === 'UPDATE_REQUIRED' && !isTvBoxOrApk()) {
-    return null;
-  }
+  const shouldSkip = reason === 'UPDATE_REQUIRED' && !isTvBoxOrApk();
+
   // Previne que o botão Voltar do controle da TV feche a tela de bloqueio
   useEffect(() => {
+    if (shouldSkip) return;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' || e.key === 'BrowserBack' || e.key === 'GoBack') {
         e.preventDefault();
@@ -27,7 +26,12 @@ const ForceUpdateModal = ({ reason, config, onRecheck }) => {
     };
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, []);
+  }, [shouldSkip]);
+
+  // Se for atualização de APK mas o usuário estiver navegando no PC, não bloqueia
+  if (shouldSkip) {
+    return null;
+  }
 
   const handleDownload = () => {
     const url = config?.apkDownloadUrl || 'https://cn-spartan.vercel.app/cinespartan.apk';

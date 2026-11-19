@@ -162,13 +162,13 @@ export default async function handler(req, res) {
     );
 
     if (existingIdx >= 0) {
-      // Se o cliente já está SUSPENSO, preserva o bloqueio contra telemetria de aparelhos
-      const isCurrentlySuspended = memoryProfiles[existingIdx].status === 'suspenso';
+      // Se o cliente já está SUSPENSO ou PENDENTE de aprovação, preserva o bloqueio contra telemetria de aparelhos
+      const isCurrentlyLocked = memoryProfiles[existingIdx].status === 'suspenso' || memoryProfiles[existingIdx].status === 'pendente';
       const isExplicitAdminStatusUpdate = Boolean(profile.admin_updated_at);
 
       let targetStatus = profile.status || memoryProfiles[existingIdx].status;
-      if (isCurrentlySuspended && !isExplicitAdminStatusUpdate) {
-        targetStatus = 'suspenso';
+      if (isCurrentlyLocked && !isExplicitAdminStatusUpdate) {
+        targetStatus = memoryProfiles[existingIdx].status;
       }
 
       // Preserva expires_at e is_trial se for uma simples telemetria sem expiração informada
@@ -184,6 +184,8 @@ export default async function handler(req, res) {
           targetScreens = 1;
         } else if (cleanPlanUpper.includes('PRO')) {
           targetScreens = 2;
+        } else if (cleanPlanUpper.includes('FUNDADOR')) {
+          targetScreens = 3;
         } else if (cleanPlanUpper.includes('BUSINESS')) {
           targetScreens = 5;
         }

@@ -41,6 +41,8 @@ import {
   FaHistory,
   FaExchangeAlt,
   FaFilter,
+  FaClock,
+  FaStar,
 } from 'react-icons/fa';
 import { supabase } from '../../lib/supabase';
 import { useAuthProfile } from '../../hooks/useAuthProfile';
@@ -681,7 +683,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       try {
         const res = await supabase
           .from('profiles')
-          .select('id, email, role, status, plan_name, expires_at, max_screens, created_at')
+          .select('id, email, full_name, whatsapp, role, status, plan_name, expires_at, max_screens, created_at, is_trial, trial_used, active_devices, admin_updated_at')
           .order('created_at', { ascending: false });
         data = res.data;
         error = res.error;
@@ -693,7 +695,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         try {
           const res = await supabase
             .from('profiles')
-            .select('id, email, role, status, plan_name, expires_at, max_screens, created_at')
+            .select('id, email, full_name, whatsapp, role, status, plan_name, expires_at, max_screens, created_at, is_trial, trial_used, active_devices, admin_updated_at')
             .order('created_at', { ascending: false });
           data = res.data;
           error = res.error;
@@ -709,7 +711,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         for (const m of fallbackMocks) {
           if (
             !isDeletedProfile(m) &&
-            !combined.some((c) => c.id === m.id || c.email.toLowerCase() === m.email.toLowerCase())
+            !combined.some((c) => c.id === m.id || (c.email && m.email && c.email.toLowerCase() === m.email.toLowerCase()))
           ) {
             combined.push(m);
           }
@@ -724,6 +726,9 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         .map((dbP) => {
           const localMatch = localList.find(
             (lp) => lp.id === dbP.id || lp.email?.toLowerCase() === dbP.email?.toLowerCase()
+          );
+          const cloudMatch = cloudList.find(
+            (cp) => cp.id === dbP.id || cp.email?.toLowerCase() === dbP.email?.toLowerCase()
           );
 
           // Se o Admin já editou este cliente, preserva integralmente os dados salvos pelo Admin
@@ -752,9 +757,9 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           else if (mergedPlanUpper.includes('PRO') && mergedScreens > 2) mergedScreens = 2;
           else if (mergedPlanUpper.includes('BUSINESS') && mergedScreens < 5) mergedScreens = 5;
           const mergedWhatsapp =
-            localMatch?.whatsapp || dbP.whatsapp || undefined;
+            localMatch?.whatsapp || cloudMatch?.whatsapp || dbP.whatsapp || undefined;
           const mergedName =
-            localMatch?.full_name || dbP.full_name || undefined;
+            localMatch?.full_name || cloudMatch?.full_name || dbP.full_name || undefined;
           const mergedIsTrial =
             hasAdminEdit && localMatch?.is_trial !== undefined
               ? localMatch.is_trial
@@ -817,16 +822,17 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           };
         });
 
-      // Inclui cadastros recentes ou clientes locais que não estão na tabela do Supabase
-      for (const lp of localList) {
+      // Inclui cadastros da nuvem (/api/clients) ou clientes locais que não estão no Supabase
+      const externalList = [...cloudList, ...localList];
+      for (const ep of externalList) {
         if (
-          !isDeletedProfile(lp) &&
-          !dbProfiles.some((dp) => dp.id === lp.id || dp.email.toLowerCase() === lp.email.toLowerCase())
+          !isDeletedProfile(ep) &&
+          !dbProfiles.some((dp) => dp.id === ep.id || (dp.email && ep.email && dp.email.toLowerCase() === ep.email.toLowerCase()))
         ) {
-          const isExp = lp.role !== 'admin' && new Date(lp.expires_at).getTime() <= Date.now();
+          const isExp = ep.role !== 'admin' && new Date(ep.expires_at).getTime() <= Date.now();
           dbProfiles.unshift({
-            ...lp,
-            status: isExp && lp.status === 'ativo' ? 'vencido' : lp.status,
+            ...ep,
+            status: isExp && ep.status === 'ativo' ? 'vencido' : ep.status,
           });
         }
       }
@@ -835,7 +841,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       for (const m of fallbackMocks) {
         if (
           !isDeletedProfile(m) &&
-          !dbProfiles.some((dp) => dp.id === m.id || dp.email.toLowerCase() === m.email.toLowerCase())
+          !dbProfiles.some((dp) => dp.id === m.id || (dp.email && m.email && dp.email.toLowerCase() === m.email.toLowerCase()))
         ) {
           dbProfiles.push(m);
         }
@@ -1134,12 +1140,13 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   // Ações de Clientes
   const handleToggleStatus = async (profile: Profile) => {
     const isCurrentlySuspended = profile.status === 'suspenso';
-    const newStatus: ProfileStatus = isCurrentlySuspended ? 'ativo' : 'suspenso';
-    // Se estiver reativando um cliente cuja validade já estava vencida, estende +30 dias para não bloquear de novo em 15s
+    const isCurrentlyPending = profile.status === 'pendente';
+    const newStatus: ProfileStatus = isCurrentlySuspended || isCurrentlyPending ? 'ativo' : 'suspenso';
+    // Se estiver reativando ou aprovando um cliente cuja validade já estava vencida ou pendente, estende validade
     let newExpiresAt = profile.expires_at;
-    if (newStatus === 'ativo' && new Date(profile.expires_at).getTime() <= Date.now()) {
+    if (newStatus === 'ativo' && (isCurrentlyPending || new Date(profile.expires_at).getTime() <= Date.now())) {
       const dt = new Date();
-      dt.setDate(dt.getDate() + 30);
+      dt.setDate(dt.getDate() + (profile.is_trial ? (trialConfig.days || 3) : 30));
       newExpiresAt = dt.toISOString();
     }
     const nowStamp = new Date().toISOString();
@@ -1185,7 +1192,9 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       });
       setNotification({
         type: 'success',
-        message: `Status de ${profile.full_name || profile.email} alterado para "${newStatus.toUpperCase()}". Sincronizado em tempo real com todos os dispositivos!`,
+        message: isCurrentlyPending
+          ? `Cadastro de ${profile.full_name || profile.email} aprovado com sucesso! Acesso liberado.`
+          : `Status de ${profile.full_name || profile.email} alterado para "${newStatus.toUpperCase()}". Sincronizado em tempo real com todos os dispositivos!`,
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao atualizar status';
@@ -1415,6 +1424,8 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       autoScreens = foundPlan.screens;
     } else if (planName.toUpperCase().includes('START')) {
       autoScreens = 1;
+    } else if (planName.toUpperCase().includes('FUNDADOR')) {
+      autoScreens = 3;
     } else if (planName.toUpperCase().includes('PRO')) {
       autoScreens = 2;
     } else if (planName.toUpperCase().includes('BUSINESS')) {
@@ -1935,7 +1946,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
       const foundPlanObj = plans.find((pl) => pl.name.toUpperCase() === unlockedPlan.toUpperCase()) || DEFAULT_PLANS.find((pl) => pl.name.toUpperCase() === unlockedPlan.toUpperCase());
       const planUpper = unlockedPlan.toUpperCase();
-      const unlockedScreens = foundPlanObj ? foundPlanObj.screens : (planUpper.includes('BUSINESS') ? 5 : planUpper.includes('PRO') ? 2 : 1);
+      const unlockedScreens = foundPlanObj ? foundPlanObj.screens : (planUpper.includes('BUSINESS') ? 5 : planUpper.includes('FUNDADOR') ? 3 : planUpper.includes('PRO') ? 2 : 1);
       const planAmount = foundPlanObj?.monthlyPrice || 59.9;
 
       await persistProfileToSupabase(p.id, {
@@ -2043,8 +2054,9 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     const trialActiveClients = activeClients.filter(
       (p) => p.is_trial || p.plan_name?.toLowerCase().includes('teste')
     );
+    const pendingClients = profiles.filter((p) => p.status === 'pendente');
     const expiredOrBlockedClients = profiles.filter(
-      (p) => p.status === 'vencido' || (p.role !== 'admin' && new Date(p.expires_at).getTime() <= now)
+      (p) => p.status === 'vencido' || (p.role !== 'admin' && p.status !== 'pendente' && new Date(p.expires_at).getTime() <= now)
     );
     const suspendedClients = profiles.filter((p) => p.status === 'suspenso');
 
@@ -2053,6 +2065,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       const matched = plans.find((pl) => upper.includes(pl.name.toUpperCase()));
       if (matched) return matched.monthlyPrice;
       if (upper.includes('BUSINESS')) return 119.9;
+      if (upper.includes('FUNDADOR')) return 34.9;
       if (upper.includes('START')) return 29.9;
       return 59.9;
     };
@@ -2119,6 +2132,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       activeCount: activeClients.length,
       paidActiveCount: paidActiveClients.length,
       trialActiveCount: trialActiveClients.length,
+      pendingCount: pendingClients.length,
       expiredCount: expiredOrBlockedClients.length,
       suspendedCount: suspendedClients.length,
       estimatedMrr,
@@ -2363,9 +2377,9 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
       const q = searchTerm.toLowerCase();
       const matchSearch =
-        p.email.toLowerCase().includes(q) ||
+        (p.email && p.email.toLowerCase().includes(q)) ||
         (p.full_name && p.full_name.toLowerCase().includes(q)) ||
-        p.plan_name.toLowerCase().includes(q) ||
+        (p.plan_name && p.plan_name.toLowerCase().includes(q)) ||
         (p.whatsapp && p.whatsapp.includes(searchTerm)) ||
         (p.last_ip && p.last_ip.toLowerCase().includes(q)) ||
         devices.some(
@@ -2601,7 +2615,43 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         {activeTab === 'overview' && (
           <div className="space-y-8">
             {/* Top Cards de Métricas Principais conforme especificação */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              {/* Card 0: Aguardando Aprovação */}
+              <div
+                onClick={() => {
+                  setActiveTab('users');
+                  setStatusFilter('pendente');
+                }}
+                className={`border rounded-2xl p-5 shadow-lg relative overflow-hidden group cursor-pointer transition ${
+                  dashboardStats.pendingCount > 0
+                    ? 'bg-gradient-to-br from-yellow-950/40 via-[#18150a] to-[#12121c] border-yellow-500/50 shadow-yellow-950/30 hover:border-yellow-400'
+                    : 'bg-[#12121c] border-purple-900/30 hover:border-purple-600/50'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                    {dashboardStats.pendingCount > 0 && (
+                      <span className="w-2 h-2 rounded-full bg-yellow-400 animate-ping" />
+                    )}
+                    Aguardando Aprovação
+                  </span>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                    dashboardStats.pendingCount > 0 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-gray-800 text-gray-400'
+                  }`}>
+                    <FaClock />
+                  </div>
+                </div>
+                <div className={`text-2xl font-black tracking-tight ${
+                  dashboardStats.pendingCount > 0 ? 'text-yellow-400 animate-pulse' : 'text-white'
+                }`}>
+                  {dashboardStats.pendingCount} {dashboardStats.pendingCount === 1 ? 'Pendente' : 'Pendentes'}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-3 flex items-center justify-between">
+                  <span>{dashboardStats.pendingCount > 0 ? 'Clique para revisar e aprovar' : 'Nenhuma fila pendente'}</span>
+                  <span className="text-yellow-400 font-bold underline">Ver →</span>
+                </p>
+              </div>
+
               {/* Card 1: MRR Estimado */}
               <div className="bg-[#12121c] border border-purple-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden group hover:border-purple-600/50 transition">
                 <div className="flex items-center justify-between mb-2">
@@ -2902,7 +2952,38 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             </div>
 
             {/* Painel de Telemetria em Tempo Real (Web vs APK / TV Box) */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
+              {/* Card Destaque: Aprovação Pendente */}
+              <div
+                onClick={() => setStatusFilter(statusFilter === 'pendente' ? 'all' : 'pendente')}
+                className={`p-4 rounded-2xl border cursor-pointer transition ${
+                  statusFilter === 'pendente'
+                    ? 'bg-yellow-950/50 border-yellow-500/80 shadow-lg shadow-yellow-900/30'
+                    : dashboardStats.pendingCount > 0
+                    ? 'bg-yellow-950/20 border-yellow-500/40 hover:border-yellow-500/70'
+                    : 'bg-[#12121c] border-purple-900/30 hover:border-purple-600/40'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-bold text-yellow-400 uppercase tracking-wider flex items-center gap-1.5">
+                    {dashboardStats.pendingCount > 0 && (
+                      <span className="w-2 h-2 rounded-full bg-yellow-400 animate-ping" />
+                    )}
+                    Aprovação Pendente
+                  </span>
+                  <FaClock className="text-yellow-400 text-sm" />
+                </div>
+                <div className="text-2xl font-black text-white">
+                  {dashboardStats.pendingCount}{' '}
+                  <span className="text-xs font-semibold text-gray-400">
+                    {dashboardStats.pendingCount === 1 ? 'cadastro' : 'cadastros'}
+                  </span>
+                </div>
+                <p className="text-[10px] text-yellow-400/90 mt-1 font-medium">
+                  {dashboardStats.pendingCount > 0 ? 'Clique para filtrar e aprovar' : 'Sem fila pendente'}
+                </p>
+              </div>
+
               <div
                 onClick={() => setPlatformFilter(platformFilter === 'online' ? 'all' : 'online')}
                 className={`p-4 rounded-2xl border cursor-pointer transition ${
@@ -3011,6 +3092,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                   {(
                     [
                       { key: 'all', label: 'Todos', count: dashboardStats.totalClients },
+                      { key: 'pendente', label: '⏳ Aguardando Aprovação', count: dashboardStats.pendingCount },
                       { key: 'ativo', label: 'Ativos (Pagos)', count: dashboardStats.paidActiveCount },
                       { key: 'trial', label: '⚡ Em Teste', count: dashboardStats.trialActiveCount },
                       { key: 'vencido', label: 'Vencidos / Bloqueados', count: dashboardStats.expiredCount },
@@ -3132,21 +3214,26 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                             <td className="py-3.5 px-4">
                               <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-700 to-indigo-600 flex items-center justify-center font-bold text-white text-xs">
-                                  {(p.full_name || p.email).charAt(0).toUpperCase()}
+                                  {(p.full_name || p.email || 'U').charAt(0).toUpperCase()}
                                 </div>
                                 <div>
                                   {p.full_name && (
                                     <div className="font-bold text-white text-xs leading-tight">{p.full_name}</div>
                                   )}
-                                  <div className="font-semibold text-gray-200 flex items-center gap-1.5">
+                                  <div className="font-semibold text-gray-200 flex items-center gap-1.5 flex-wrap">
                                     <span>{p.email}</span>
                                     {p.role === 'admin' && (
                                       <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30">
                                         Admin
                                       </span>
                                     )}
+                                    {p.plan_name?.toUpperCase().includes('FUNDADOR') && (
+                                      <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm">
+                                        <FaStar className="text-[8px] text-amber-400" /> Fundador
+                                      </span>
+                                    )}
                                   </div>
-                                  <span className="text-[10px] text-gray-500 font-mono">ID: {p.id.slice(0, 8)}...</span>
+                                  <span className="text-[10px] text-gray-500 font-mono">ID: {String(p.id || '').slice(0, 8)}...</span>
                                 </div>
                               </div>
                             </td>
@@ -3174,7 +3261,12 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                             {/* Plano */}
                             <td className="py-3.5 px-4">
                               <div className="flex flex-col items-start gap-1">
-                                <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                                <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold ${
+                                  p.plan_name?.toUpperCase().includes('FUNDADOR')
+                                    ? 'bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-yellow-300 border border-amber-500/40 flex items-center gap-1 shadow-sm'
+                                    : 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/20'
+                                }`}>
+                                  {p.plan_name?.toUpperCase().includes('FUNDADOR') && <FaStar className="text-[9px] text-amber-400" />}
                                   {p.plan_name || 'SPARTAN PRO'}
                                 </span>
                                 <span className="text-[10px] text-gray-400 font-semibold">
@@ -3275,7 +3367,11 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
 
                             {/* Status de Vigência */}
                             <td className="py-3.5 px-4">
-                              {p.status === 'suspenso' ? (
+                              {p.status === 'pendente' ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-yellow-500/15 text-yellow-300 border border-yellow-500/30 animate-pulse">
+                                  <FaClock className="text-[9px]" /> Aguardando Aprovação
+                                </span>
+                              ) : p.status === 'suspenso' ? (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
                                   <FaBan className="text-[9px]" /> Suspenso (Bloqueado)
                                 </span>
@@ -3347,13 +3443,28 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                                   +90d
                                 </button>
 
-                                {/* Alternar Status (Ativo / Suspenso) */}
+                                {/* Botão Aprovar Cadastro Imediato */}
+                                {p.status === 'pendente' && (
+                                  <button
+                                    onClick={() => handleToggleStatus(p)}
+                                    disabled={isActionBusy}
+                                    title="Aprovar e liberar acesso do cliente agora"
+                                    className="px-2.5 py-1 bg-yellow-500/20 hover:bg-yellow-500/35 text-yellow-300 rounded-lg text-[10px] font-black border border-yellow-500/40 transition disabled:opacity-50 flex items-center gap-1 shadow-sm"
+                                  >
+                                    <FaCheckCircle className="text-[9px]" />
+                                    <span>Aprovar Cadastro</span>
+                                  </button>
+                                )}
+
+                                {/* Alternar Status (Ativo / Suspenso / Aprovar) */}
                                 <button
                                   onClick={() => handleToggleStatus(p)}
                                   disabled={isActionBusy}
-                                  title={p.status === 'ativo' ? 'Suspender cliente' : 'Ativar cliente'}
+                                  title={p.status === 'pendente' ? 'Aprovar cadastro' : p.status === 'ativo' ? 'Suspender cliente' : 'Ativar cliente'}
                                   className={`p-1.5 rounded-lg border text-xs transition disabled:opacity-50 ${
-                                    p.status === 'ativo'
+                                    p.status === 'pendente'
+                                      ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40 hover:bg-yellow-500/35'
+                                      : p.status === 'ativo'
                                       ? 'bg-amber-500/10 text-amber-300 border-amber-500/20 hover:bg-amber-500/25'
                                       : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20 hover:bg-emerald-500/25'
                                   }`}
@@ -3362,7 +3473,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                                 </button>
 
                                 {/* Desbloquear / Confirmar Pagamento Pix (+30d) */}
-                                {(isExpired || p.status === 'vencido' || p.status === 'suspenso' || p.is_trial) && (
+                                {(isExpired || p.status === 'vencido' || p.status === 'suspenso' || p.status === 'pendente' || p.is_trial) && (
                                   <button
                                     onClick={() => handleConfirmPaymentAndUnlock(p)}
                                     disabled={isActionBusy}
@@ -3370,7 +3481,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                                     className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 rounded-lg text-[10px] font-bold border border-emerald-500/40 transition disabled:opacity-50 flex items-center gap-1 shadow-sm"
                                   >
                                     <FaCheckCircle className="text-[9px]" />
-                                    <span>Desbloquear (Pago)</span>
+                                    <span>{p.status === 'pendente' ? 'Aprovar (Pago +30d)' : 'Desbloquear (Pago)'}</span>
                                   </button>
                                 )}
 
@@ -4976,6 +5087,41 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                       required
                       className="w-full px-3 py-2 bg-black/60 border border-gray-800 focus:border-purple-500 rounded-xl text-xs text-white outline-none font-bold"
                     />
+                    <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                      <span className="text-[10px] text-gray-400 font-bold">Desconto:</span>
+                      <button
+                        type="button"
+                        onClick={() => setNewPixData({ ...newPixData, amount: 34.9, method: 'Pix (Desconto Especial Fundador)' })}
+                        className="px-1.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/35 text-amber-300 border border-amber-500/40 text-[9px] font-black transition flex items-center gap-0.5"
+                        title="Aplicar preço especial de Fundador (R$ 34,90)"
+                      >
+                        <FaStar className="text-[8px] text-amber-400" /> Fundador (34,90)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewPixData({ ...newPixData, amount: Math.max(0, Math.round(newPixData.amount * 0.85 * 100) / 100) })}
+                        className="px-1.5 py-0.5 rounded bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 text-[9px] font-bold transition"
+                        title="Aplicar 15% de desconto"
+                      >
+                        -15%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewPixData({ ...newPixData, amount: Math.max(0, Math.round(newPixData.amount * 0.70 * 100) / 100) })}
+                        className="px-1.5 py-0.5 rounded bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 text-[9px] font-bold transition"
+                        title="Aplicar 30% de desconto"
+                      >
+                        -30%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewPixData({ ...newPixData, amount: Math.max(0, Math.round(newPixData.amount * 0.50 * 100) / 100) })}
+                        className="px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[9px] font-bold transition"
+                        title="Aplicar 50% de desconto"
+                      >
+                        -50%
+                      </button>
+                    </div>
                   </div>
                 </div>
 

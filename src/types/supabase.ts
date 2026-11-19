@@ -1,5 +1,5 @@
 export type ProfileRole = 'admin' | 'client';
-export type ProfileStatus = 'ativo' | 'suspenso' | 'vencido';
+export type ProfileStatus = 'ativo' | 'suspenso' | 'vencido' | 'pendente';
 
 export interface ActiveDeviceSession {
   deviceId: string;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaLock, FaBan, FaCalendarTimes, FaWhatsapp, FaUserCheck, FaRedoAlt, FaTv, FaDesktop, FaSignOutAlt } from 'react-icons/fa';
+import { FaLock, FaBan, FaCalendarTimes, FaWhatsapp, FaUserCheck, FaRedoAlt, FaTv, FaDesktop, FaSignOutAlt, FaClock } from 'react-icons/fa';
 import { useAuthProfile } from '../hooks/useAuthProfile';
 
 interface SubscriptionLockGateProps {
@@ -193,6 +193,53 @@ export default function SubscriptionLockGate({
             <FaWhatsapp className="text-lg" />
             <span>Falar com o Suporte (WhatsApp)</span>
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // CASO 2.5: Conta com Cadastro Pendente de Aprovação pelo Administrador
+  if (profile?.status === 'pendente') {
+    return (
+      <div className="w-full aspect-video rounded-2xl bg-gradient-to-br from-[#1a1405] via-[#100d04] to-black border border-yellow-500/40 flex flex-col items-center justify-center p-6 sm:p-10 text-center shadow-2xl relative overflow-hidden">
+        {/* Glow de fundo */}
+        <div className="absolute inset-0 bg-yellow-600/10 blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 max-w-md flex flex-col items-center">
+          <div className="w-16 h-16 rounded-2xl bg-yellow-500/20 border border-yellow-500/40 text-yellow-400 text-3xl flex items-center justify-center mb-4 shadow-lg shadow-yellow-950/60 animate-pulse">
+            <FaClock />
+          </div>
+
+          <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight mb-2">
+            Cadastro em Análise
+          </h2>
+          <p className="text-xs sm:text-sm text-gray-300 leading-relaxed mb-3">
+            Olá, <strong className="text-white">{profile.full_name || user.email}</strong>! Sua solicitação de acesso foi registrada com sucesso e está aguardando liberação do administrador.
+          </p>
+          <p className="text-xs text-yellow-400/90 font-medium mb-6">
+            Fale conosco no WhatsApp para liberar seu acesso imediatamente.
+          </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-3 w-full">
+            <button
+              type="button"
+              onClick={() => handleOpenWhatsApp(`Olá! Me cadastrei no Cine Spartan com o e-mail: ${user.email} e aguardo a liberação do meu acesso ao plano ${profile.plan_name || 'Spartan'}.`)}
+              className="flex-1 min-w-[170px] py-3 px-5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-950/60 transition-all flex items-center justify-center gap-2 text-sm"
+            >
+              <FaWhatsapp className="text-lg" />
+              <span>Liberar no WhatsApp</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => refreshProfile()}
+              className="py-3 px-4 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl border border-white/10 transition-all flex items-center justify-center gap-2 text-sm"
+              title="Clique para verificar se o administrador já aprovou sua conta"
+            >
+              <FaRedoAlt className="text-xs" />
+              <span>Já fui aprovado</span>
+            </button>
+          </div>
         </div>
       </div>
     );

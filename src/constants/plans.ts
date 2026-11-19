@@ -20,6 +20,16 @@ export const DEFAULT_PLANS: PlanTier[] = [
     description: '1 tela individual para smartphone, tablet, PC ou TV Box.',
   },
   {
+    id: 'fundador',
+    name: 'SPARTAN FUNDADOR',
+    badge: '⭐ Membro Pioneiro',
+    monthlyPrice: 34.9,
+    annualPrice: 29.9,
+    screens: 3,
+    quality: 'Full HD & 4K Ultra HD VIP',
+    description: 'Condição especial vitalícia exclusiva para clientes fundadores e apoiadores pioneiros do projeto (3 telas simultâneas).',
+  },
+  {
     id: 'pro',
     name: 'SPARTAN PRO',
     badge: 'Mais Escolhido',
@@ -41,12 +51,27 @@ export const DEFAULT_PLANS: PlanTier[] = [
   },
 ];
 
+export const ensureFounderPlan = (list: PlanTier[]): PlanTier[] => {
+  if (!Array.isArray(list) || list.length === 0) return DEFAULT_PLANS;
+  if (!list.some((p) => p.id === 'fundador' || p.name.toUpperCase().includes('FUNDADOR'))) {
+    const founder = DEFAULT_PLANS.find((p) => p.id === 'fundador');
+    if (founder) {
+      const copy = [...list];
+      copy.splice(1, 0, founder);
+      return copy;
+    }
+  }
+  return list;
+};
+
 export const getSavedPlans = (): PlanTier[] => {
   try {
     const saved = localStorage.getItem('spartan_plans_config');
     if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      const parsed: PlanTier[] = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return ensureFounderPlan(parsed);
+      }
     }
   } catch {}
   return DEFAULT_PLANS;
@@ -54,6 +79,7 @@ export const getSavedPlans = (): PlanTier[] => {
 
 export const savePlansConfig = (plans: PlanTier[]): void => {
   try {
-    localStorage.setItem('spartan_plans_config', JSON.stringify(plans));
+    const safeList = ensureFounderPlan(plans);
+    localStorage.setItem('spartan_plans_config', JSON.stringify(safeList));
   } catch {}
 };

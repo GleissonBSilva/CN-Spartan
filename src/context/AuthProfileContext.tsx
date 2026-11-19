@@ -17,6 +17,7 @@ export interface AuthProfileContextType {
   isActive: boolean;
   isExpired: boolean;
   isSuspended: boolean;
+  isPending: boolean;
   daysRemaining: number;
   formattedExpiration: string;
   refreshProfile: () => Promise<Profile | null>;
@@ -140,7 +141,7 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         try {
           const res = await supabase
             .from('profiles')
-            .select('id, email, role, status, plan_name, expires_at, max_screens, created_at')
+            .select('id, email, full_name, whatsapp, role, status, plan_name, expires_at, max_screens, created_at, is_trial, trial_used, active_devices, admin_updated_at')
             .eq('id', userId)
             .maybeSingle();
           data = (res.data as Profile) || null;
@@ -204,6 +205,8 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           resolvedScreens = 1;
         } else if (upperPlan.includes('PRO') && resolvedScreens > 2) {
           resolvedScreens = 2;
+        } else if (upperPlan.includes('FUNDADOR') && resolvedScreens > 3) {
+          resolvedScreens = 3;
         } else if (upperPlan.includes('BUSINESS') && resolvedScreens < 5) {
           resolvedScreens = 5;
         }
@@ -229,6 +232,8 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           resolvedStatus = localStoredProfile.status;
         } else if (data?.status === 'suspenso') {
           resolvedStatus = 'suspenso';
+        } else if (data?.status === 'pendente') {
+          resolvedStatus = 'pendente';
         }
 
         let resolvedIsTrial = Boolean(
@@ -695,7 +700,7 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [user?.id, user?.email]);
 
   // Métricas e status da assinatura
-  const { isAdmin, isExpired, isSuspended, isActive, daysRemaining, formattedExpiration } = useMemo(() => {
+  const { isAdmin, isExpired, isSuspended, isPending, isActive, daysRemaining, formattedExpiration } = useMemo(() => {
     const isMasterEmail = !!user?.email && user.email.toLowerCase() === ADMIN_MASTER_EMAIL;
     const adminRole = profile?.role === 'admin' || isMasterEmail;
 
@@ -705,6 +710,7 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         isAdmin: true,
         isExpired: false,
         isSuspended: false,
+        isPending: false,
         isActive: true,
         daysRemaining: 9999,
         formattedExpiration: 'Acesso Ilimitado (Admin)',
@@ -716,6 +722,7 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         isAdmin: false,
         isExpired: true,
         isSuspended: false,
+        isPending: false,
         isActive: false,
         daysRemaining: 0,
         formattedExpiration: 'Sem cadastro',
@@ -723,10 +730,11 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
 
     const suspended = profile.status === 'suspenso';
+    const pending = profile.status === 'pendente';
     const expiresTime = new Date(profile.expires_at).getTime();
     const now = nowTick || Date.now();
     const expired = profile.status === 'vencido' || expiresTime <= now;
-    const active = profile.status === 'ativo' && !expired && !suspended;
+    const active = profile.status === 'ativo' && !expired && !suspended && !pending;
 
     const diffDays = Math.max(0, Math.ceil((expiresTime - now) / (1000 * 60 * 60 * 24)));
 
@@ -747,6 +755,7 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
       isAdmin: false,
       isExpired: expired,
       isSuspended: suspended,
+      isPending: pending,
       isActive: active,
       daysRemaining: diffDays,
       formattedExpiration: formatted,
@@ -790,6 +799,7 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     isActive,
     isExpired,
     isSuspended,
+    isPending,
     daysRemaining,
     formattedExpiration,
     refreshProfile,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaTimes, FaEnvelope, FaLock, FaUser, FaSpinner, FaExclamationCircle, FaCheckCircle, FaWhatsapp, FaTv } from 'react-icons/fa';
+import { FaTimes, FaEnvelope, FaLock, FaUser, FaSpinner, FaExclamationCircle, FaCheckCircle, FaWhatsapp, FaTv, FaClock } from 'react-icons/fa';
 import { supabase } from '../lib/supabase';
 import { getSavedPlans } from '../constants/plans';
 import { useAuthProfile } from '../hooks/useAuthProfile';
@@ -29,6 +29,7 @@ export default function AuthModal({ isOpen, onClose }) {
   const [resetEmail, setResetEmail] = useState('');
 
   const [verificationSent, setVerificationSent] = useState(false);
+  const [registrationSubmitted, setRegistrationSubmitted] = useState(false);
 
   // Planos disponíveis para assinatura
   const plans = useMemo(() => getSavedPlans(), []);
@@ -108,6 +109,7 @@ export default function AuthModal({ isOpen, onClose }) {
     setShowReset(false);
     setResetSent(false);
     setVerificationSent(false);
+    setRegistrationSubmitted(false);
   };
 
   const handleForgotPassword = async (e) => {
@@ -289,11 +291,11 @@ export default function AuthModal({ isOpen, onClose }) {
           }
         }
 
-        // Todo novo usuário que se cadastra já entra imediatamente no prazo de Teste Grátis (salvo se bloqueado no Anti-Fraude)
+        // Todo novo usuário que se cadastra é criado com status PENDENTE para controle e aprovação pelo Admin
         const configuredDays = Math.max(1, Number(trialDays) || 3);
         const effectiveTrialDays = !alreadyUsedTrial && trialEnabled !== false ? configuredDays : 0;
         const isTrialActive = effectiveTrialDays > 0;
-        const initialStatus = isTrialActive ? 'ativo' : 'vencido';
+        const initialStatus = 'pendente';
         const nowIso = new Date().toISOString();
         const expiryDate = new Date(Date.now() + effectiveTrialDays * 24 * 60 * 60 * 1000).toISOString();
 
@@ -381,6 +383,17 @@ export default function AuthModal({ isOpen, onClose }) {
             ? existingProfiles.filter((p) => p.id !== createdProfile.id && p.email?.toLowerCase() !== cleanEmail)
             : [];
           localStorage.setItem('spartan_registered_profiles', JSON.stringify([createdProfile, ...filtered]));
+        } catch {
+          // ignore
+        }
+
+        // 1.1 Sincroniza em tempo real com a nuvem (/api/clients) para o Painel Admin receber o cadastro no mesmo instante
+        try {
+          fetchApi('/api/clients', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(createdProfile),
+          }).catch(() => {});
         } catch {
           // ignore
         }
@@ -504,7 +517,7 @@ export default function AuthModal({ isOpen, onClose }) {
 
         window.dispatchEvent(new Event('spartan_auth_updated'));
         await refreshProfile();
-        onClose();
+        setRegistrationSubmitted(true);
       }
     } catch (err) {
       setError(err?.message || 'Ocorreu um erro. Tente novamente.');
@@ -663,6 +676,48 @@ export default function AuthModal({ isOpen, onClose }) {
                       </>
                     )}
                   </form>
+                ) : registrationSubmitted ? (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="flex flex-col items-center gap-3 py-4 text-center"
+                  >
+                    <div className="w-16 h-16 rounded-2xl bg-yellow-500/20 border border-yellow-500/40 text-yellow-400 text-3xl flex items-center justify-center mb-1 shadow-lg shadow-yellow-950/60 animate-pulse">
+                      <FaClock />
+                    </div>
+                    <h2 className="text-white font-black text-xl">Cadastro em Análise!</h2>
+                    <p className="text-gray-300 text-xs sm:text-sm">
+                      Olá, <strong className="text-white">{name || email}</strong>! Seu cadastro foi recebido com sucesso. Para sua segurança e controle de qualidade, sua conta está aguardando liberação do Administrador.
+                    </p>
+                    <div className="w-full bg-white/5 border border-white/10 rounded-xl p-3 my-2 text-xs text-left text-gray-300 space-y-1">
+                      <div><span className="text-gray-400">E-mail:</span> <strong className="text-white">{email}</strong></div>
+                      {whatsapp && <div><span className="text-gray-400">WhatsApp:</span> <strong className="text-white">{whatsapp}</strong></div>}
+                      <div><span className="text-gray-400">Plano Selecionado:</span> <strong className="text-yellow-400">{selectedPlan.name}</strong> ({selectedPlan.screens} {selectedPlan.screens > 1 ? 'Telas' : 'Tela'})</div>
+                    </div>
+                    <div className="flex flex-col gap-2.5 w-full mt-2">
+                      <a
+                        href={`https://wa.me/5592993746740?text=${encodeURIComponent(
+                          `Olá! Me cadastrei no Cine Spartan com o e-mail: ${email} e solicito a liberação do meu acesso ao plano ${selectedPlan.name}.`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60 text-sm"
+                      >
+                        <FaWhatsapp className="text-lg" />
+                        <span>Agilizar Liberação no WhatsApp</span>
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRegistrationSubmitted(false);
+                          onClose();
+                        }}
+                        className="w-full py-3 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl transition-all text-xs"
+                      >
+                        Fechar e Aguardar
+                      </button>
+                    </div>
+                  </motion.div>
                 ) : verificationSent ? (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
@@ -744,9 +799,10 @@ export default function AuthModal({ isOpen, onClose }) {
                           )}
                         </div>
 
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                           {plans.map((p) => {
                             const isSelected = p.id === selectedPlanId;
+                            const isFundador = p.id === 'fundador' || p.name.toUpperCase().includes('FUNDADOR');
                             return (
                               <button
                                 key={p.id}
@@ -754,12 +810,20 @@ export default function AuthModal({ isOpen, onClose }) {
                                 onClick={() => setSelectedPlanId(p.id)}
                                 className={`relative p-2.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
                                   isSelected
-                                    ? 'bg-red-600/20 border-red-500 ring-2 ring-red-500/50 shadow-lg shadow-red-950/60'
+                                    ? isFundador
+                                      ? 'bg-amber-600/25 border-amber-500 ring-2 ring-amber-500/50 shadow-lg shadow-amber-950/60'
+                                      : 'bg-red-600/20 border-red-500 ring-2 ring-red-500/50 shadow-lg shadow-red-950/60'
+                                    : isFundador
+                                    ? 'bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20 text-gray-300'
                                     : 'bg-white/5 border-white/10 hover:bg-white/10 text-gray-400 hover:text-white'
                                 }`}
                               >
                                 {p.badge && (
-                                  <span className="absolute -top-2 left-2 px-1.5 py-0.5 bg-gradient-to-r from-red-600 to-amber-600 text-white text-[8px] font-black rounded-full uppercase tracking-wider">
+                                  <span className={`absolute -top-2 left-2 px-1.5 py-0.5 text-white text-[8px] font-black rounded-full uppercase tracking-wider ${
+                                    isFundador
+                                      ? 'bg-gradient-to-r from-amber-600 to-yellow-500 text-black font-extrabold'
+                                      : 'bg-gradient-to-r from-red-600 to-amber-600'
+                                  }`}>
                                     {p.badge}
                                   </span>
                                 )}

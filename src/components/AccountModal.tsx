@@ -18,6 +18,8 @@ import {
   FaExclamationTriangle,
   FaLock,
   FaMobileAlt,
+  FaClock,
+  FaStar,
 } from 'react-icons/fa';
 import { useAuthProfile } from '../hooks/useAuthProfile';
 import { getLocalDeviceId, getLocalDeviceName, type ActiveDevice } from '../hooks/useScreenLimiter';
@@ -408,7 +410,11 @@ export const AccountModal: React.FC<AccountModalProps> = ({
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-lg font-black text-white">{fullName || 'Minha Conta'}</h2>
-                {isSuspended ? (
+                {profile?.status === 'pendente' ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 flex items-center gap-1 animate-pulse">
+                    <FaClock className="text-[9px]" /> Aguardando Aprovação
+                  </span>
+                ) : isSuspended ? (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
                     Suspenso
                   </span>
@@ -431,11 +437,20 @@ export const AccountModal: React.FC<AccountModalProps> = ({
           </div>
 
           {/* Badge do Plano Atual */}
-          <div className="bg-black/40 border border-purple-500/30 px-3.5 py-2 rounded-xl text-right self-start sm:self-auto">
-            <span className="text-[10px] uppercase font-bold text-purple-300 tracking-wider block">
-              {isTrial ? 'Plano Selecionado (Em Teste)' : 'Plano Contratado'}
+          <div className={`px-3.5 py-2 rounded-xl text-right self-start sm:self-auto ${
+            currentPlanName.toUpperCase().includes('FUNDADOR')
+              ? 'bg-gradient-to-br from-amber-950/60 via-yellow-950/30 to-black border border-amber-500/50 shadow-lg shadow-amber-950/40'
+              : 'bg-black/40 border border-purple-500/30'
+          }`}>
+            <span className={`text-[10px] uppercase font-bold tracking-wider block ${
+              currentPlanName.toUpperCase().includes('FUNDADOR') ? 'text-amber-300' : 'text-purple-300'
+            }`}>
+              {currentPlanName.toUpperCase().includes('FUNDADOR') ? '⭐ Categoria Exclusiva' : isTrial ? 'Plano Selecionado (Em Teste)' : 'Plano Contratado'}
             </span>
-            <span className="text-sm font-black text-white">{currentPlanName}</span>
+            <span className="text-sm font-black text-white flex items-center justify-end gap-1">
+              {currentPlanName.toUpperCase().includes('FUNDADOR') && <FaStar className="text-amber-400 text-xs" />}
+              {currentPlanName}
+            </span>
           </div>
         </div>
 
