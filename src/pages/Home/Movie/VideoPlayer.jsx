@@ -21,11 +21,11 @@ const SERVERS = [
   {
     id: 'superflix_lat',
     isDubbed: true,
-    name: '🇧🇷 SuperFlix (Dublado BR 2)',
+    name: '🇧🇷 Embed69 (Dublado BR 2)',
     shortName: '🇧🇷 Dublado 2',
     badge: '100% Dublado BR',
-    desc: 'Áudio nativo 100% dublado em Português-BR (SuperFlix Reserva)',
-    url: (id) => `https://superflixapi.boats/filme/${id}`
+    desc: 'Áudio nativo 100% dublado em Português-BR (Embed69 Reserva)',
+    url: (id) => `https://embed69.org/filme/${id}`
   },
   {
     id: 'vidlink',
