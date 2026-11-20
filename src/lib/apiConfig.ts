@@ -25,9 +25,10 @@ export const fetchApi = async (endpoint: string, init?: RequestInit): Promise<Re
   const primaryUrl = getApiUrl(endpoint);
   try {
     const res = await fetch(primaryUrl, init);
-    // Se estiver em ambiente web com rota relativa e retornar 404/502 (ex: dev local sem serverless), faz fallback para a produção
-    if (!res.ok && !primaryUrl.startsWith('http') && (res.status === 404 || res.status === 502)) {
-      return await fetch(`${PROD_API_ORIGIN}${primaryUrl}`, init);
+    // Se estiver em ambiente web com rota relativa e retornar qualquer erro HTTP (ex: 500, 404, 502), faz fallback para a produção
+    if (!res.ok && !primaryUrl.startsWith('http')) {
+      const fallbackRes = await fetch(`${PROD_API_ORIGIN}${primaryUrl}`, init).catch(() => null);
+      if (fallbackRes && fallbackRes.ok) return fallbackRes;
     }
     return res;
   } catch (err) {

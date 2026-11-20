@@ -13,16 +13,16 @@ export default async function handler(req, res) {
 
   const serverTargets = type === 'tv'
     ? [
-        { id: 'superflix', dubbed: true, url: `https://superflixapi.boats/serie/${id}/${s}/${e}` },
-        { id: 'superflix_lat', dubbed: true, url: `https://superflixapi.lat/serie/${id}/${s}/${e}` },
+        { id: 'superflix', dubbed: true, url: `https://superflixapi.lat/serie/${id}/${s}/${e}` },
+        { id: 'superflix_lat', dubbed: true, url: `https://superflixapi.boats/serie/${id}/${s}/${e}` },
         { id: 'vidlink', dubbed: false, url: `https://vidlink.pro/tv/${id}/${s}/${e}` },
         { id: 'multiembed', dubbed: false, url: `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}` },
         { id: 'embedsu', dubbed: false, url: `https://embed.su/embed/tv/${id}/${s}/${e}` },
         { id: 'vidsrc', dubbed: false, url: `https://vidsrc.sh/embed/tv?tmdb=${id}&season=${s}&episode=${e}` }
       ]
     : [
-        { id: 'superflix', dubbed: true, url: `https://superflixapi.boats/filme/${id}` },
-        { id: 'superflix_lat', dubbed: true, url: `https://superflixapi.lat/filme/${id}` },
+        { id: 'superflix', dubbed: true, url: `https://superflixapi.lat/filme/${id}` },
+        { id: 'superflix_lat', dubbed: true, url: `https://superflixapi.boats/filme/${id}` },
         { id: 'vidlink', dubbed: false, url: `https://vidlink.pro/movie/${id}` },
         { id: 'multiembed', dubbed: false, url: `https://multiembed.mov/?video_id=${id}&tmdb=1` },
         { id: 'embedsu', dubbed: false, url: `https://embed.su/embed/movie/${id}` },
@@ -33,11 +33,13 @@ export default async function handler(req, res) {
     serverTargets.map(async (target) => {
       const start = Date.now();
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2200);
         const response = await fetch(target.url, {
           method: 'HEAD',
           headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-          signal: AbortSignal.timeout(2200)
-        });
+          signal: controller.signal
+        }).finally(() => clearTimeout(timeoutId));
         const ok = response.status >= 200 && response.status < 400;
         return {
           id: target.id,

@@ -172,6 +172,16 @@ function apiServerlessPlugin() {
             const { default: appConfigHandler } = await import('./api/app-config.js');
             return await appConfigHandler(req, res);
           }
+          if (url.pathname === '/api/check-servers' || url.pathname === '/api/check-servers.js') {
+            req.query = Object.fromEntries(url.searchParams.entries());
+            res.status = (code) => { res.statusCode = code; return res; };
+            res.json = (data) => {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(data));
+            };
+            const { default: checkServersHandler } = await import('./api/check-servers.js');
+            return await checkServersHandler(req, res);
+          }
         } catch (err) {
           console.error('[API Middleware Error]:', err);
         }

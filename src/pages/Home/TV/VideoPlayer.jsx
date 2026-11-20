@@ -16,7 +16,7 @@ const SERVERS = [
     shortName: '🍿 Dublado 1',
     badge: '100% Dublado BR',
     desc: 'Áudio nativo 100% dublado em Português-BR (SuperFlix Principal)',
-    url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
+    url: (id, s, e) => `https://superflixapi.lat/serie/${id}/${s}/${e}`
   },
   {
     id: 'superflix_lat',
@@ -25,7 +25,7 @@ const SERVERS = [
     shortName: '🇧🇷 Dublado 2',
     badge: '100% Dublado BR',
     desc: 'Áudio nativo 100% dublado em Português-BR (SuperFlix Reserva)',
-    url: (id, s, e) => `https://superflixapi.lat/serie/${id}/${s}/${e}`
+    url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
   },
   {
     id: 'vidlink',
@@ -127,15 +127,14 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster, h
         let isCancelled = false;
         const checkHealth = async () => {
             try {
-                const res = await fetchApi(`/api/check-servers?id=${tvId}&type=tv&s=${season}&e=${episode}`);
-                if (!res.ok) return;
-                const data = await res.json();
-                if (isCancelled) return;
+                const res = await fetchApi(`/api/check-servers?id=${tvId}&type=tv&s=${season}&e=${episode}`).catch(() => null);
+                if (!res || !res.ok) return;
+                const data = await res.json().catch(() => null);
+                if (!data || isCancelled) return;
                 if (data.statusMap) {
                     setServerHealthMap(data.statusMap);
                 }
-                // Auto-fallback inteligente: se o servidor ativo estiver offline para este episódio,
-                // reconecta automaticamente ao servidor recomendado sem travar o cliente
+                // Auto-fallback inteligente: reconecta ao servidor recomendado mantendo preferência por dublado
                 if (data.recommendedId && data.statusMap) {
                     setSourceIdx(prevIdx => {
                         const current = SERVERS[prevIdx];
@@ -143,11 +142,11 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster, h
                             const recIdx = SERVERS.findIndex(s => s.id === data.recommendedId);
                             if (recIdx !== -1 && recIdx !== prevIdx) {
                                 const recServer = SERVERS[recIdx];
+                                // Se o usuário está em um servidor Dublado, não força troca para Legendado/Original
                                 if (current.isDubbed && !recServer.isDubbed) {
-                                    showToast(`⚠️ Servidores Dublado BR instáveis neste episódio. Alternado para ${recServer.name}`);
-                                } else {
-                                    showToast(`🔄 Conectado ao servidor reserva ${recServer.name}`);
+                                    return prevIdx;
                                 }
+                                showToast(`🔄 Conectado ao servidor reserva ${recServer.name}`);
                                 return recIdx;
                             }
                         }

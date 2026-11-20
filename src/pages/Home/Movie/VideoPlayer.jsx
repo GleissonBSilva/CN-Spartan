@@ -16,7 +16,7 @@ const SERVERS = [
     shortName: '🍿 Dublado 1',
     badge: '100% Dublado BR',
     desc: 'Áudio nativo 100% dublado em Português-BR (SuperFlix Principal)',
-    url: (id) => `https://superflixapi.boats/filme/${id}`
+    url: (id) => `https://superflixapi.lat/filme/${id}`
   },
   {
     id: 'superflix_lat',
@@ -25,7 +25,7 @@ const SERVERS = [
     shortName: '🇧🇷 Dublado 2',
     badge: '100% Dublado BR',
     desc: 'Áudio nativo 100% dublado em Português-BR (SuperFlix Reserva)',
-    url: (id) => `https://superflixapi.lat/filme/${id}`
+    url: (id) => `https://superflixapi.boats/filme/${id}`
   },
   {
     id: 'vidlink',
@@ -142,15 +142,14 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
         let isCancelled = false;
         const checkHealth = async () => {
             try {
-                const res = await fetchApi(`/api/check-servers?id=${movieId}&type=movie`);
-                if (!res.ok) return;
-                const data = await res.json();
-                if (isCancelled) return;
+                const res = await fetchApi(`/api/check-servers?id=${movieId}&type=movie`).catch(() => null);
+                if (!res || !res.ok) return;
+                const data = await res.json().catch(() => null);
+                if (!data || isCancelled) return;
                 if (data.statusMap) {
                     setServerHealthMap(data.statusMap);
                 }
-                // Auto-fallback inteligente: se o servidor ativo estiver offline para este título,
-                // reconecta automaticamente ao servidor recomendado sem travar o cliente
+                // Auto-fallback inteligente: reconecta ao servidor recomendado mantendo preferência por dublado
                 if (data.recommendedId && data.statusMap) {
                     setSourceIdx(prevIdx => {
                         const current = SERVERS[prevIdx];
@@ -158,11 +157,11 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
                             const recIdx = SERVERS.findIndex(s => s.id === data.recommendedId);
                             if (recIdx !== -1 && recIdx !== prevIdx) {
                                 const recServer = SERVERS[recIdx];
+                                // Se o usuário está em um servidor Dublado, não força troca para Legendado/Original
                                 if (current.isDubbed && !recServer.isDubbed) {
-                                    showToast(`⚠️ Servidores Dublado BR instáveis neste filme. Alternado para ${recServer.name}`);
-                                } else {
-                                    showToast(`🔄 Conectado ao servidor reserva ${recServer.name}`);
+                                    return prevIdx;
                                 }
+                                showToast(`🔄 Conectado ao servidor reserva ${recServer.name}`);
                                 return recIdx;
                             }
                         }
