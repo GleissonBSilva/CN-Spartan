@@ -195,6 +195,7 @@ function apiServerlessPlugin() {
 export default defineConfig({
   plugins: [react(), streamProxyPlugin(), apiServerlessPlugin()],
   build: {
+    target: ['es2017', 'chrome64'],
     rollupOptions: {
       output: {
         manualChunks: {

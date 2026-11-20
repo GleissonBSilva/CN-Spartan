@@ -29,20 +29,30 @@ public class MainActivity extends BridgeActivity {
     private View mCustomView;
     private WebChromeClient.CustomViewCallback mCustomViewCallback;
     private ViewGroup mDecorView;
+    private boolean mWebViewConfigured = false;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        setTheme(R.style.AppTheme_NoActionBar);
         super.onCreate(savedInstanceState);
         // Keep screen on while app is active (ideal for TV Box streaming)
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        configureSpartanWebView();
     }
 
     @Override
     public void onStart() {
         super.onStart();
+        configureSpartanWebView();
+    }
+
+    private void configureSpartanWebView() {
+        if (mWebViewConfigured) return;
         Bridge bridge = this.getBridge();
         if (bridge != null && bridge.getWebView() != null) {
+            mWebViewConfigured = true;
             WebView webView = bridge.getWebView();
+            webView.setBackgroundColor(android.graphics.Color.parseColor("#0a0c12"));
             WebSettings settings = webView.getSettings();
             
             // Streaming & Media Playback Settings
@@ -202,6 +212,7 @@ public class MainActivity extends BridgeActivity {
             "zergnet", "adition", "ad-delivery", "adserver", "adskeeper",
             "adcash", "popcash", "bidvertiser",
             "betfair", "sportingbet", "kto.com", "cassino", "tigrinho",
+            "stake.com", "aliexpress.com", "tesla-landing", "aff_short_key", "clickid",
             "imasdk.googleapis.com", "creativecdn", "serving-sys", "adform",
             "adcolony", "applovin", "ironsrc", "fyber", "adpushup", "popmyads",
             "juicyads", "trafficstars", "ero-advertising", "hubvisor"
@@ -222,7 +233,7 @@ public class MainActivity extends BridgeActivity {
             }
 
             // 2. Permite navegação interna legítima do app CineSpartan
-            if (host == null || host.equals("localhost") || host.equals("127.0.0.1") || host.contains("cinespartan") || "capacitor".equalsIgnoreCase(scheme)) {
+            if (host == null || host.equals("localhost") || host.equals("127.0.0.1") || host.contains("cinespartan") || host.contains("cn-spartan") || "capacitor".equalsIgnoreCase(scheme)) {
                 return false;
             }
 
@@ -263,39 +274,7 @@ public class MainActivity extends BridgeActivity {
             if (uri != null) {
                 String host = uri.getHost();
 
-                // NUNCA intercepta arquivos internos do app (localhost, 127.0.0.1, cinespartan)
-                // Isso evita erros 400 e previne corrupção de bundles JS/CSS da aplicação
-                if (host == null || host.equals("localhost") || host.equals("127.0.0.1") || host.contains("cinespartan")) {
-                    return super.shouldInterceptRequest(view, request);
-                }
-
-                String uriStr = uri.toString().toLowerCase();
-
-                // Fast-path de Mídia: Nunca intercepta fragmentos de vídeo (.ts, .m3u8, .mp4, m4s) para máxima fluidez a 60 FPS e zero buffering
-                if (uriStr.endsWith(".ts") || uriStr.endsWith(".m3u8") || uriStr.endsWith(".mp4") 
-                        || uriStr.endsWith(".m4s") || uriStr.contains(".m3u8?") || uriStr.contains(".ts?") 
-                        || uriStr.contains("/hls/") || uriStr.contains("/segments/")) {
-                    return super.shouldInterceptRequest(view, request);
-                }
-
-                // Interceptador VAST / VPAID / IMA: Devolve XML VAST vazio para anular vídeos de anúncios instantaneamente
-                if (uriStr.contains("/vast") || uriStr.contains("format=vast") || uriStr.contains("output=vast") 
-                        || uriStr.contains("/vpaid") || uriStr.contains("imasdk.googleapis.com")) {
-                    byte[] emptyVast = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><VAST version=\"3.0\"></VAST>".getBytes(StandardCharsets.UTF_8);
-                    Map<String, String> headers = new HashMap<>();
-                    headers.put("Access-Control-Allow-Origin", "*");
-                    headers.put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
-                    return new WebResourceResponse("application/xml", "UTF-8", 200, "OK", headers, new ByteArrayInputStream(emptyVast));
-                }
-
-                // Bloqueia scripts de anúncios invasivos conhecidos de forma limpa sem quebrar a execução de players
-                for (String pattern : BLOCKED_AD_PATTERNS) {
-                    if (uriStr.contains(pattern)) {
-                        return new WebResourceResponse("text/plain", "UTF-8", new ByteArrayInputStream(new byte[0]));
-                    }
-                }
-
-                // Handle native HLS/IPTV Stream Proxy
+                // 1. Handle native HLS/IPTV Stream Proxy ANTES do early return de localhost
                 if (uri.getPath() != null && uri.getPath().contains("/api/proxy-stream")) {
                     String targetUrl = uri.getQueryParameter("url");
                     if (targetUrl != null && !targetUrl.isEmpty()) {
@@ -354,6 +333,43 @@ public class MainActivity extends BridgeActivity {
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
+                    }
+                }
+
+                // 2. NUNCA intercepta arquivos internos, APIs essenciais ou provedores de vídeo/catálogo legítimos
+                if (host == null || host.equals("localhost") || host.equals("127.0.0.1")
+                        || host.contains("cinespartan") || host.contains("cn-spartan")
+                        || host.contains("themoviedb.org") || host.contains("tmdb.org")
+                        || host.contains("supabase.co") || host.contains("cloudflare.com")
+                        || host.contains("superflixapi") || host.contains("vidlink.pro")
+                        || host.contains("multiembed.mov") || host.contains("embed.su")
+                        || host.contains("vidsrc")) {
+                    return super.shouldInterceptRequest(view, request);
+                }
+
+                String uriStr = uri.toString().toLowerCase();
+
+                // Fast-path de Mídia: Nunca intercepta fragmentos de vídeo (.ts, .m3u8, .mp4, m4s) para máxima fluidez a 60 FPS e zero buffering
+                if (uriStr.endsWith(".ts") || uriStr.endsWith(".m3u8") || uriStr.endsWith(".mp4") 
+                        || uriStr.endsWith(".m4s") || uriStr.contains(".m3u8?") || uriStr.contains(".ts?") 
+                        || uriStr.contains("/hls/") || uriStr.contains("/segments/")) {
+                    return super.shouldInterceptRequest(view, request);
+                }
+
+                // Interceptador VAST / VPAID / IMA: Devolve XML VAST vazio para anular vídeos de anúncios instantaneamente
+                if (uriStr.contains("/vast") || uriStr.contains("format=vast") || uriStr.contains("output=vast") 
+                        || uriStr.contains("/vpaid") || uriStr.contains("imasdk.googleapis.com")) {
+                    byte[] emptyVast = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><VAST version=\"3.0\"></VAST>".getBytes(StandardCharsets.UTF_8);
+                    Map<String, String> headers = new HashMap<>();
+                    headers.put("Access-Control-Allow-Origin", "*");
+                    headers.put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+                    return new WebResourceResponse("application/xml", "UTF-8", 200, "OK", headers, new ByteArrayInputStream(emptyVast));
+                }
+
+                // Bloqueia scripts de anúncios invasivos conhecidos de forma limpa sem quebrar a execução de players
+                for (String pattern : BLOCKED_AD_PATTERNS) {
+                    if (uriStr.contains(pattern)) {
+                        return new WebResourceResponse("text/plain", "UTF-8", new ByteArrayInputStream(new byte[0]));
                     }
                 }
             }
