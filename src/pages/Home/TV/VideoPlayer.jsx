@@ -21,11 +21,11 @@ const SERVERS = [
   {
     id: 'superflix_lat',
     isDubbed: true,
-    name: '🇧🇷 Embed69 (Dublado BR 2)',
+    name: '🇧🇷 SuperFlix (Dublado BR 2)',
     shortName: '🇧🇷 Dublado 2',
     badge: '100% Dublado BR',
-    desc: 'Áudio nativo 100% dublado em Português-BR (Embed69 Reserva)',
-    url: (id, s, e) => `https://embed69.org/serie/${id}/${s}/${e}`
+    desc: 'Áudio nativo 100% dublado em Português-BR (SuperFlix Reserva)',
+    url: (id, s, e) => `https://superflixapi.boats/serie/${id}/${s}/${e}`
   },
   {
     id: 'vidlink',
@@ -677,7 +677,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster, h
                             src={iframeSrc}
                             allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; screen-wake-lock *; display-capture *"
                             title={title || 'Player de Série'}
-                            referrerPolicy="no-referrer-when-downgrade"
+                            referrerPolicy="origin"
                             className="w-full h-full border-0"
                             style={{ userSelect: 'none' }}
                         />

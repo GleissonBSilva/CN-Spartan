@@ -8,6 +8,10 @@ import { WatchlistProvider } from './context/WatchlistContext'
 import { AuthProfileProvider } from './context/AuthProfileContext'
 import './index.css'
 import App from './App.jsx'
+import { initAntiAdShield } from './utils/antiAdShield'
+
+// Inicializa interceptador leve de popups automáticos duvidosos
+initAntiAdShield();
 
 // Recuperação automática de chunks obsoletos após novo deploy no Vercel
 window.addEventListener('vite:preloadError', (event) => {
