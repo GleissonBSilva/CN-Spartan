@@ -176,7 +176,7 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       if (data || localStoredProfile || cloudProfile) {
         const raw = (cloudProfile || data || localStoredProfile) as Profile;
-        const hasAdminEdit = Boolean(localStoredProfile?.admin_updated_at || cloudProfile);
+        const hasAdminEdit = Boolean(localStoredProfile?.admin_updated_at || cloudProfile?.admin_updated_at);
         const metaPlan = userMeta?.plan_name || cloudProfile?.plan_name || localStoredProfile?.plan_name;
         const metaScreens = Number(userMeta?.max_screens || cloudProfile?.max_screens || localStoredProfile?.max_screens || 0);
         const metaName = userMeta?.full_name || userMeta?.display_name || cloudProfile?.full_name || localStoredProfile?.full_name;
@@ -263,7 +263,8 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         // Bloqueio automático ao finalizar o período de teste ou assinatura
         const isMaster = cleanEmail === ADMIN_MASTER_EMAIL || raw.role === 'admin';
         const isRawUuid = typeof raw.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw.id);
-        if (!isMaster && new Date(resolvedExpiresAt).getTime() <= Date.now() && resolvedStatus === 'ativo') {
+        const expTimestamp = resolvedExpiresAt ? new Date(resolvedExpiresAt).getTime() : 0;
+        if (!isMaster && expTimestamp > 0 && expTimestamp <= Date.now() && resolvedStatus !== 'suspenso') {
           resolvedStatus = 'vencido';
           if (isRawUuid) {
             try {
@@ -275,6 +276,19 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
               // ignore
             }
           }
+          try {
+            fetchApi('/api/clients', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: raw.id,
+                email: cleanEmail || raw.email,
+                status: 'vencido',
+                expires_at: resolvedExpiresAt,
+                is_trial: resolvedIsTrial,
+              }),
+            }).catch(() => {});
+          } catch {}
         }
 
         const mergedProfile: Profile = {
@@ -580,14 +594,20 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
               if (!current) return current;
 
               const localAdminTime = current.admin_updated_at ? new Date(current.admin_updated_at).getTime() : 0;
-              const cloudAdminTime = (cp.admin_updated_at || cp.updated_at) ? new Date(cp.admin_updated_at || cp.updated_at).getTime() : 0;
+              const cloudAdminTime = cp.admin_updated_at ? new Date(cp.admin_updated_at).getTime() : 0;
               const localIsNewer = localAdminTime > cloudAdminTime;
 
-              const targetStatus = localIsNewer ? current.status : (cp.status || current.status);
+              let targetStatus = localIsNewer ? current.status : (cp.status || current.status);
               const targetExpiresAt = localIsNewer ? current.expires_at : (cp.expires_at || current.expires_at);
               const targetIsTrial = localIsNewer ? current.is_trial : (cp.is_trial !== undefined ? cp.is_trial : current.is_trial);
               const targetPlan = localIsNewer ? current.plan_name : (cp.plan_name || current.plan_name);
               const targetScreens = localIsNewer ? current.max_screens : (cp.max_screens || current.max_screens);
+
+              // Se o prazo de teste ou assinatura já venceu, força status 'vencido' imediatamente
+              const targetExpTime = targetExpiresAt ? new Date(targetExpiresAt).getTime() : 0;
+              if (targetExpTime > 0 && targetExpTime <= Date.now() && targetStatus !== 'suspenso') {
+                targetStatus = 'vencido';
+              }
 
               // Previne loop infinito: se os valores essenciais forem idênticos, não recria objeto nem re-renderiza!
               const hasCoreChanged =
@@ -642,14 +662,19 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
             ];
 
             const currentProf = profileRef.current;
+            const telemetryExpiresAt = currentProf?.expires_at || cp?.expires_at;
+            const telemetryIsExpired = telemetryExpiresAt ? new Date(telemetryExpiresAt).getTime() <= Date.now() : false;
+            const rawTelemetryStatus = currentProf?.status || cp?.status;
+            const telemetryStatus = telemetryIsExpired && rawTelemetryStatus === 'ativo' ? 'vencido' : rawTelemetryStatus;
+
             fetchApi('/api/clients', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 id: cp?.id || user.id,
                 email: cleanEmail,
-                status: currentProf?.status || cp?.status,
-                expires_at: currentProf?.expires_at || cp?.expires_at,
+                status: telemetryStatus,
+                expires_at: telemetryExpiresAt,
                 is_trial: currentProf?.is_trial !== undefined ? currentProf?.is_trial : cp?.is_trial,
                 plan_name: currentProf?.plan_name || cp?.plan_name,
                 max_screens: currentProf?.max_screens || cp?.max_screens,
@@ -667,11 +692,13 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
 
     const interval = setInterval(() => {
+      setNowTick(Date.now());
       const currentProf = profileRef.current;
       if (currentProf && currentProf.role !== 'admin') {
         const expTime = new Date(currentProf.expires_at).getTime();
         if (expTime <= Date.now() && currentProf.status === 'ativo') {
           const blockedProfile: Profile = { ...currentProf, status: 'vencido' };
+          profileRef.current = blockedProfile;
           setProfile(blockedProfile);
           syncLocalProfileRegistry(blockedProfile);
           if (typeof currentProf.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentProf.id)) {
@@ -680,7 +707,7 @@ export const AuthProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
       }
       checkCloudStatus();
-    }, 30000);
+    }, 15000);
 
     // Verificação inicial rápida
     checkCloudStatus();

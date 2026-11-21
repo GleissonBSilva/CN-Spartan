@@ -67,7 +67,7 @@ const SERVERS = [
 
 const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, videos }) => {
     const { language } = useLanguage();
-    const { isActive, isAdmin, isSuspended, refreshProfile } = useAuthProfile();
+    const { isActive, isAdmin, isSuspended, isExpired, refreshProfile } = useAuthProfile();
     const [hasStarted, setHasStarted] = useState(false);
     const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
     const [showAudioHelp, setShowAudioHelp] = useState(false);
@@ -93,7 +93,7 @@ const VideoPlayer = ({ movieId, title, backdrop, poster, releaseDate, status, vi
         refreshProfile?.();
     }, [movieId]);
 
-    const canPlay = !isSuspended && (isAdmin || isActive);
+    const canPlay = !isSuspended && !isExpired && (isAdmin || isActive);
     const { isScreenBlocked, activeDevices, maxScreens, disconnectOtherDevices } = useScreenLimiter(canPlay && hasStarted);
 
     // Verificar se o título é lançamento futuro ou em produção

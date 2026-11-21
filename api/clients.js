@@ -55,13 +55,21 @@ function loadFromDisk() {
   }
   memoryProfiles = memoryProfiles.filter(p => !BANNED_MOCKS.includes(p.id) && !BANNED_MOCKS.includes(p.email?.toLowerCase()));
 
-  // Garante coerência entre planos e quantidade de telas
+  // Garante coerência entre planos, quantidade de telas e vencimento automático (Trial / Assinatura)
+  const nowMs = Date.now();
   memoryProfiles = memoryProfiles.map(p => {
     const plan = String(p.plan_name || '').toUpperCase();
     let screens = Number(p.max_screens || 1);
     if (plan.includes('START') && screens > 1) screens = 1;
     else if (plan.includes('PRO') && screens > 2) screens = 2;
-    return { ...p, max_screens: screens };
+
+    const isMaster = p.email?.toLowerCase() === 'gleisson1984@gmail.com' || p.role === 'admin';
+    const expMs = p.expires_at ? new Date(p.expires_at).getTime() : 0;
+    let nextStatus = p.status;
+    if (!isMaster && expMs > 0 && expMs <= nowMs && nextStatus === 'ativo') {
+      nextStatus = 'vencido';
+    }
+    return { ...p, max_screens: screens, status: nextStatus };
   });
 
   // Garante que os perfis seed existam se não tiverem sido deletados
@@ -162,17 +170,22 @@ export default async function handler(req, res) {
     );
 
     if (existingIdx >= 0) {
-      // Se o cliente já está SUSPENSO ou PENDENTE de aprovação, preserva o bloqueio contra telemetria de aparelhos
-      const isCurrentlyLocked = memoryProfiles[existingIdx].status === 'suspenso' || memoryProfiles[existingIdx].status === 'pendente';
+      // Se o cliente já está SUSPENSO, PENDENTE ou VENCIDO, preserva o bloqueio contra telemetria de aparelhos
+      const prevStatus = memoryProfiles[existingIdx].status;
+      const isCurrentlyLocked = prevStatus === 'suspenso' || prevStatus === 'pendente' || prevStatus === 'vencido';
       const isExplicitAdminStatusUpdate = Boolean(profile.admin_updated_at);
 
-      let targetStatus = profile.status || memoryProfiles[existingIdx].status;
+      let targetStatus = profile.status || prevStatus;
       if (isCurrentlyLocked && !isExplicitAdminStatusUpdate) {
-        targetStatus = memoryProfiles[existingIdx].status;
+        targetStatus = prevStatus;
       }
 
       // Preserva expires_at e is_trial se for uma simples telemetria sem expiração informada
       const targetExpiresAt = profile.expires_at || memoryProfiles[existingIdx].expires_at;
+      const targetExpMs = targetExpiresAt ? new Date(targetExpiresAt).getTime() : 0;
+      if (!isMaster && targetExpMs > 0 && targetExpMs <= Date.now() && targetStatus === 'ativo') {
+        targetStatus = 'vencido';
+      }
       const targetIsTrial = profile.is_trial !== undefined ? Boolean(profile.is_trial) : memoryProfiles[existingIdx].is_trial;
       const targetPlan = profile.plan_name || memoryProfiles[existingIdx].plan_name;
       let targetScreens = profile.max_screens !== undefined ? Number(profile.max_screens) : memoryProfiles[existingIdx].max_screens;

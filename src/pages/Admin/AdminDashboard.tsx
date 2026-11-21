@@ -893,6 +893,17 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
             if (typeof p.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p.id)) {
               supabase.from('profiles').update({ status: 'vencido' }).eq('id', p.id).then(() => {});
             }
+            fetchApi('/api/clients', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: p.id,
+                email: p.email,
+                status: 'vencido',
+                expires_at: p.expires_at,
+                is_trial: p.is_trial,
+              }),
+            }).catch(() => {});
             return { ...p, status: 'vencido' as ProfileStatus };
           }
           return p;

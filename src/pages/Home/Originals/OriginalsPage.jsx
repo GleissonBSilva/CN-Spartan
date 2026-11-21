@@ -1,9 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import MultiAudioPlayer from '../../../components/MultiAudioPlayer';
 import { ORIGINALS, getOriginalManifest } from '../../../data/originals';
+import { useAuthProfile } from '../../../hooks/useAuthProfile';
+import SubscriptionLockGate from '../../../components/SubscriptionLockGate';
 
 function OriginalsPage() {
   const [selected, setSelected] = useState(ORIGINALS[0] || null);
+  const { isActive, isAdmin, isSuspended, isExpired, refreshProfile } = useAuthProfile();
+
+  useEffect(() => {
+    refreshProfile?.();
+  }, []);
+
+  const canPlay = !isSuspended && !isExpired && (isAdmin || isActive);
 
   return (
     <div className="min-h-screen px-4 md:px-10 pt-24 pb-16 text-white">
@@ -14,11 +23,15 @@ function OriginalsPage() {
 
       {selected && (
         <section className="mb-10 max-w-5xl">
-          <MultiAudioPlayer
-            key={selected.slug}
-            src={getOriginalManifest(selected.slug)}
-            title={selected.title}
-          />
+          {!canPlay ? (
+            <SubscriptionLockGate title={selected.title} />
+          ) : (
+            <MultiAudioPlayer
+              key={selected.slug}
+              src={getOriginalManifest(selected.slug)}
+              title={selected.title}
+            />
+          )}
           <div className="mt-4">
             <h2 className="text-xl font-bold">
               {selected.title} <span className="text-gray-400 font-normal">({selected.year})</span>

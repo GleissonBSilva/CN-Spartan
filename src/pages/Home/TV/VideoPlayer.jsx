@@ -67,7 +67,7 @@ const SERVERS = [
 
 const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster, hasNextEpisode = false, nextEpisodeTitle = '', onNextEpisode }) => {
     const { language } = useLanguage();
-    const { isActive, isAdmin, isSuspended, refreshProfile } = useAuthProfile();
+    const { isActive, isAdmin, isSuspended, isExpired, refreshProfile } = useAuthProfile();
     const [hasStarted, setHasStarted] = useState(false);
     const [showAudioHelp, setShowAudioHelp] = useState(false);
 
@@ -92,7 +92,7 @@ const VideoPlayer = ({ tvId, season = 1, episode = 1, title, backdrop, poster, h
         refreshProfile?.();
     }, [tvId, season, episode]);
 
-    const canPlay = !isSuspended && (isAdmin || isActive);
+    const canPlay = !isSuspended && !isExpired && (isAdmin || isActive);
     const { isScreenBlocked, activeDevices, maxScreens, disconnectOtherDevices } = useScreenLimiter(canPlay && hasStarted);
 
     // Sempre inicia no servidor principal Dublado BR por padrão

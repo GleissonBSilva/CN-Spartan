@@ -340,6 +340,8 @@ export default function AuthModal({ isOpen, onClose }) {
                 status: initialStatus,
                 plan_name: chosenPlanName,
                 max_screens: chosenPlanScreens,
+                is_trial: isTrialActive,
+                trial_used: true,
                 expires_at: expiryDate,
               }
             ]);
