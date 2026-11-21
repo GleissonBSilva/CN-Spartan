@@ -357,8 +357,12 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
           }
 
           if (Array.isArray(remote.plansConfig) && remote.plansConfig.length > 0) {
-            setPlans(remote.plansConfig);
-            savePlansConfig(remote.plansConfig);
+            const hasLocalSaved = localStorage.getItem('spartan_plans_saved_at');
+            const safePlans = ensureFounderPlan(remote.plansConfig);
+            if (!hasLocalSaved) {
+              setPlans(safePlans);
+              savePlansConfig(safePlans);
+            }
           }
 
           if (Array.isArray(remote.financialCharges) && remote.financialCharges.length > 0) {
@@ -407,8 +411,12 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
               localStorage.setItem('spartan_pix_config', JSON.stringify(val));
             } catch {}
           } else if (row.key === 'plans_config' && Array.isArray(val) && val.length > 0) {
-            setPlans(val);
-            savePlansConfig(val);
+            const hasLocalSaved = localStorage.getItem('spartan_plans_saved_at');
+            if (!hasLocalSaved) {
+              const safe = ensureFounderPlan(val);
+              setPlans(safe);
+              savePlansConfig(safe);
+            }
           } else if (row.key === 'financial_charges' && Array.isArray(val) && val.length > 0) {
             setPixCharges(val);
             try {
@@ -703,153 +711,90 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
         } catch {}
       }
 
-      // Se não retornou linhas do Supabase (por exemplo por restrição de RLS para anon), utiliza cloudList da API
-      const initialRows: Profile[] = Array.isArray(data) && data.length > 0 ? (data as Profile[]) : cloudList;
+      // Unifica localList, cloudList e dbProfiles (Supabase) sem NUNCA descartar perfis salvos pelo Admin
+      const clientMap = new Map<string, Profile>();
 
-      if (error || initialRows.length === 0) {
-        if (error) console.warn('Profiles não encontrados no Supabase, usando API/fallback:', error.message);
-        const combined = (cloudList.length > 0 ? cloudList : localList).filter((c) => !isDeletedProfile(c));
-        for (const m of fallbackMocks) {
-          if (
-            !isDeletedProfile(m) &&
-            !combined.some((c) => c.id === m.id || (c.email && m.email && c.email.toLowerCase() === m.email.toLowerCase()))
-          ) {
-            combined.push(m);
-          }
-        }
-        saveProfilesRegistry(combined);
-        setProfiles(combined);
-        return;
+      // 1. Inicia com todos os clientes do cache local do navegador do Admin
+      for (const lp of localList) {
+        const k = (lp.id || lp.email || '').toLowerCase().trim();
+        if (k) clientMap.set(k, lp);
       }
 
-      const dbProfiles = initialRows
-        .filter((dbP) => !isDeletedProfile(dbP))
-        .map((dbP) => {
-          const localMatch = localList.find(
-            (lp) => lp.id === dbP.id || lp.email?.toLowerCase() === dbP.email?.toLowerCase()
-          );
-          const cloudMatch = cloudList.find(
-            (cp) => cp.id === dbP.id || cp.email?.toLowerCase() === dbP.email?.toLowerCase()
-          );
-
-          // Se o Admin já editou este cliente, preserva integralmente os dados salvos pelo Admin
-          const hasAdminEdit = Boolean(localMatch?.admin_updated_at);
-
-          const needsPlanSync =
-            localMatch &&
-            localMatch.plan_name &&
-            (dbP.plan_name?.toLowerCase().startsWith('teste grátis') || dbP.plan_name === 'Mensal');
-
-          const mergedEmail = hasAdminEdit && localMatch?.email ? localMatch.email : dbP.email;
-          const mergedPlan =
-            hasAdminEdit && localMatch?.plan_name
-              ? localMatch.plan_name
-              : needsPlanSync
-              ? localMatch!.plan_name
-              : dbP.plan_name;
-          let mergedScreens =
-            hasAdminEdit && localMatch?.max_screens
-              ? Number(localMatch.max_screens)
-              : dbP.max_screens && dbP.max_screens > 1
-              ? dbP.max_screens
-              : localMatch?.max_screens || dbP.max_screens || 1;
-          const mergedPlanUpper = String(mergedPlan || '').toUpperCase();
-          if (mergedPlanUpper.includes('START') && mergedScreens > 1) mergedScreens = 1;
-          else if (mergedPlanUpper.includes('PRO') && mergedScreens > 2) mergedScreens = 2;
-          else if (mergedPlanUpper.includes('BUSINESS') && mergedScreens < 5) mergedScreens = 5;
-          const mergedWhatsapp =
-            localMatch?.whatsapp || cloudMatch?.whatsapp || dbP.whatsapp || undefined;
-          const mergedName =
-            localMatch?.full_name || cloudMatch?.full_name || dbP.full_name || undefined;
-          const mergedIsTrial =
-            hasAdminEdit && localMatch?.is_trial !== undefined
-              ? localMatch.is_trial
-              : dbP.is_trial !== undefined
-              ? dbP.is_trial
-              : localMatch?.is_trial ?? Boolean(dbP.plan_name?.toLowerCase().includes('teste'));
-          // Se o perfil está marcado como suspenso (pelo banco ou pelo Admin), prevalece estritamente 'suspenso'
-          let finalStatus: ProfileStatus = dbP.status;
-          let finalExpiresAt: string = dbP.expires_at;
-
-          if (dbP.status === 'suspenso' || localMatch?.status === 'suspenso') {
-            finalStatus = 'suspenso';
-          } else if (hasAdminEdit && localMatch?.status) {
-            finalStatus = localMatch.status;
+      // 2. Mescla com os clientes da API em nuvem (/api/clients)
+      for (const cp of cloudList) {
+        const k = (cp.id || cp.email || '').toLowerCase().trim();
+        if (!k) continue;
+        const existing = clientMap.get(k);
+        if (!existing) {
+          clientMap.set(k, cp);
+        } else {
+          const localAdminTime = existing.admin_updated_at ? new Date(existing.admin_updated_at).getTime() : 0;
+          const cloudAdminTime = (cp.admin_updated_at || cp.updated_at) ? new Date(cp.admin_updated_at || cp.updated_at).getTime() : 0;
+          if (cloudAdminTime > localAdminTime) {
+            clientMap.set(k, { ...existing, ...cp });
+          } else {
+            clientMap.set(k, { ...cp, ...existing });
           }
+        }
+      }
 
-          if (hasAdminEdit && localMatch?.expires_at) {
-            finalExpiresAt = localMatch.expires_at;
-          } else if (mergedIsTrial && localMatch?.expires_at) {
-            finalExpiresAt = localMatch.expires_at;
+      // 3. Mescla com linhas do Supabase se existirem
+      const dbRows = Array.isArray(data) ? (data as Profile[]) : [];
+      for (const dbP of dbRows) {
+        const k = (dbP.id || dbP.email || '').toLowerCase().trim();
+        if (!k) continue;
+        const existing = clientMap.get(k);
+        if (!existing) {
+          clientMap.set(k, dbP);
+        } else {
+          const localAdminTime = existing.admin_updated_at ? new Date(existing.admin_updated_at).getTime() : 0;
+          const dbAdminTime = dbP.admin_updated_at ? new Date(dbP.admin_updated_at).getTime() : 0;
+          if (dbAdminTime > localAdminTime) {
+            clientMap.set(k, { ...existing, ...dbP });
+          } else {
+            clientMap.set(k, {
+              ...dbP,
+              ...existing,
+              status: existing.status || dbP.status,
+              plan_name: existing.plan_name || dbP.plan_name,
+              max_screens: existing.max_screens || dbP.max_screens,
+              expires_at: existing.expires_at || dbP.expires_at,
+            });
           }
+        }
+      }
 
-          // Proteção contra divergência de teste com 30 dias:
-          // Novo cliente em teste só tem direito aos dias de teste (padrão 3 dias), nunca 30 dias antes de pagar
-          if (mergedIsTrial && !hasAdminEdit) {
-            const createdTime = new Date(dbP.created_at || localMatch?.created_at || Date.now()).getTime();
-            const expTime = new Date(finalExpiresAt).getTime();
-            const daysDiff = (expTime - createdTime) / (1000 * 60 * 60 * 24);
-            if (daysDiff > 7) {
-              const trialDaysCfg = trialConfig.days || 3;
-              finalExpiresAt = new Date(createdTime + trialDaysCfg * 24 * 60 * 60 * 1000).toISOString();
-            }
-          }
+      // 4. Garante que os mockups essenciais existam
+      for (const m of fallbackMocks) {
+        const k = (m.id || m.email || '').toLowerCase().trim();
+        if (k && !clientMap.has(k)) {
+          clientMap.set(k, m);
+        }
+      }
 
-          // Bloqueio automático imediato ao expirar a assinatura (apenas se não estiver suspenso)
-          if (finalStatus !== 'suspenso' && dbP.role !== 'admin' && new Date(finalExpiresAt).getTime() <= Date.now()) {
-            finalStatus = 'vencido';
-          }
+      // 5. Filtra deletados, normaliza telas por plano e calcula status efetivo
+      const finalProfiles = Array.from(clientMap.values())
+        .filter((c) => !isDeletedProfile(c))
+        .map((p) => {
+          const planUpper = String(p.plan_name || '').toUpperCase();
+          let screens = Number(p.max_screens || 1);
+          if (planUpper.includes('START') && screens > 1) screens = 1;
+          else if (planUpper.includes('FUNDADOR') && screens < 3) screens = 3;
+          else if (planUpper.includes('PRO') && screens > 2) screens = 2;
+          else if (planUpper.includes('BUSINESS') && screens < 5) screens = 5;
+
+          const isExp = p.role !== 'admin' && p.expires_at && new Date(p.expires_at).getTime() <= Date.now();
+          const effectiveStatus: ProfileStatus = p.status === 'suspenso' ? 'suspenso' : (isExp && p.status === 'ativo' ? 'vencido' : p.status);
 
           return {
-            ...dbP,
-            email: mergedEmail,
-            full_name: mergedName,
-            whatsapp: mergedWhatsapp,
-            plan_name: mergedPlan,
-            max_screens: mergedScreens,
-            is_trial: mergedIsTrial,
-            expires_at: finalExpiresAt,
-            status: finalStatus,
-            active_devices:
-              Array.isArray(localMatch?.active_devices) && localMatch!.active_devices.length > 0
-                ? localMatch!.active_devices
-                : Array.isArray(dbP.active_devices)
-                ? dbP.active_devices
-                : [],
-            last_platform: localMatch?.last_platform || dbP.last_platform,
-            last_ip: localMatch?.last_ip || dbP.last_ip,
-            last_seen_at: localMatch?.last_seen_at || dbP.last_seen_at,
-            admin_updated_at: localMatch?.admin_updated_at || dbP.admin_updated_at,
+            ...p,
+            max_screens: screens,
+            status: effectiveStatus,
           };
         });
 
-      // Inclui cadastros da nuvem (/api/clients) ou clientes locais que não estão no Supabase
-      const externalList = [...cloudList, ...localList];
-      for (const ep of externalList) {
-        if (
-          !isDeletedProfile(ep) &&
-          !dbProfiles.some((dp) => dp.id === ep.id || (dp.email && ep.email && dp.email.toLowerCase() === ep.email.toLowerCase()))
-        ) {
-          const isExp = ep.role !== 'admin' && new Date(ep.expires_at).getTime() <= Date.now();
-          dbProfiles.unshift({
-            ...ep,
-            status: isExp && ep.status === 'ativo' ? 'vencido' : ep.status,
-          });
-        }
-      }
-
-      // Garante que todos os clientes ativos padrão existam na lista se não tiverem sido deletados pelo admin
-      for (const m of fallbackMocks) {
-        if (
-          !isDeletedProfile(m) &&
-          !dbProfiles.some((dp) => dp.id === m.id || (dp.email && m.email && dp.email.toLowerCase() === m.email.toLowerCase()))
-        ) {
-          dbProfiles.push(m);
-        }
-      }
-
-      saveProfilesRegistry(dbProfiles);
-      setProfiles(dbProfiles);
+      saveProfilesRegistry(finalProfiles);
+      setProfiles(finalProfiles);
     } catch (err: unknown) {
       console.error('Erro ao listar perfis:', err);
     } finally {
@@ -1563,14 +1508,17 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
   const handleSavePlan = async (planId: string) => {
     setSavingPlanId(planId);
     try {
-      savePlansConfig(plans);
+      const safePlans = ensureFounderPlan(plans);
+      setPlans(safePlans);
+      savePlansConfig(safePlans);
+      localStorage.setItem('spartan_plans_saved_at', new Date().toISOString());
 
       // 1. Sincroniza imediatamente com a nuvem /api/app-config para todos os clientes
       try {
         await fetchApi('/api/app-config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ plansConfig: plans }),
+          body: JSON.stringify({ plansConfig: safePlans }),
         }).catch(() => {});
       } catch {}
 
@@ -1578,7 +1526,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       try {
         await supabase.from('system_settings').upsert({
           key: 'plans_config',
-          value: plans as any,
+          value: safePlans as any,
           updated_at: new Date().toISOString(),
         });
       } catch {}
@@ -1821,6 +1769,16 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
       setTrialConfig(updated);
       localStorage.setItem('spartan_trial_days', String(days));
       localStorage.setItem('spartan_trial_enabled', String(enabled));
+      localStorage.setItem('spartan_trial_saved_at', new Date().toISOString());
+      window.dispatchEvent(new Event('spartan_trial_changed'));
+
+      try {
+        await fetchApi('/api/app-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ trialConfig: updated }),
+        });
+      } catch {}
 
       try {
         await supabase.from('system_settings').upsert({
@@ -1870,9 +1828,15 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
     if (!editingProfile) return;
     setSavingEditProfile(true);
     try {
-      let finalExpires = editingProfile.expires_at;
+      let finalExpires = editingProfile.expires_at || new Date().toISOString();
       if (editFormData.expiresAt) {
-        finalExpires = new Date(editFormData.expiresAt + 'T23:59:59Z').toISOString();
+        try {
+          const rawDate = editFormData.expiresAt.includes('T') ? editFormData.expiresAt : `${editFormData.expiresAt}T23:59:59Z`;
+          const parsed = new Date(rawDate);
+          if (!isNaN(parsed.getTime())) {
+            finalExpires = parsed.toISOString();
+          }
+        } catch {}
       }
       // Se o Admin colocou status "ativo", mas a data de expiração estava no passado, estende automaticamente (+30 dias ou +dias de teste)
       if (editFormData.status === 'ativo' && new Date(finalExpires).getTime() <= Date.now()) {

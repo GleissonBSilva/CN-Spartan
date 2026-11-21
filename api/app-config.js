@@ -8,9 +8,74 @@ let memoryConfig = null;
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://arckidvhfsffumowjarn.supabase.co';
 const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_L8j30Fn2CUE0OTJgsh3Ipg_IfHZrNFd';
 
+// Planos padrão oficiais com Spartan Fundador exclusivo (3 telas simultâneas)
+const OFFICIAL_DEFAULT_PLANS = [
+  {
+    id: 'start',
+    name: 'SPARTAN START',
+    monthlyPrice: 29.9,
+    annualPrice: 25.0,
+    screens: 1,
+    quality: 'Full HD & 4K Ultra HD',
+    description: '1 tela individual para smartphone, tablet, PC ou TV Box.',
+  },
+  {
+    id: 'fundador',
+    name: 'SPARTAN FUNDADOR',
+    badge: '🛡️ VIP Fundador',
+    monthlyPrice: 34.9,
+    annualPrice: 29.9,
+    screens: 3,
+    quality: 'Full HD & 4K Ultra HD VIP',
+    description: 'Condição exclusiva vitalícia reservada apenas para clientes fundadores e pioneiros, liberada diretamente pela administração Spartan (3 telas simultâneas).',
+    adminOnly: true,
+  },
+  {
+    id: 'pro',
+    name: 'SPARTAN PRO',
+    badge: 'Mais Escolhido',
+    monthlyPrice: 59.9,
+    annualPrice: 50.0,
+    screens: 2,
+    quality: 'Full HD & 4K Ultra HD',
+    description: '2 telas simultâneas para Smart TV, TV Box e família.',
+  },
+  {
+    id: 'business',
+    name: 'SPARTAN BUSINESS',
+    badge: 'Família VIP',
+    monthlyPrice: 119.9,
+    annualPrice: 99.9,
+    screens: 5,
+    quality: 'Full HD & 4K Ultra HD',
+    description: '5 telas simultâneas em qualquer dispositivo com suporte prioritário.',
+  },
+];
+
+function ensureFounderInPlans(list) {
+  if (!Array.isArray(list) || list.length === 0) return OFFICIAL_DEFAULT_PLANS;
+  const hasFounder = list.some(p => p.id === 'fundador' || String(p.name || '').toUpperCase().includes('FUNDADOR'));
+  if (!hasFounder) {
+    const copy = [...list];
+    copy.splice(1, 0, OFFICIAL_DEFAULT_PLANS[1]);
+    return copy;
+  }
+  // Garante que o fundador tenha adminOnly e 3 telas
+  return list.map(p => {
+    if (p.id === 'fundador' || String(p.name || '').toUpperCase().includes('FUNDADOR')) {
+      return {
+        ...p,
+        screens: Math.max(3, Number(p.screens || 3)),
+        adminOnly: true
+      };
+    }
+    return p;
+  });
+}
+
 async function fetchFromSupabase() {
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/system_settings?select=key,value`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/system_settings?select=key,value,updated_at`, {
       headers: {
         apikey: SUPABASE_KEY,
         Authorization: `Bearer ${SUPABASE_KEY}`
@@ -23,7 +88,7 @@ async function fetchFromSupabase() {
     const settings = {};
     for (const r of rows) {
       if (r.key && r.value) {
-        settings[r.key] = r.value;
+        settings[r.key] = { value: r.value, updated_at: r.updated_at };
       }
     }
     return settings;
@@ -67,7 +132,7 @@ export default async function handler(req, res) {
   const forwarded = req.headers['x-forwarded-for'];
   const clientIp = forwarded ? forwarded.split(',')[0].trim() : (req.socket?.remoteAddress || '127.0.0.1');
 
-  // Configuração padrão oficial Spartan (chave Pix padrão: gsroboticmania@gmail.com)
+  // Configuração padrão oficial Spartan
   let config = {
     minVersion: '1.0.0',
     latestVersion: '1.0.0',
@@ -88,49 +153,32 @@ export default async function handler(req, res) {
       city: 'Manaus',
       customMessage: 'Olá! Segue sua cobrança Pix Cine Spartan para ativação ou renovação imediata:'
     },
-    plansConfig: null,
-    financialCharges: null
+    plansConfig: OFFICIAL_DEFAULT_PLANS,
+    financialCharges: [],
+    last_saved_at: null
   };
 
-  // 1. Carrega do cache temporário se existir
+  // 1. Carrega do cache salvo em memória/disco local
   const saved = readSavedConfig();
   if (saved) {
     config = { ...config, ...saved };
   }
 
-  // 2. Sempre sincroniza com o Supabase system_settings para que nunca reverta na Vercel (persistência 100% permanente)
-  const supabaseSettings = await fetchFromSupabase();
-  if (supabaseSettings) {
-    if (supabaseSettings.pix_config && typeof supabaseSettings.pix_config === 'object' && supabaseSettings.pix_config.key) {
-      config.pixConfig = {
-        ...config.pixConfig,
-        ...supabaseSettings.pix_config
-      };
-    }
-    if (supabaseSettings.app_security_config && typeof supabaseSettings.app_security_config === 'object') {
-      config = {
-        ...config,
-        ...supabaseSettings.app_security_config
-      };
-    }
-    if (Array.isArray(supabaseSettings.plans_config) && supabaseSettings.plans_config.length > 0) {
-      config.plansConfig = supabaseSettings.plans_config;
-    }
-    if (Array.isArray(supabaseSettings.financial_charges) && supabaseSettings.financial_charges.length > 0) {
-      config.financialCharges = supabaseSettings.financial_charges;
-    }
-  }
-
-  // 3. POST ou PUT: Atualiza a configuração remota vinda do Admin Dashboard
+  // 2. POST ou PUT: Atualiza a configuração remota vinda do Admin Dashboard
   if (req.method === 'POST' || req.method === 'PUT') {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     if (body) {
+      const savedPlans = Array.isArray(body.plansConfig) && body.plansConfig.length > 0
+        ? ensureFounderInPlans(body.plansConfig)
+        : config.plansConfig;
+
       const nextConfig = {
+        ...config,
         minVersion: body.minVersion || config.minVersion,
         latestVersion: body.latestVersion || config.latestVersion,
-        forceUpdate: Boolean(body.forceUpdate),
+        forceUpdate: body.forceUpdate !== undefined ? Boolean(body.forceUpdate) : config.forceUpdate,
         apkDownloadUrl: body.apkDownloadUrl || config.apkDownloadUrl,
-        maintenanceMode: Boolean(body.maintenanceMode),
+        maintenanceMode: body.maintenanceMode !== undefined ? Boolean(body.maintenanceMode) : config.maintenanceMode,
         maintenanceMessage: body.maintenanceMessage || config.maintenanceMessage,
         updateMessage: body.updateMessage || config.updateMessage,
         webAccessEnabled: body.webAccessEnabled !== undefined ? Boolean(body.webAccessEnabled) : config.webAccessEnabled,
@@ -145,18 +193,43 @@ export default async function handler(req, res) {
           city: String(body.pixConfig.city || config.pixConfig?.city || 'Manaus').trim(),
           customMessage: String(body.pixConfig.customMessage || config.pixConfig?.customMessage || '')
         } : config.pixConfig,
-        plansConfig: Array.isArray(body.plansConfig) && body.plansConfig.length > 0 ? body.plansConfig : config.plansConfig,
-        financialCharges: Array.isArray(body.financialCharges) ? body.financialCharges : config.financialCharges
+        plansConfig: savedPlans,
+        financialCharges: Array.isArray(body.financialCharges) ? body.financialCharges : config.financialCharges,
+        last_saved_at: new Date().toISOString()
       };
+
       writeSavedConfig(nextConfig);
-      config = { ...config, ...nextConfig };
+      config = nextConfig;
     }
     return res.status(200).json({ success: true, ...config });
   }
 
-  // 4. GET: Retorna a configuração e o IP do cliente
+  // 3. GET: Sincroniza apenas com o Supabase system_settings se o Supabase tiver dados válidos e não sobrescrever edições recentes
+  const supabaseSettings = await fetchFromSupabase();
+  if (supabaseSettings) {
+    if (supabaseSettings.pix_config?.value?.key && (!saved?.last_saved_at || supabaseSettings.pix_config.updated_at > saved.last_saved_at)) {
+      config.pixConfig = { ...config.pixConfig, ...supabaseSettings.pix_config.value };
+    }
+    if (supabaseSettings.app_security_config?.value && (!saved?.last_saved_at || supabaseSettings.app_security_config.updated_at > saved.last_saved_at)) {
+      config = { ...config, ...supabaseSettings.app_security_config.value };
+    }
+    if (Array.isArray(supabaseSettings.plans_config?.value) && supabaseSettings.plans_config.value.length > 0) {
+      // Se não há configuração salva localmente pelo admin, usa os planos do Supabase garantindo o Spartan Fundador
+      if (!saved?.plansConfig || saved.plansConfig.length === 0) {
+        config.plansConfig = ensureFounderInPlans(supabaseSettings.plans_config.value);
+      }
+    }
+    if (Array.isArray(supabaseSettings.financial_charges?.value) && (!saved?.financialCharges || saved.financialCharges.length === 0)) {
+      config.financialCharges = supabaseSettings.financial_charges.value;
+    }
+  }
+
+  config.plansConfig = ensureFounderInPlans(config.plansConfig);
+
+  // 4. Retorna a configuração e o IP do cliente
   return res.status(200).json({
     ...config,
     clientIp
   });
 }
+

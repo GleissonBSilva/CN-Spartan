@@ -61,7 +61,9 @@ function loadFromDisk() {
     const plan = String(p.plan_name || '').toUpperCase();
     let screens = Number(p.max_screens || 1);
     if (plan.includes('START') && screens > 1) screens = 1;
+    else if (plan.includes('FUNDADOR') && screens < 3) screens = 3;
     else if (plan.includes('PRO') && screens > 2) screens = 2;
+    else if (plan.includes('BUSINESS') && screens < 5) screens = 5;
 
     const isMaster = p.email?.toLowerCase() === 'gleisson1984@gmail.com' || p.role === 'admin';
     const expMs = p.expires_at ? new Date(p.expires_at).getTime() : 0;
