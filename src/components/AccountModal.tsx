@@ -27,6 +27,7 @@ import { supabase } from '../lib/supabase';
 import { DEFAULT_PLANS, getSavedPlans, type PlanTier } from '../constants/plans';
 import { generatePixPayload, getPixQrCodeUrl, DEFAULT_PIX_CONFIG, type PixConfig } from '../utils/pix';
 import { fetchApi } from '../lib/apiConfig';
+import { SpartanGoldenHelmetShield, SpartanFounderBanner } from './SpartanGoldenShield';
 
 interface AccountModalProps {
   isOpen: boolean;
@@ -175,10 +176,12 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   // Status visual da conta
   const isTrial = profile?.is_trial || profile?.plan_name?.toLowerCase().includes('teste');
   const currentPlanName = profile?.plan_name || 'SPARTAN PRO';
+  const isFounder = currentPlanName.toUpperCase().includes('FUNDADOR');
   const maxScreens = (() => {
     const rawScreens = Number(profile?.max_screens || 1);
     const plan = String(profile?.plan_name || '').toUpperCase();
     if (plan.includes('START') && rawScreens > 1) return 1;
+    if (plan.includes('FUNDADOR')) return rawScreens >= 3 ? rawScreens : 3;
     if (plan.includes('PRO') && rawScreens > 2) return 2;
     if (plan.includes('BUSINESS') && rawScreens < 5) return 5;
     return rawScreens;
@@ -436,22 +439,29 @@ export const AccountModal: React.FC<AccountModalProps> = ({
             </div>
           </div>
 
-          {/* Badge do Plano Atual */}
-          <div className={`px-3.5 py-2 rounded-xl text-right self-start sm:self-auto ${
-            currentPlanName.toUpperCase().includes('FUNDADOR')
-              ? 'bg-gradient-to-br from-amber-950/60 via-yellow-950/30 to-black border border-amber-500/50 shadow-lg shadow-amber-950/40'
-              : 'bg-black/40 border border-purple-500/30'
-          }`}>
-            <span className={`text-[10px] uppercase font-bold tracking-wider block ${
-              currentPlanName.toUpperCase().includes('FUNDADOR') ? 'text-amber-300' : 'text-purple-300'
-            }`}>
-              {currentPlanName.toUpperCase().includes('FUNDADOR') ? '⭐ Categoria Exclusiva' : isTrial ? 'Plano Selecionado (Em Teste)' : 'Plano Contratado'}
-            </span>
-            <span className="text-sm font-black text-white flex items-center justify-end gap-1">
-              {currentPlanName.toUpperCase().includes('FUNDADOR') && <FaStar className="text-amber-400 text-xs" />}
-              {currentPlanName}
-            </span>
-          </div>
+          {/* Badge do Plano Atual com Escudo e Capacete Dourado para Spartan Fundador */}
+          {isFounder ? (
+            <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-950/90 via-yellow-950/40 to-black border border-amber-500/60 shadow-lg shadow-amber-950/60 self-start sm:self-auto">
+              <SpartanGoldenHelmetShield size={42} glow={true} />
+              <div className="text-left">
+                <span className="text-[10px] uppercase font-black tracking-wider block text-amber-300">
+                  🛡️ VIP FUNDADOR
+                </span>
+                <span className="text-sm font-black text-amber-400">
+                  {currentPlanName}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="px-3.5 py-2 rounded-xl text-right self-start sm:self-auto bg-black/40 border border-purple-500/30">
+              <span className="text-[10px] uppercase font-bold tracking-wider block text-purple-300">
+                {isTrial ? 'Plano Selecionado (Em Teste)' : 'Plano Contratado'}
+              </span>
+              <span className="text-sm font-black text-white flex items-center justify-end gap-1">
+                {currentPlanName}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Abas de Navegação */}
@@ -538,6 +548,14 @@ export const AccountModal: React.FC<AccountModalProps> = ({
           {/* ABA 1: MINHA ASSINATURA */}
           {activeTab === 'assinatura' && (
             <div className="space-y-5">
+              {/* Banner Exclusivo de Honra com Escudo e Capacete Dourado Spartan Fundador */}
+              {isFounder && (
+                <SpartanFounderBanner
+                  screens={maxScreens}
+                  quality={currentPlan?.quality}
+                />
+              )}
+
               {/* Banner Informativo de Teste Grátis */}
               {isTrial && isActive && (
                 <div className="bg-amber-500/10 border border-amber-500/30 p-3.5 rounded-xl text-xs text-amber-200 flex items-start gap-2.5 shadow-sm">
@@ -784,32 +802,51 @@ export const AccountModal: React.FC<AccountModalProps> = ({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-                {plans.map((pl) => {
-                  const isCurrent = pl.name.toLowerCase() === currentPlanName.toLowerCase();
-                  return (
-                    <div
-                      key={pl.id}
-                      className={`relative p-4 rounded-2xl border transition-all flex flex-col justify-between ${
-                        isCurrent
-                          ? 'bg-purple-950/40 border-purple-500/80 shadow-lg shadow-purple-950/40'
-                          : 'bg-black/40 border-gray-800 hover:border-gray-700'
-                      }`}
-                    >
-                      {pl.badge && (
-                        <div className="absolute -top-2.5 right-3 bg-gradient-to-r from-purple-600 to-red-600 text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shadow-md">
-                          {pl.badge}
-                        </div>
-                      )}
+                {plans
+                  .filter((pl) => {
+                    const isCurrent = pl.name.toLowerCase() === currentPlanName.toLowerCase();
+                    const isFundador = pl.id === 'fundador' || pl.name.toUpperCase().includes('FUNDADOR') || pl.adminOnly;
+                    // O plano Fundador é reservado: só aparece aqui se o cliente já for um membro Fundador (para ver como seu plano atual)
+                    if (isFundador && !isCurrent) return false;
+                    return true;
+                  })
+                  .map((pl) => {
+                    const isCurrent = pl.name.toLowerCase() === currentPlanName.toLowerCase();
+                    const isFundadorPlan = pl.id === 'fundador' || pl.name.toUpperCase().includes('FUNDADOR') || pl.adminOnly;
+                    return (
+                      <div
+                        key={pl.id}
+                        className={`relative p-4 rounded-2xl border transition-all flex flex-col justify-between ${
+                          isCurrent
+                            ? isFundadorPlan
+                              ? 'bg-amber-950/40 border-amber-500/80 shadow-lg shadow-amber-950/50'
+                              : 'bg-purple-950/40 border-purple-500/80 shadow-lg shadow-purple-950/40'
+                            : 'bg-black/40 border-gray-800 hover:border-gray-700'
+                        }`}
+                      >
+                        {isFundadorPlan ? (
+                          <div className="absolute -top-2.5 right-3 flex items-center gap-1 bg-gradient-to-r from-amber-600 to-yellow-500 text-black text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shadow-md">
+                            <SpartanGoldenHelmetShield size={12} glow={false} />
+                            <span>VIP Exclusivo</span>
+                          </div>
+                        ) : pl.badge && (
+                          <div className="absolute -top-2.5 right-3 bg-gradient-to-r from-purple-600 to-red-600 text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shadow-md">
+                            {pl.badge}
+                          </div>
+                        )}
 
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="text-xs font-black text-white">{pl.name}</h4>
-                          {isCurrent && (
-                            <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
-                              <FaCheck /> Atual
-                            </span>
-                          )}
-                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                              {isFundadorPlan && <SpartanGoldenHelmetShield size={16} glow={false} />}
+                              {pl.name}
+                            </h4>
+                            {isCurrent && (
+                              <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
+                                <FaCheck /> Atual
+                              </span>
+                            )}
+                          </div>
 
                         <div className="my-3">
                           <div className="flex items-baseline gap-1">
@@ -853,6 +890,10 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     </div>
                   );
                 })}
+              </div>
+
+              <div className="bg-gradient-to-r from-amber-950/20 via-black to-amber-950/20 border border-amber-500/30 p-3.5 rounded-xl text-center text-xs text-gray-300">
+                🛡️ <strong>Plano VIP Spartan Fundador:</strong> Trata-se de uma honraria vitalícia e exclusiva, concedida e gerenciada unicamente pela administração Spartan.
               </div>
 
               <div className="bg-black/50 border border-purple-900/30 p-3.5 rounded-xl text-center text-xs text-gray-300">

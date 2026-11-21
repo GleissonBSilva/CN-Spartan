@@ -7,6 +7,7 @@ export interface PlanTier {
   screens: number;
   quality: string;
   description: string;
+  adminOnly?: boolean;
 }
 
 export const DEFAULT_PLANS: PlanTier[] = [
@@ -22,12 +23,13 @@ export const DEFAULT_PLANS: PlanTier[] = [
   {
     id: 'fundador',
     name: 'SPARTAN FUNDADOR',
-    badge: '⭐ Membro Pioneiro',
+    badge: '🛡️ VIP Fundador',
     monthlyPrice: 34.9,
     annualPrice: 29.9,
     screens: 3,
     quality: 'Full HD & 4K Ultra HD VIP',
-    description: 'Condição especial vitalícia exclusiva para clientes fundadores e apoiadores pioneiros do projeto (3 telas simultâneas).',
+    description: 'Condição exclusiva vitalícia reservada apenas para clientes fundadores e pioneiros, liberada diretamente pela administração Spartan (3 telas simultâneas).',
+    adminOnly: true,
   },
   {
     id: 'pro',
@@ -75,6 +77,16 @@ export const getSavedPlans = (): PlanTier[] => {
     }
   } catch {}
   return DEFAULT_PLANS;
+};
+
+/**
+ * Retorna apenas os planos públicos disponíveis para registro ou auto-upgrade de clientes comuns.
+ * O plano SPARTAN FUNDADOR é estritamente restrito e liberado apenas pelo administrador.
+ */
+export const getPublicPlans = (): PlanTier[] => {
+  return getSavedPlans().filter(
+    (p) => !p.adminOnly && p.id !== 'fundador' && !p.name.toUpperCase().includes('FUNDADOR')
+  );
 };
 
 export const savePlansConfig = (plans: PlanTier[]): void => {

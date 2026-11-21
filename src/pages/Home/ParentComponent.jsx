@@ -12,6 +12,7 @@ import LanguageSelector from "../../components/LanguageSelector";
 import FamilyModeControl from "../../components/FamilyModeControl";
 import { useAuthProfile } from "../../hooks/useAuthProfile";
 import { isTvBoxOrApk } from "../../hooks/useAppUpdateGuard";
+import { SpartanGoldenHelmetShield } from "../../components/SpartanGoldenShield";
 
 function ParentComponent() {
   const { user: supaUser, profile, isActive, isExpired, daysRemaining, signOut: supaSignOut } = useAuthProfile();
@@ -220,16 +221,26 @@ function ParentComponent() {
           <button
             onClick={() => setIsAccountModalOpen(true)}
             title="Minha Conta, Vencimento & Plano"
-            className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 rounded-full bg-black/70 hover:bg-purple-950/70 border border-purple-500/40 text-white text-xs font-semibold backdrop-blur-md shadow-lg transition-all hover:scale-105 active:scale-95"
+            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 rounded-full backdrop-blur-md shadow-lg transition-all hover:scale-105 active:scale-95 ${
+              profile?.plan_name?.toUpperCase().includes('FUNDADOR')
+                ? 'bg-gradient-to-r from-amber-950/90 via-black to-yellow-950/80 hover:from-amber-900/90 hover:to-black border border-amber-500/60 shadow-amber-950/60 text-amber-300 font-bold text-xs'
+                : 'bg-black/70 hover:bg-purple-950/70 border border-purple-500/40 text-white text-xs font-semibold'
+            }`}
           >
-            <FaUserCircle className="text-purple-400 text-sm" />
+            {profile?.plan_name?.toUpperCase().includes('FUNDADOR') ? (
+              <SpartanGoldenHelmetShield size={18} glow={false} />
+            ) : (
+              <FaUserCircle className="text-purple-400 text-sm" />
+            )}
             <span className="hidden sm:inline font-bold text-[11px] max-w-[130px] truncate">
               {profile?.plan_name || 'Minha Conta'}
             </span>
             <span
               className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
                 isActive
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  ? profile?.plan_name?.toUpperCase().includes('FUNDADOR')
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                   : 'bg-red-500/20 text-red-300 border border-red-500/30'
               }`}
             >

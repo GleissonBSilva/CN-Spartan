@@ -15,6 +15,7 @@ import { CATEGORIES as TV_CATEGORIES } from './LiveTV/channelsData';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuthProfile } from '../../hooks/useAuthProfile';
 import LanguageSelector from '../../components/LanguageSelector';
+import { SpartanGoldenHelmetShield } from '../../components/SpartanGoldenShield';
 
 const NAV_ITEMS = [
   { id: 'search', icon: BiSearch, action: 'navigate', label: 'Search' },
@@ -265,20 +266,33 @@ function Sidebar({ activePage, onNavigate, selectedGenreId, onGenreSelect, onOpe
                   onOpenAccountModal();
                 }}
                 title="Minha Conta, Vencimento & Trocar Plano"
-                className="
+                className={`
                   relative flex items-center justify-start md:justify-center md:group-hover:justify-start gap-3.5 px-3.5 py-2 rounded-2xl
-                  w-full whitespace-nowrap
-                  bg-purple-950/30 border border-purple-500/30 text-gray-200 hover:bg-purple-600/25 hover:border-purple-500/50 hover:text-white transition-all duration-200 focus:outline-none shadow-md group/acc
-                "
+                  w-full whitespace-nowrap transition-all duration-200 focus:outline-none shadow-md group/acc ${
+                    profile?.plan_name?.toUpperCase().includes('FUNDADOR')
+                      ? 'bg-gradient-to-r from-amber-950/70 via-black to-yellow-950/60 border border-amber-500/50 text-amber-300 hover:border-amber-400'
+                      : 'bg-purple-950/30 border border-purple-500/30 text-gray-200 hover:bg-purple-600/25 hover:border-purple-500/50 hover:text-white'
+                  }
+                `}
               >
-                <FaUserCircle className="text-[20px] text-purple-400 shrink-0 group-hover/acc:scale-110 transition-transform" />
+                {profile?.plan_name?.toUpperCase().includes('FUNDADOR') ? (
+                  <SpartanGoldenHelmetShield size={22} glow={false} className="shrink-0 group-hover/acc:scale-110 transition-transform" />
+                ) : (
+                  <FaUserCircle className="text-[20px] text-purple-400 shrink-0 group-hover/acc:scale-110 transition-transform" />
+                )}
                 <div className="flex md:hidden md:group-hover:flex flex-col text-left min-w-0">
-                  <span className="text-white text-[12px] font-bold truncate">
+                  <span className={`text-[12px] font-bold truncate ${
+                    profile?.plan_name?.toUpperCase().includes('FUNDADOR') ? 'text-amber-300' : 'text-white'
+                  }`}>
                     {profile?.plan_name || 'Minha Conta'}
                   </span>
                   <span
                     className={`text-[10px] font-black truncate ${
-                      isActive ? 'text-emerald-400' : 'text-red-400'
+                      isActive
+                        ? profile?.plan_name?.toUpperCase().includes('FUNDADOR')
+                          ? 'text-amber-400'
+                          : 'text-emerald-400'
+                        : 'text-red-400'
                     }`}
                   >
                     {isActive ? `${daysRemaining}d restantes` : 'Assinatura Vencida'}

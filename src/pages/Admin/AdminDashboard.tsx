@@ -51,6 +51,7 @@ import { DEFAULT_PLANS, getSavedPlans, savePlansConfig, type PlanTier } from '..
 import { generatePixPayload, getPixQrCodeUrl } from '../../utils/pix';
 import { fetchApi } from '../../lib/apiConfig';
 import SEO from '../Home/SEO';
+import { SpartanGoldenHelmetShield } from '../../components/SpartanGoldenShield';
 
 // Tipagem de Cobrança Pix
 interface PixCharge {
@@ -3239,8 +3240,8 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                                       </span>
                                     )}
                                     {p.plan_name?.toUpperCase().includes('FUNDADOR') && (
-                                      <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm">
-                                        <FaStar className="text-[8px] text-amber-400" /> Fundador
+                                      <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-amber-300 border border-amber-500/40 shadow-sm">
+                                        <SpartanGoldenHelmetShield size={12} glow={false} /> Fundador
                                       </span>
                                     )}
                                   </div>
@@ -3274,10 +3275,10 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                               <div className="flex flex-col items-start gap-1">
                                 <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold ${
                                   p.plan_name?.toUpperCase().includes('FUNDADOR')
-                                    ? 'bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-yellow-300 border border-amber-500/40 flex items-center gap-1 shadow-sm'
+                                    ? 'bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-yellow-300 border border-amber-500/40 flex items-center gap-1.5 shadow-sm'
                                     : 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/20'
                                 }`}>
-                                  {p.plan_name?.toUpperCase().includes('FUNDADOR') && <FaStar className="text-[9px] text-amber-400" />}
+                                  {p.plan_name?.toUpperCase().includes('FUNDADOR') && <SpartanGoldenHelmetShield size={14} glow={false} />}
                                   {p.plan_name || 'SPARTAN PRO'}
                                 </span>
                                 <span className="text-[10px] text-gray-400 font-semibold">
@@ -4393,26 +4394,43 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
               </p>
             </div>
 
-            {/* 3 Cards de Planos lado a lado conforme especificação */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {plans.map((pl) => (
-                <div
-                  key={pl.id}
-                  className={`bg-[#12121c] border rounded-2xl p-6 shadow-xl flex flex-col justify-between relative ${
-                    pl.badge === 'Mais Popular'
-                      ? 'border-purple-500/60 shadow-purple-950/40'
-                      : 'border-purple-900/30'
-                  }`}
-                >
-                  {pl.badge && (
-                    <span className="absolute -top-3 right-6 px-3 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md">
-                      {pl.badge}
-                    </span>
-                  )}
+            {/* Cards de Planos lado a lado com destaque exclusivo para o Spartan Fundador */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {plans.map((pl) => {
+                const isFundadorPlan = pl.id === 'fundador' || pl.name.toUpperCase().includes('FUNDADOR');
+                return (
+                  <div
+                    key={pl.id}
+                    className={`border rounded-2xl p-6 shadow-xl flex flex-col justify-between relative ${
+                      isFundadorPlan
+                        ? 'bg-gradient-to-br from-amber-950/70 via-yellow-950/30 to-[#12121c] border-amber-500/60 shadow-amber-950/40'
+                        : pl.badge === 'Mais Popular' || pl.badge === 'Mais Escolhido'
+                        ? 'bg-[#12121c] border-purple-500/60 shadow-purple-950/40'
+                        : 'bg-[#12121c] border-purple-900/30'
+                    }`}
+                  >
+                    {isFundadorPlan ? (
+                      <span className="absolute -top-3 right-6 px-3 py-0.5 rounded-full text-[10px] font-black uppercase bg-gradient-to-r from-amber-500 to-yellow-400 text-black shadow-md flex items-center gap-1">
+                        <SpartanGoldenHelmetShield size={12} glow={false} />
+                        VIP Exclusivo Admin
+                      </span>
+                    ) : pl.badge && (
+                      <span className="absolute -top-3 right-6 px-3 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md">
+                        {pl.badge}
+                      </span>
+                    )}
 
-                  <div>
-                    <h3 className="text-base font-black text-white tracking-wide mb-1">{pl.name}</h3>
-                    <p className="text-xs text-gray-400 mb-6">{pl.description}</p>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        {isFundadorPlan && <SpartanGoldenHelmetShield size={22} glow={false} />}
+                        <h3 className="text-base font-black text-white tracking-wide">{pl.name}</h3>
+                      </div>
+                      <p className="text-xs text-gray-400 mb-6">{pl.description}</p>
+                      {isFundadorPlan && (
+                        <div className="mb-4 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[10px] text-amber-300 font-bold leading-tight">
+                          🔒 <strong>Restrito:</strong> Oculto para o público geral no cadastro e troca de plano. Só você (Admin) pode conceder ou alterar um cliente para este plano.
+                        </div>
+                      )}
 
                     <div className="space-y-4">
                       {/* Preço Mensal */}
@@ -4491,7 +4509,8 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                     </button>
                   </div>
                 </div>
-              ))}
+              );
+            })}
             </div>
           </div>
         )}
@@ -5106,7 +5125,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                         className="px-1.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/35 text-amber-300 border border-amber-500/40 text-[9px] font-black transition flex items-center gap-0.5"
                         title="Aplicar preço especial de Fundador (R$ 34,90)"
                       >
-                        <FaStar className="text-[8px] text-amber-400" /> Fundador (34,90)
+                        <SpartanGoldenHelmetShield size={10} glow={false} /> Fundador (34,90)
                       </button>
                       <button
                         type="button"
@@ -5247,7 +5266,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                     >
                       {plans.map((pl) => (
                         <option key={pl.id} value={pl.name}>
-                          {pl.name} ({pl.screens} {pl.screens === 1 ? 'tela' : 'telas'})
+                          {pl.name} {pl.id === 'fundador' || pl.name.toUpperCase().includes('FUNDADOR') ? '⭐ [VIP FUNDADOR - EXCLUSIVO]' : ''} ({pl.screens} {pl.screens === 1 ? 'tela' : 'telas'})
                         </option>
                       ))}
                     </select>
@@ -5373,7 +5392,7 @@ export default function AdminDashboard({ defaultTab = 'overview' }: AdminDashboa
                   >
                     {plans.map((pl) => (
                       <option key={pl.id} value={pl.name}>
-                        {pl.name} (Padrão: {pl.screens} {pl.screens > 1 ? 'telas' : 'tela'})
+                        {pl.name} {pl.id === 'fundador' || pl.name.toUpperCase().includes('FUNDADOR') ? '⭐ [VIP FUNDADOR - EXCLUSIVO]' : ''} (Padrão: {pl.screens} {pl.screens > 1 ? 'telas' : 'tela'})
                       </option>
                     ))}
                     <option value="Personalizado">Personalizado</option>

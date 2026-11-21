@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaTimes, FaEnvelope, FaLock, FaUser, FaSpinner, FaExclamationCircle, FaCheckCircle, FaWhatsapp, FaTv, FaClock } from 'react-icons/fa';
 import { supabase } from '../lib/supabase';
-import { getSavedPlans } from '../constants/plans';
+import { getPublicPlans } from '../constants/plans';
 import { useAuthProfile } from '../hooks/useAuthProfile';
 import { fetchApi } from '../lib/apiConfig';
 
@@ -31,8 +31,8 @@ export default function AuthModal({ isOpen, onClose }) {
   const [verificationSent, setVerificationSent] = useState(false);
   const [registrationSubmitted, setRegistrationSubmitted] = useState(false);
 
-  // Planos disponíveis para assinatura
-  const plans = useMemo(() => getSavedPlans(), []);
+  // Planos disponíveis para assinatura pública (Fundador é exclusivo e liberado apenas pelo Admin)
+  const plans = useMemo(() => getPublicPlans(), []);
   const [selectedPlanId, setSelectedPlanId] = useState('pro');
   const selectedPlan = useMemo(() => plans.find(p => p.id === selectedPlanId) || plans[0], [plans, selectedPlanId]);
 
@@ -801,7 +801,7 @@ export default function AuthModal({ isOpen, onClose }) {
                           )}
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                           {plans.map((p) => {
                             const isSelected = p.id === selectedPlanId;
                             const isFundador = p.id === 'fundador' || p.name.toUpperCase().includes('FUNDADOR');
